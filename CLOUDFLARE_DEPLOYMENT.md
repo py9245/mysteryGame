@@ -49,7 +49,7 @@ Cloudflare 공식 문서 기준으로 이 앱은 Pages보다 Workers 경로가 �
 
 - `GMS_KEY`
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 설정 위치:
@@ -59,6 +59,7 @@ Cloudflare 공식 문서 기준으로 이 앱은 Pages보다 Workers 경로가 �
 
 이 프로젝트는 AI 호출 시 `GMS_KEY`를 사용한다.
 Supabase를 실제 연결할 경우 위 3개 값도 함께 넣어야 한다.
+예전 변수명 `NEXT_PUBLIC_SUPABASE_ANON_KEY`도 코드에서 호환되지만, 새 설정은 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 권장한다.
 
 ## 로컬 확인 명령
 

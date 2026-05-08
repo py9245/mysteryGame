@@ -9,7 +9,7 @@
 ## 지금 해야 할 것
 
 1. Supabase에서 새 프로젝트 생성
-2. `Project URL`, `anon key`, `service_role key` 확보
+2. `Project URL`, `publishable key`(또는 legacy `anon key`), `service_role key` 확보
 3. DB 스키마에 마이그레이션 적용
 4. 로컬 `.env`와 Cloudflare Variables/Secrets에 키 등록
 5. 그 다음 코드에서 sample route를 Supabase-backed route로 교체
@@ -20,9 +20,14 @@
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
+
+호환:
+
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 우선 사용한다.
+- 예전 대시보드 표기인 `NEXT_PUBLIC_SUPABASE_ANON_KEY`도 여전히 인식한다.
 
 정의 위치:
 
@@ -35,7 +40,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 ```env
 GMS_KEY=...
 NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
@@ -51,20 +56,20 @@ Cloudflare Workers 배포 시 아래 값을 넣으면 된다.
 Build Variables and Secrets:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GMS_KEY`
 
 Runtime Variables and Secrets:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GMS_KEY`
 
 권장:
 
-- `NEXT_PUBLIC_...` 값 2개는 Variable로 넣어도 된다.
+- `NEXT_PUBLIC_...` 값은 Variable로 넣어도 된다.
 - `SUPABASE_SERVICE_ROLE_KEY`, `GMS_KEY`는 Secret으로 넣는 게 맞다.
 
 ## DB 스키마 적용
@@ -134,7 +139,7 @@ Runtime Variables and Secrets:
 지금 네가 해야 하는 최소 작업은 이것만 하면 된다.
 
 1. Supabase 프로젝트 생성
-2. URL / anon key / service role key 복사
+2. URL / publishable key / service role key 복사
 3. `.env`에 넣기
 4. Cloudflare에도 같은 값 넣기
 5. `20260507_000001_initial_schema.sql` 실행
