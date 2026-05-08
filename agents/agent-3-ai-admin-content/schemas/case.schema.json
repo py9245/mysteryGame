@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "case.schema.json",
+  "title": "Mystery Time Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "stageNumber",
+    "difficulty",
+    "title",
+    "publicDescription",
+    "question",
+    "truth",
+    "requiredKeywords",
+    "bonusKeywords",
+    "acceptedAnswerSummary",
+    "hints",
+    "status",
+    "version"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "stageNumber": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "difficulty": { "type": "string", "enum": ["easy", "normal", "hard"] },
+    "title": { "type": "string", "minLength": 1 },
+    "publicDescription": { "type": "string", "minLength": 1 },
+    "question": { "type": "string", "minLength": 1 },
+    "truth": { "type": "string", "minLength": 1 },
+    "requiredKeywords": { "type": "array", "items": { "type": "string" }, "minItems": 3 },
+    "bonusKeywords": { "type": "array", "items": { "type": "string" } },
+    "acceptedAnswerSummary": { "type": "string", "minLength": 1 },
+    "hints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hintId", "order", "triggerType", "strength", "publicText", "internalNote"],
+        "properties": {
+          "hintId": { "type": "string" },
+          "order": { "type": "integer", "minimum": 1 },
+          "triggerType": { "type": "string" },
+          "strength": { "type": "string", "enum": ["weak", "medium", "strong", "final"] },
+          "publicText": { "type": "string" },
+          "internalNote": { "type": "string" }
+        }
+      }
+    },
+    "reviewNotes": { "type": "string" },
+    "status": { "type": "string", "enum": ["draft", "review", "approved", "archived"] },
+    "version": { "type": "string", "minLength": 1 }
+  }
+}

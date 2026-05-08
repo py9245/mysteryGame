@@ -1,0 +1,121 @@
+"use client";
+
+import { useState } from "react";
+import { buildChatMessageViewModels, resolveChatTeamLabel } from "./chat-message-view-model";
+import {
+  buildSendChatMessageRequest,
+  buildSubmittedChatPreview,
+  submitChatMessage,
+  type ComposerChannel,
+  type SubmittedChatPreview,
+} from "./send-chat-message";
+import type { ChatSnapshot } from "./chat-ui-types";
+
+export function ChatComposer({
+  snapshot,
+  onSubmittedPreview,
+}: {
+  snapshot: ChatSnapshot;
+  onSubmittedPreview?: (preview: SubmittedChatPreview) => void;
+}) {
+  const hasTeamChannel = snapshot.me.teamSlotId !== null;
+  const teamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots) ?? "미배정";
+  const stageLabel = snapshot.stage
+    ? `스테이지 ${snapshot.stage.stageNumber} · ${snapshot.stage.publicTitle}`
+    : "대기 브리핑";
+  const [channel, setChannel] = useState<ComposerChannel>(hasTeamChannel ? "team" : "global");
+  const [content, setContent] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedPreview, setSubmittedPreview] = useState<SubmittedChatPreview | null>(null);
+  const previewViewModel = submittedPreview
+    ? buildChatMessageViewModels([submittedPreview.message], snapshot, { submittedPreview })[0] ?? null
+    : null;
+  const canSubmit = content.trim().length > 0 && !isSubmitting && (channel !== "team" || hasTeamChannel);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canSubmit) {
+      return;
+    }
+
+    const request = buildSendChatMessageRequest({
+      snapshot,
+      channel,
+      content,
+    });
+
+    setIsSubmitting(true);
+
+    const result = await submitChatMessage({ request });
+    const preview = buildSubmittedChatPreview(result);
+    setSubmittedPreview(preview);
+    onSubmittedPreview?.(preview);
+
+    if (result.ok) {
+      setContent("");
+      setIsSubmitting(false);
+      return;
+    }
+
+    setIsSubmitting(false);
+  }
+
+  return (
+    <section className="chat-section">
+      <h4>메시지 보내기</h4>
+      <p className="panel-copy">
+        {snapshot.me.nickname} · {teamLabel} · {stageLabel}
+      </p>
+      <form className="composer-form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label htmlFor="composer-channel">채널</label>
+          <select
+            id="composer-channel"
+            className="select-input"
+            value={channel}
+            onChange={(event) => setChannel(event.target.value as ComposerChannel)}
+          >
+            <option value="team" disabled={!hasTeamChannel}>
+              {hasTeamChannel ? `${teamLabel} 팀` : "팀 채널 없음"}
+            </option>
+            <option value="global">전체</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="composer-message">메시지</label>
+          <textarea
+            id="composer-message"
+            className="text-area"
+            rows={3}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder={
+              channel === "team"
+                ? `${teamLabel} 팀에게 공유할 단서를 입력하세요.`
+                : "전체 플레이어에게 공유할 내용을 입력하세요."
+            }
+          />
+        </div>
+        <button className="button-primary" type="submit" disabled={!canSubmit}>
+          {isSubmitting ? "전송 중..." : "메시지 보내기"}
+        </button>
+      </form>
+      {submittedPreview === null ? (
+        <p className="message-note">가장 최근 전송 결과가 여기에 표시됩니다.</p>
+      ) : (
+        <section className="panel panel-muted">
+          <h5>{submittedPreview.status === "success" ? "전송 결과" : "전송 보류"}</h5>
+          <p className="message-note">{submittedPreview.notice}</p>
+          <p className="panel-copy">{submittedPreview.detail}</p>
+          {previewViewModel ? (
+            <div className="assignment-card">
+              <strong>{previewViewModel.authorLabel}</strong> <span>{previewViewModel.metaLabel}</span>
+              <p>{previewViewModel.content}</p>
+            </div>
+          ) : null}
+        </section>
+      )}
+    </section>
+  );
+}

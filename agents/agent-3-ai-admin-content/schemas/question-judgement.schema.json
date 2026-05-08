@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "question-judgement.schema.json",
+  "title": "Mystery Time Question Judgement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "judgement",
+    "reasonCode",
+    "publicReply",
+    "publicSummary",
+    "manualReviewRequired",
+    "safetyFlags",
+    "logSummary"
+  ],
+  "properties": {
+    "judgement": {
+      "type": "string",
+      "enum": [
+        "YES",
+        "NO",
+        "PARTIAL",
+        "IRRELEVANT"
+      ]
+    },
+    "reasonCode": { "type": "string" },
+    "publicReply": {
+      "type": "string",
+      "enum": [
+        "네, 그렇습니다.",
+        "아니오, 그렇지 않습니다.",
+        "그럴 수도 있습니다.",
+        "중요하지 않습니다."
+      ]
+    },
+    "publicSummary": { "type": "string" },
+    "manualReviewRequired": { "type": "boolean" },
+    "safetyFlags": { "type": "array", "items": { "type": "string" } },
+    "logSummary": { "type": "string" }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "case-002",
+  "stageNumber": 2,
+  "difficulty": "normal",
+  "title": "멈춘 엘리베이터의 3분",
+  "publicDescription": "오전 9시 정전 직후, 오피스 빌딩 7층 엘리베이터 앞에서 피해자가 쓰러진 채 발견되었다.",
+  "question": "피해자는 언제, 어떻게, 누구에 의해 쓰러졌는가?",
+  "truth": "범인은 건물 경비원이다. 경비원은 정전 직전에 비상전원을 끄고 피해자를 계단 쪽으로 유도했으며, 피해자는 이미 약물로 혼절한 상태였다. 이후 통화기록을 조작해 사망 시각이 늦어 보이도록 꾸몄다.",
+  "requiredKeywords": ["경비원", "비상전원", "계단", "약물", "통화기록"],
+  "bonusKeywords": ["정전", "시각 조작"],
+  "acceptedAnswerSummary": "범인은 경비원이며, 정전과 비상전원 조작을 이용해 피해자를 계단으로 유도한 뒤 약물과 통화기록 조작으로 시각을 숨겼다.",
+  "hints": [
+    {
+      "hintId": "case-002-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "쓰러진 시점은 발견 시점과 같지 않을 수 있다.",
+      "internalNote": "사망 시각 조작을 암시한다."
+    },
+    {
+      "hintId": "case-002-hint-2",
+      "order": 2,
+      "triggerType": "first_player_solved",
+      "strength": "medium",
+      "publicText": "건물의 전원 상태가 사건의 핵심이다.",
+      "internalNote": "비상전원과 정전 타이밍을 연결한다."
+    },
+    {
+      "hintId": "case-002-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "사건 직전 가장 자연스럽게 현장을 통제할 수 있던 사람은 내부 인물이다.",
+      "internalNote": "경비원을 범인으로 유도한다."
+    }
+  ],
+  "reviewNotes": "시간차와 내부자 범행을 읽는 연습용 사건.",
+  "status": "approved",
+  "version": "1.0.0"
+}

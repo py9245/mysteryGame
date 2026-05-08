@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hint-reveal.schema.json",
+  "title": "Mystery Time Hint Reveal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hintId",
+    "stageNumber",
+    "order",
+    "triggerType",
+    "strength",
+    "publicText",
+    "revealedAt"
+  ],
+  "properties": {
+    "hintId": { "type": "string" },
+    "stageNumber": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "order": { "type": "integer", "minimum": 1 },
+    "triggerType": { "type": "string" },
+    "strength": { "type": "string", "enum": ["weak", "medium", "strong", "final"] },
+    "publicText": { "type": "string" },
+    "revealedAt": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "version": "1.1.0",
+  "items": [
+    {
+      "id": "review-q-002",
+      "category": "question_review",
+      "kind": "question",
+      "queueStatus": "pending",
+      "priority": "high",
+      "caseId": "case-001",
+      "stageNumber": 1,
+      "roomId": "room-001",
+      "stageId": "stage-001",
+      "player": {
+        "id": "player-02",
+        "nickname": "Mina"
+      },
+      "status": {
+        "publicLabel": "운영자 확인이 필요합니다.",
+        "internalCode": "manual_review"
+      },
+      "reasonCode": "META_QUESTION_BOUNDARY",
+      "summary": "사건의 필수 키워드를 직접 확인하려는 메타 질문이 들어왔다.",
+      "blockingField": "manualReviewRequired",
+      "nextAction": {
+        "label": "메타 질문 유지 여부 검토",
+        "owner": "operator"
+      },
+      "links": {
+        "judgementExampleId": null,
+        "judgementId": "judgement-q-002",
+        "reviewId": "review-q-002",
+        "overrideId": null
+      },
+      "followUp": {
+        "state": "awaiting_decision",
+        "note": "플레이어 공개 문구를 확정하기 전까지 질문 판정을 보류한다."
+      },
+      "createdAt": "2026-05-07T09:08:00.000Z",
+      "updatedAt": "2026-05-07T09:08:00.000Z"
+    },
+    {
+      "id": "review-a-002",
+      "category": "answer_review",
+      "kind": "answer",
+      "queueStatus": "escalated",
+      "priority": "high",
+      "caseId": "case-002",
+      "stageNumber": 2,
+      "roomId": "room-001",
+      "stageId": "stage-002",
+      "player": {
+        "id": "player-05",
+        "nickname": "Juno"
+      },
+      "status": {
+        "publicLabel": "운영자 승인 전까지 결과 공개가 지연됩니다.",
+        "internalCode": "needs_operator_override"
+      },
+      "reasonCode": "AMBIGUOUS_REQUIRED_KEYWORDS",
+      "summary": "정답 핵심은 맞지만 필수 키워드 누락 여부가 애매해 override 후보로 승격되었다.",
+      "blockingField": "needsOperatorOverride",
+      "nextAction": {
+        "label": "필수 키워드 충족 여부 최종 승인",
+        "owner": "operator"
+      },
+      "links": {
+        "judgementExampleId": null,
+        "judgementId": "judgement-a-002",
+        "reviewId": "review-a-002",
+        "overrideId": null
+      },
+      "followUp": {
+        "state": "awaiting_override",
+        "note": "승인 또는 반려 후 spectator 공개 payload와 점수 이벤트를 다시 확인해야 한다."
+      },
+      "createdAt": "2026-05-07T09:09:00.000Z",
+      "updatedAt": "2026-05-07T09:10:00.000Z"
+    },
+    {
+      "id": "followup-a-001",
+      "category": "override_follow_up",
+      "kind": "answer",
+      "queueStatus": "resolved",
+      "priority": "normal",
+      "caseId": "case-002",
+      "stageNumber": 2,
+      "roomId": "room-001",
+      "stageId": "stage-002",
+      "player": {
+        "id": "player-03",
+        "nickname": "Juno"
+      },
+      "status": {
+        "publicLabel": "운영자 승인 결과가 반영되었습니다.",
+        "internalCode": "override_applied"
+      },
+      "reasonCode": "ANSWER_OVERRIDE_CONFIRMED",
+      "summary": "정답 판정이 승인되어 public outcome이 correct로 승격되었다.",
+      "blockingField": "publicPayloadSync",
+      "nextAction": {
+        "label": "공개 문구와 로그 동기화만 확인",
+        "owner": "operator"
+      },
+      "links": {
+        "judgementExampleId": "judgement-example-review-001",
+        "judgementId": "judgement-a-001",
+        "reviewId": "review-a-001",
+        "overrideId": "override-001"
+      },
+      "followUp": {
+        "state": "completed",
+        "note": "override log와 judgement example의 public payload가 동일하게 갱신되었다."
+      },
+      "createdAt": "2026-05-07T09:06:00.000Z",
+      "updatedAt": "2026-05-07T09:06:30.000Z"
+    },
+    {
+      "id": "followup-q-001",
+      "category": "override_follow_up",
+      "kind": "question",
+      "queueStatus": "resolved",
+      "priority": "normal",
+      "caseId": "case-001",
+      "stageNumber": 1,
+      "roomId": "room-001",
+      "stageId": "stage-001",
+      "player": {
+        "id": "player-01",
+        "nickname": "Rina"
+      },
+      "status": {
+        "publicLabel": "질문 판정 유지 결과가 운영 로그에 반영되었습니다.",
+        "internalCode": "override_rejected"
+      },
+      "reasonCode": "QUESTION_MANUAL_REVIEW_CONFIRMED",
+      "summary": "운영자가 메타 질문 판정을 유지했고, follow-up 로그만 남은 상태다.",
+      "blockingField": "operatorNoteArchived",
+      "nextAction": {
+        "label": "내부 노트만 보관",
+        "owner": "operator"
+      },
+      "links": {
+        "judgementExampleId": null,
+        "judgementId": "judgement-q-001",
+        "reviewId": "review-q-001",
+        "overrideId": "override-002"
+      },
+      "followUp": {
+        "state": "completed",
+        "note": "메타 질문 유지 결정과 내부 노트가 override log에 남아 있다."
+      },
+      "createdAt": "2026-05-07T09:07:00.000Z",
+      "updatedAt": "2026-05-07T09:07:15.000Z"
+    }
+  ]
+}

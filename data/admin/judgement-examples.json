@@ -1,0 +1,159 @@
+{
+  "version": "1.0.0",
+  "items": [
+    {
+      "id": "judgement-example-q-001",
+      "kind": "question",
+      "request": {
+        "roomId": "room-001",
+        "gameId": "game-001",
+        "stageId": "stage-001",
+        "playerId": "player-01",
+        "caseId": "case-001",
+        "stageNumber": 1,
+        "teamSlotId": "team-a",
+        "questionText": "범인은 조카인가요?",
+        "conversationContext": {
+          "roomId": "room-001",
+          "stageId": "stage-001",
+          "playerId": "player-01",
+          "teamSlotId": "team-a",
+          "visibleHints": ["피해자는 우연한 사고로 죽지 않았다."],
+          "previousQuestionIds": [],
+          "previousAnswerIds": []
+        },
+        "visibilityContext": {
+          "viewMode": "investigation_active",
+          "canSeeStageSecrets": false,
+          "canSeeOwnLockState": true,
+          "isSolvedLocked": false
+        }
+      },
+      "response": {
+        "judgement": "PARTIAL",
+        "reasonCode": "QUESTION_PARTIALLY_ALIGNS",
+        "publicReply": "그럴 수도 있습니다.",
+        "publicSummary": "범인 후보를 좁히는 질문입니다.",
+        "manualReviewRequired": false,
+        "safetyFlags": [],
+        "logSummary": "조카 여부를 직접 단정하지 않고 가능성만 남김."
+      },
+      "storageEnvelope": {
+        "judgementId": "judgement-q-001",
+        "reviewId": null,
+        "manualReviewRequired": false,
+        "needsOperatorOverride": false,
+        "publicPayload": {
+          "publicReply": "그럴 수도 있습니다.",
+          "publicSummary": "범인 후보를 좁히는 질문입니다."
+        },
+        "internalPayload": {
+          "judgement": "PARTIAL",
+          "reasonCode": "QUESTION_PARTIALLY_ALIGNS",
+          "safetyFlags": [],
+          "logSummary": "조카 여부를 직접 단정하지 않고 가능성만 남김."
+        }
+      }
+    },
+    {
+      "id": "judgement-example-a-001",
+      "kind": "answer",
+      "request": {
+        "roomId": "room-001",
+        "gameId": "game-001",
+        "stageId": "stage-002",
+        "playerId": "player-03",
+        "caseId": "case-002",
+        "stageNumber": 2,
+        "teamSlotId": "team-c",
+        "answerText": "범인은 경비원이고 비상전원과 통화기록을 조작했습니다.",
+        "conversationContext": {
+          "roomId": "room-001",
+          "stageId": "stage-002",
+          "playerId": "player-03",
+          "teamSlotId": "team-c",
+          "visibleHints": ["건물의 전원 상태가 사건의 핵심이다."],
+          "previousQuestionIds": ["q-001"],
+          "previousAnswerIds": []
+        },
+        "visibilityContext": {
+          "viewMode": "investigation_active",
+          "canSeeStageSecrets": false,
+          "canSeeOwnLockState": true,
+          "isSolvedLocked": false
+        }
+      },
+      "response": {
+        "result": "ambiguous",
+        "publicOutcome": "needs_review",
+        "matchedRequiredKeywords": ["경비원", "비상전원", "통화기록"],
+        "missingRequiredKeywords": ["계단", "약물"],
+        "matchedBonusKeywords": ["정전"],
+        "reasonCode": "ANSWER_NEEDS_OPERATOR_REVIEW",
+        "publicSummary": "핵심 방향은 맞지만 일부 필수 맥락 검토가 필요합니다.",
+        "needsOperatorOverride": true
+      },
+      "storageEnvelope": {
+        "judgementId": "judgement-a-001",
+        "reviewId": "review-a-001",
+        "manualReviewRequired": false,
+        "needsOperatorOverride": true,
+        "publicPayload": {
+          "publicOutcome": "needs_review",
+          "publicSummary": "핵심 방향은 맞지만 일부 필수 맥락 검토가 필요합니다."
+        },
+        "internalPayload": {
+          "judgement": "ambiguous",
+          "reasonCode": "ANSWER_NEEDS_OPERATOR_REVIEW",
+          "matchedRequiredKeywords": ["경비원", "비상전원", "통화기록"],
+          "missingRequiredKeywords": ["계단", "약물"],
+          "matchedBonusKeywords": ["정전"],
+          "logSummary": "핵심은 맞으나 일부 필수 맥락이 누락됨."
+        }
+      }
+    },
+    {
+      "id": "judgement-example-review-001",
+      "kind": "manual_review",
+      "reviewRecord": {
+        "id": "review-a-001",
+        "roomId": "room-001",
+        "gameId": "game-001",
+        "stageId": "stage-002",
+        "playerId": "player-03",
+        "kind": "answer",
+        "publicOutcome": "needs_review",
+        "operatorOverrideStatus": "approved",
+        "operatorOverrideReason": "필수 키워드 맥락이 충분하며 운영자 승인 가능",
+        "createdAt": "2026-05-07T09:05:00.000Z",
+        "reviewedAt": "2026-05-07T09:06:00.000Z",
+        "reviewedBy": "operator-01"
+      },
+      "overrideRecord": {
+        "id": "override-001",
+        "reviewId": "review-a-001",
+        "judgementId": "judgement-a-001",
+        "roomId": "room-001",
+        "stageId": "stage-002",
+        "operatorId": "operator-01",
+        "previousPublicOutcome": "needs_review",
+        "newPublicOutcome": "correct",
+        "overrideReason": "필수 키워드와 사건 맥락이 충분히 충족됨",
+        "appliedBy": "operator",
+        "createdAt": "2026-05-07T09:06:00.000Z"
+      },
+      "publicPayload": {
+        "publicOutcome": "correct",
+        "publicSummary": "운영자 승인으로 정답 처리되었습니다."
+      },
+      "internalPayload": {
+        "reasonCode": "ANSWER_NEEDS_OPERATOR_REVIEW",
+        "judgement": "manual_review",
+        "matchedRequiredKeywords": ["경비원", "비상전원", "통화기록", "계단", "약물"],
+        "missingRequiredKeywords": [],
+        "matchedBonusKeywords": ["정전"],
+        "logSummary": "운영자 승인으로 정답으로 확정."
+      }
+    }
+  ]
+}

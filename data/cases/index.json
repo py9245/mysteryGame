@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "case-001",
+      "stageNumber": 1,
+      "file": "./case-001.json"
+    },
+    {
+      "id": "case-002",
+      "stageNumber": 2,
+      "file": "./case-002.json"
+    },
+    {
+      "id": "case-003",
+      "stageNumber": 3,
+      "file": "./case-003.json"
+    }
+  ]
+}

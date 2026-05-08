@@ -1,0 +1,45 @@
+{
+  "version": "1.1.0",
+  "items": [
+    {
+      "id": "override-001",
+      "reviewId": "review-a-001",
+      "kind": "answer",
+      "action": "approved",
+      "operator": {
+        "id": "operator-01",
+        "label": "auto-demo"
+      },
+      "result": {
+        "publicOutcome": "correct",
+        "publicSummary": "운영자 승인으로 정답 처리됨",
+        "internalNote": "필수 키워드 맥락이 충분히 충족됨"
+      },
+      "links": {
+        "queueItemId": "followup-a-001",
+        "judgementExampleId": "judgement-example-review-001"
+      },
+      "appliedAt": "2026-05-07T09:06:00.000Z"
+    },
+    {
+      "id": "override-002",
+      "reviewId": "review-q-001",
+      "kind": "question",
+      "action": "rejected",
+      "operator": {
+        "id": "operator-01",
+        "label": "auto-demo"
+      },
+      "result": {
+        "publicOutcome": "needs_review",
+        "publicSummary": "운영자 검토 후 질문 판정 유지",
+        "internalNote": "메타 질문으로 유지"
+      },
+      "links": {
+        "queueItemId": "followup-q-001",
+        "judgementExampleId": null
+      },
+      "appliedAt": "2026-05-07T09:07:00.000Z"
+    }
+  ]
+}

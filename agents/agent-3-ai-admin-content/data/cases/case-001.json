@@ -1,0 +1,41 @@
+{
+  "id": "case-001",
+  "stageNumber": 1,
+  "difficulty": "easy",
+  "title": "닫힌 서재의 와인잔",
+  "publicDescription": "폭풍우가 치던 밤, 저택의 서재에서 남자가 숨진 채 발견되었다. 문은 잠겨 있었고 창문은 열려 있었다.",
+  "question": "피해자는 어떻게 죽었고, 범인은 누구이며, 왜 이런 일이 벌어졌는가?",
+  "truth": "범인은 피해자의 조카다. 조카는 유언장 변경으로 상속권을 잃을까 두려워 피해자의 와인잔에 독을 넣었다. 이후 창문을 일부러 열어 외부 침입처럼 보이게 꾸몄다.",
+  "requiredKeywords": ["조카", "와인잔", "독", "유언장", "창문"],
+  "bonusKeywords": ["상속", "외부 침입"],
+  "acceptedAnswerSummary": "범인은 조카이며, 유언장 변경과 상속 문제를 막기 위해 와인잔에 독을 넣었고 창문을 열어 외부 침입처럼 위장했다.",
+  "hints": [
+    {
+      "hintId": "case-001-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "피해자는 우연한 사고로 죽지 않았다.",
+      "internalNote": "원인은 계획된 독살로 좁힌다."
+    },
+    {
+      "hintId": "case-001-hint-2",
+      "order": 2,
+      "triggerType": "first_player_solved",
+      "strength": "medium",
+      "publicText": "현장은 외부 침입처럼 보이도록 꾸며졌다.",
+      "internalNote": "창문을 연 행위가 핵심 위장이다."
+    },
+    {
+      "hintId": "case-001-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "가장 가까운 친족이 상속 문제를 두려워했다.",
+      "internalNote": "조카와 유언장, 상속권을 연결한다."
+    }
+  ],
+  "reviewNotes": "MVP용 기초 사건. 질문과 정답 판정의 예시 기준으로 사용한다.",
+  "status": "approved",
+  "version": "1.0.0"
+}

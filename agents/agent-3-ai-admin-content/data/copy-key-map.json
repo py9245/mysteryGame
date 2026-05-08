@@ -1,0 +1,106 @@
+{
+  "version": "1.0.0",
+  "rules": {
+    "keyFormat": "namespace.slot.field",
+    "visibility": ["public", "self", "redacted", "ai_internal", "not_visible_yet"],
+    "categorySet": [
+      "briefing",
+      "hint",
+      "judgement.question",
+      "judgement.answer",
+      "spectator",
+      "results.stage",
+      "results.game",
+      "review",
+      "admin"
+    ]
+  },
+  "slots": {
+    "StageBriefingPanel": {
+      "title": "stage.briefing.title",
+      "body": "stage.briefing.body"
+    },
+    "StageRuleBulletList": {
+      "items": "stage.briefing.rules[]"
+    },
+    "StageStartCountdown": {
+      "label": "stage.briefing.countdownLabel"
+    },
+    "HintRail": {
+      "items.player": "stage.hint.items[].player",
+      "items.admin": "stage.hint.items[].admin",
+      "items.strength": "stage.hint.items[].strength",
+      "items.triggerType": "stage.hint.items[].triggerType"
+    },
+    "QuestionJudgeBadge": {
+      "YES": "stage.questionJudge.YES",
+      "NO": "stage.questionJudge.NO",
+      "MAYBE": "stage.questionJudge.MAYBE",
+      "IRRELEVANT": "stage.questionJudge.IRRELEVANT"
+    },
+    "QuestionComposer": {
+      "helperText": "stage.questionJudge.helperText"
+    },
+    "AnswerJudgeBadge": {
+      "success": "stage.answerResult.success",
+      "failure": "stage.answerResult.failure",
+      "needsReview": "review.answer.needsReview"
+    },
+    "AnswerComposer": {
+      "helperText": "stage.answerResult.helperText"
+    },
+    "SpectatorBanner": {
+      "title": "stage.spectator.title",
+      "body": "stage.spectator.body"
+    },
+    "SolvedLockSummary": {
+      "title": "stage.spectator.lockTitle"
+    },
+    "ProgressLogFeed": {
+      "title": "stage.spectator.logTitle"
+    },
+    "StageResultsSummary": {
+      "title": "stage.results.title",
+      "summary": "stage.results.summary",
+      "personalDeltaLabel": "stage.results.personalDeltaLabel",
+      "solveOrderLabel": "stage.results.solveOrderLabel"
+    },
+    "GameResultsSummary": {
+      "title": "game.results.title",
+      "summary": "game.results.summary"
+    },
+    "RankingTable": {
+      "title": "game.results.rankingTitle"
+    },
+    "PersonalScoreBreakdown": {
+      "title": "game.results.personalScoreTitle"
+    },
+    "PrivacyMask": {
+      "otherPlayerName": "privacy.otherPlayerName",
+      "otherScore": "privacy.otherScore"
+    },
+    "RedactedField": {
+      "label": "privacy.redactedLabel"
+    },
+    "RedactedPlayerRow": {
+      "label": "privacy.redactedPlayerRow"
+    },
+    "ScoreCard": {
+      "totalLabel": "score.totalLabel"
+    },
+    "ScoreDeltaBadge": {
+      "label": "score.deltaLabel"
+    },
+    "manualReview": {
+      "notice": "review.notice",
+      "adminNotice": "admin.manualReviewNotice"
+    },
+    "admin": {
+      "questionHold": "admin.questionHold",
+      "answerHold": "admin.answerHold",
+      "scoreAdjustment": "admin.scoreAdjustment",
+      "hintForce": "admin.hintForce",
+      "stageClose": "admin.stageClose"
+    }
+  }
+}

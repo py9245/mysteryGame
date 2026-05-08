@@ -1,0 +1,74 @@
+{
+  "version": "1.0.0",
+  "categories": {
+    "stageBriefing": {
+      "title": "이번 스테이지 사건이 공개되었습니다.",
+      "body": "사건 설명을 읽고 팀과 정보를 나눠주세요. 질문과 정답은 조사실에서 진행됩니다.",
+      "adminTitle": "스테이지 브리핑 대기",
+      "adminBody": "사건 공개 전환 준비 완료. 공개 범위와 힌트 순서를 확인하세요."
+    },
+    "hintReveal": {
+      "weak": {
+        "player": "아직 직접적인 단서는 부족합니다.",
+        "admin": "약한 힌트 공개"
+      },
+      "medium": {
+        "player": "사건의 핵심 관계가 드러납니다.",
+        "admin": "중간 힌트 공개"
+      },
+      "strong": {
+        "player": "정답 방향이 거의 드러납니다.",
+        "admin": "강한 힌트 공개"
+      },
+      "final": {
+        "player": "이제는 범인, 수단, 동기를 함께 맞춰야 합니다.",
+        "admin": "최종 힌트 공개"
+      }
+    },
+    "questionJudge": {
+      "YES": "네, 그렇습니다.",
+      "NO": "아니오, 그렇지 않습니다.",
+      "MAYBE": "그럴 수도 있습니다.",
+      "IRRELEVANT": "중요하지 않습니다."
+    },
+    "answerResult": {
+      "success": "정답을 맞혔습니다.",
+      "failure": "정답이 아닙니다.",
+      "needsReview": "운영자 확인이 필요합니다.",
+      "spectatorTransition": "정답 성공으로 관전 상태로 전환됩니다."
+    },
+    "solvedSpectator": {
+      "banner": "정답 성공",
+      "body": "이제 이 스테이지에서는 입력할 수 없습니다. 공개 로그만 확인할 수 있습니다.",
+      "subtext": "남은 진행은 관전 모드로 표시됩니다."
+    },
+    "stageResults": {
+      "summary": "스테이지가 종료되었습니다.",
+      "personalScore": "당신의 점수 변화",
+      "questionCount": "당신의 질문 횟수",
+      "answerAttemptCount": "당신의 정답 시도 횟수",
+      "solveOrder": "정답 성공 순서",
+      "publicCaseSummary": "공개 가능한 사건 요약"
+    },
+    "gameResults": {
+      "summary": "게임이 종료되었습니다.",
+      "finalScore": "최종 개인 누적 점수",
+      "solveCount": "개인별 정답 성공 수",
+      "bonusCount": "개인별 추가 키워드 기여",
+      "publicCaseExplanation": "공개 가능한 최종 사건 해설"
+    },
+    "manualReview": {
+      "player": "운영자 확인이 필요합니다.",
+      "admin": "manual_review 대기",
+      "adminNote": "판정 근거 검토 후 최종 상태를 확정하세요."
+    },
+    "adminOnly": {
+      "questionHold": "질문 판정 보류",
+      "answerHold": "정답 판정 보류",
+      "approvalNeeded": "수동 승인 필요",
+      "scoreAdjustment": "점수 보정 필요",
+      "hintForce": "힌트 강제 공개 가능",
+      "stageClose": "스테이지 강제 종료 가능"
+    }
+  }
+}

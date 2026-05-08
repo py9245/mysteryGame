@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.next-dev/
+.open-next/
+.wrangler/
+
+.env
+.env.local
+.env.*.local
+
+*.tsbuildinfo
+
+.DS_Store
+Thumbs.db
+
+.codex

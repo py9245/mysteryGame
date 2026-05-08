@@ -1,0 +1,188 @@
+{
+  "version": "1.0.0",
+  "routeReference": {
+    "textRoute": "POST /api/ai/text",
+    "runtimeDoc": "/src/app/api/ai/README.md",
+    "defaultProvider": "openai_chat_gms",
+    "defaultModel": "gpt-5-mini"
+  },
+  "operatorChecklist": [
+    "POST /api/ai/text의 normalized response에서 data.text, data.finishReason, data.usage를 먼저 확인한다.",
+    "data.text 안의 JSON을 judgement contract에 맞게 파싱하고 manualReviewRequired 또는 needsOperatorOverride 플래그를 확인한다.",
+    "question judgement에서 manualReviewRequired가 true이면 question_review queue item을 만든다.",
+    "answer judgement에서 needsOperatorOverride가 true이거나 publicOutcome이 needs_review이면 answer_review queue item을 escalated 상태로 만든다.",
+    "운영자가 승인 또는 반려를 결정하면 override-log.json에 기록하고, 후속 공개 payload 확인용 override_follow_up item으로 이어진다."
+  ],
+  "routeSamples": [
+    {
+      "id": "ai-text-question-review",
+      "label": "Question Judgement -> Manual Review",
+      "purpose": "question_judgement",
+      "request": {
+        "provider": "openai_chat_gms",
+        "model": "gpt-5-mini",
+        "messages": [
+          {
+            "role": "developer",
+            "content": "Return JSON only matching QuestionJudgementResponse."
+          },
+          {
+            "role": "user",
+            "content": "case-001 stage 1 question judgement request: '피해자의 사망 시각을 직접 말해줄 수 있나요?'"
+          }
+        ]
+      },
+      "normalizedResponse": {
+        "provider": "openai_chat_gms",
+        "model": "gpt-5-mini-2025-08-07",
+        "text": "{\"judgement\":\"IRRELEVANT\",\"reasonCode\":\"META_QUESTION_BOUNDARY\",\"publicReply\":\"중요하지 않습니다.\",\"publicSummary\":\"메타 성격이 강해 운영자 검토가 필요합니다.\",\"manualReviewRequired\":true,\"safetyFlags\":[\"meta_question\"],\"logSummary\":\"직접적인 사건 해설 요구로 분류됨.\"}",
+        "finishReason": "stop",
+        "usage": {
+          "promptTokens": 238,
+          "completionTokens": 58,
+          "totalTokens": 296
+        }
+      },
+      "parsedJudgement": {
+        "kind": "question",
+        "judgement": "IRRELEVANT",
+        "publicReply": "중요하지 않습니다.",
+        "publicSummary": "메타 성격이 강해 운영자 검토가 필요합니다.",
+        "reasonCode": "META_QUESTION_BOUNDARY",
+        "manualReviewRequired": true,
+        "needsOperatorOverride": false,
+        "safetyFlags": [
+          "meta_question"
+        ]
+      },
+      "operatorFocus": [
+        "manualReviewRequired",
+        "reasonCode",
+        "safetyFlags",
+        "publicReply"
+      ],
+      "queueAction": {
+        "result": "create_review_queue_item",
+        "targetCategory": "question_review",
+        "targetQueueItemId": "review-q-002",
+        "note": "질문 판정을 바로 공개하지 않고 pending review로 보낸다."
+      }
+    },
+    {
+      "id": "ai-text-answer-override",
+      "label": "Answer Judgement -> Override Candidate",
+      "purpose": "answer_judgement",
+      "request": {
+        "provider": "openai_chat_gms",
+        "model": "gpt-5-mini",
+        "messages": [
+          {
+            "role": "developer",
+            "content": "Return JSON only matching AnswerJudgementResponse."
+          },
+          {
+            "role": "user",
+            "content": "case-002 stage 2 answer judgement request: '범인은 경비원이고 비상전원과 통화기록을 조작했습니다.'"
+          }
+        ]
+      },
+      "normalizedResponse": {
+        "provider": "openai_chat_gms",
+        "model": "gpt-5-mini-2025-08-07",
+        "text": "{\"result\":\"ambiguous\",\"publicOutcome\":\"needs_review\",\"matchedRequiredKeywords\":[\"경비원\",\"비상전원\",\"통화기록\"],\"missingRequiredKeywords\":[\"계단\",\"약물\"],\"matchedBonusKeywords\":[\"정전\"],\"reasonCode\":\"AMBIGUOUS_REQUIRED_KEYWORDS\",\"publicSummary\":\"핵심 방향은 맞지만 일부 필수 맥락 검토가 필요합니다.\",\"needsOperatorOverride\":true}",
+        "finishReason": "stop",
+        "usage": {
+          "promptTokens": 276,
+          "completionTokens": 84,
+          "totalTokens": 360
+        }
+      },
+      "parsedJudgement": {
+        "kind": "answer",
+        "result": "ambiguous",
+        "publicOutcome": "needs_review",
+        "publicSummary": "핵심 방향은 맞지만 일부 필수 맥락 검토가 필요합니다.",
+        "reasonCode": "AMBIGUOUS_REQUIRED_KEYWORDS",
+        "manualReviewRequired": false,
+        "needsOperatorOverride": true,
+        "matchedRequiredKeywords": [
+          "경비원",
+          "비상전원",
+          "통화기록"
+        ],
+        "missingRequiredKeywords": [
+          "계단",
+          "약물"
+        ],
+        "matchedBonusKeywords": [
+          "정전"
+        ],
+        "safetyFlags": []
+      },
+      "operatorFocus": [
+        "needsOperatorOverride",
+        "publicOutcome",
+        "missingRequiredKeywords",
+        "matchedBonusKeywords"
+      ],
+      "queueAction": {
+        "result": "create_review_queue_item",
+        "targetCategory": "answer_review",
+        "targetQueueItemId": "review-a-002",
+        "note": "needs_review outcome을 escalated review queue로 보내고 운영자 승인을 기다린다."
+      }
+    }
+  ],
+  "reviewRoutingRules": [
+    {
+      "id": "rule-question-manual-review",
+      "sourceKind": "question",
+      "trigger": "manualReviewRequired === true",
+      "result": "create_review_queue_item",
+      "targetCategory": "question_review",
+      "targetQueueStatus": "pending",
+      "blockingField": "manualReviewRequired",
+      "note": "질문 판정을 즉시 공개하지 않고 운영자 확인을 먼저 요청한다."
+    },
+    {
+      "id": "rule-answer-override-needed",
+      "sourceKind": "answer",
+      "trigger": "needsOperatorOverride === true OR publicOutcome === needs_review",
+      "result": "create_review_queue_item",
+      "targetCategory": "answer_review",
+      "targetQueueStatus": "escalated",
+      "blockingField": "needsOperatorOverride",
+      "note": "정답 판정은 review queue에 올린 뒤 운영자 승인/반려를 기다린다."
+    },
+    {
+      "id": "rule-safe-auto-store",
+      "sourceKind": "question_or_answer",
+      "trigger": "manualReviewRequired === false AND needsOperatorOverride === false",
+      "result": "skip_review_queue",
+      "targetCategory": null,
+      "targetQueueStatus": null,
+      "blockingField": null,
+      "note": "review queue item을 만들지 않고 public payload와 internal payload만 저장한다."
+    }
+  ],
+  "overrideTransitions": [
+    {
+      "id": "transition-answer-approved",
+      "sourceQueueItemId": "review-a-001",
+      "operatorDecision": "approved",
+      "overrideLogId": "override-001",
+      "followUpQueueItemId": "followup-a-001",
+      "resultPublicOutcome": "correct",
+      "note": "운영자 승인 후 public outcome을 correct로 바꾸고 follow-up에서 payload sync를 확인한다."
+    },
+    {
+      "id": "transition-question-rejected",
+      "sourceQueueItemId": "review-q-001",
+      "operatorDecision": "rejected",
+      "overrideLogId": "override-002",
+      "followUpQueueItemId": "followup-q-001",
+      "resultPublicOutcome": "needs_review",
+      "note": "메타 질문 유지 결정 후 follow-up에는 운영 로그와 내부 노트만 남긴다."
+    }
+  ]
+}

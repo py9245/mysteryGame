@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "answer-judgement.schema.json",
+  "title": "Mystery Time Answer Judgement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result",
+    "publicOutcome",
+    "matchedRequiredKeywords",
+    "missingRequiredKeywords",
+    "matchedBonusKeywords",
+    "reasonCode",
+    "publicSummary",
+    "needsOperatorOverride"
+  ],
+  "properties": {
+    "result": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "ambiguous", "manual_review"]
+    },
+    "publicOutcome": {
+      "type": "string",
+      "enum": ["correct", "wrong", "needs_review"]
+    },
+    "matchedRequiredKeywords": { "type": "array", "items": { "type": "string" } },
+    "missingRequiredKeywords": { "type": "array", "items": { "type": "string" } },
+    "matchedBonusKeywords": { "type": "array", "items": { "type": "string" } },
+    "reasonCode": { "type": "string" },
+    "publicSummary": { "type": "string" },
+    "needsOperatorOverride": { "type": "boolean" }
+  }
+}
