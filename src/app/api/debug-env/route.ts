@@ -1,4 +1,8 @@
-import { hasSupabaseServerEnv, readSupabasePublicKey } from "@/lib/supabase/env";
+import {
+  getSupabaseRuntimeEnv,
+  hasSupabaseRuntimeEnv,
+  hasSupabaseRuntimePublicKey,
+} from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
 
@@ -7,7 +11,7 @@ export async function GET() {
     {
       ok: true,
       data: {
-        hasSupabaseServerEnv: hasSupabaseServerEnv(process.env),
+        hasSupabaseRuntimeEnv: hasSupabaseRuntimeEnv(),
         hasGmsKey:
           typeof process.env.GMS_KEY === "string" &&
           process.env.GMS_KEY.trim().length > 0,
@@ -26,7 +30,8 @@ export async function GET() {
             typeof process.env.SUPABASE_SERVICE_ROLE_KEY === "string" &&
             process.env.SUPABASE_SERVICE_ROLE_KEY.trim().length > 0,
         },
-        resolvedPublicKey: readSupabasePublicKey(process.env) !== null,
+        resolvedPublicKey: hasSupabaseRuntimePublicKey(),
+        runtimeConfigResolved: getSupabaseRuntimeEnv() !== null,
       },
     },
     { status: 200 },
