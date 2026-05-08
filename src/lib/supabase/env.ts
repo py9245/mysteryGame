@@ -7,53 +7,58 @@ export interface SupabaseServerEnv {
 
 export type EnvSource = Record<string, string | undefined>;
 
-export const REQUIRED_SUPABASE_SERVER_ENV_KEYS = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-] as const;
+function getTrimmedValue(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export function hasSupabaseServerEnv(env: EnvSource): boolean {
-  return REQUIRED_SUPABASE_SERVER_ENV_KEYS.every((key) => {
-    const value = env[key];
-    return typeof value === "string" && value.trim().length > 0;
-  });
+  return (
+    getTrimmedValue(env.NEXT_PUBLIC_SUPABASE_URL) !== null &&
+    getTrimmedValue(env.SUPABASE_SERVICE_ROLE_KEY) !== null
+  );
 }
 
 export function readSupabasePublicKey(env: EnvSource): string | null {
-  const publishableKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (typeof publishableKey === "string" && publishableKey.trim().length > 0) {
-    return publishableKey;
-  }
-
-  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (typeof anonKey === "string" && anonKey.trim().length > 0) {
-    return anonKey;
-  }
-
-  return null;
+  return (
+    getTrimmedValue(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ??
+    getTrimmedValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  );
 }
 
 export function readSupabaseServerEnv(env: EnvSource): SupabaseServerEnv {
+  const url = getRequiredSupabaseUrl(env);
+  const serviceRoleKey = getRequiredServiceRoleKey(env);
+
   return {
-    NEXT_PUBLIC_SUPABASE_URL: getRequiredEnv(env, "NEXT_PUBLIC_SUPABASE_URL"),
-    SUPABASE_SERVICE_ROLE_KEY: getRequiredEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+    NEXT_PUBLIC_SUPABASE_URL: url,
+    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       readSupabasePublicKey(env) ?? undefined,
     NEXT_PUBLIC_SUPABASE_ANON_KEY:
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || undefined,
+      getTrimmedValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ?? undefined,
   };
 }
 
-function getRequiredEnv(
-  env: EnvSource,
-  key: keyof SupabaseServerEnv,
-): string {
-  const value = env[key];
+function getRequiredSupabaseUrl(env: EnvSource): string {
+  const value = getTrimmedValue(env.NEXT_PUBLIC_SUPABASE_URL);
 
   if (!value) {
-    throw new Error(`Missing required Supabase env: ${key}`);
+    throw new Error("Missing required Supabase env: NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  return value;
+}
+
+function getRequiredServiceRoleKey(env: EnvSource): string {
+  const value = getTrimmedValue(env.SUPABASE_SERVICE_ROLE_KEY);
+
+  if (!value) {
+    throw new Error("Missing required Supabase env: SUPABASE_SERVICE_ROLE_KEY");
   }
 
   return value;
