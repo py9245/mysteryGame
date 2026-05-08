@@ -11,7 +11,12 @@ import type {
   SubmitAnswerRequest,
   SubmitQuestionRequest,
 } from "@/contracts/api";
-import { listGameSnapshotsFromStore, setReadyInStore } from "@/server/live-store";
+import {
+  assignTeamsInStore,
+  AssignTeamsError,
+  listGameSnapshotsFromStore,
+  setReadyInStore,
+} from "@/server/live-store";
 import {
   buildSampleAcquireLockResponse,
   buildSampleAssignTeamsResponse,
@@ -27,6 +32,23 @@ import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { createPlaceholderFailure } from "../_shared/placeholder";
 
 export const runtime = "nodejs";
+
+function resolveAssignTeamsErrorStatus(error: AssignTeamsError): number {
+  switch (error.code) {
+    case "ROOM_NOT_FOUND":
+    case "GAME_NOT_FOUND":
+      return 404;
+    case "REQUESTER_NOT_ALLOWED":
+      return 403;
+    case "ROOM_NOT_READY":
+    case "ROOM_NOT_FULL":
+    case "STAGE_NUMBER_MISMATCH":
+    case "STAGE_NOT_ASSIGNABLE":
+      return 409;
+    default:
+      return 400;
+  }
+}
 
 export async function GET() {
   if (isSupabaseEnabled()) {
@@ -595,6 +617,48 @@ export async function POST(request: Request) {
               error: {
                 code: "SET_READY_FAILED",
                 message: error instanceof Error ? error.message : "준비 상태 저장에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "assign_teams") {
+        try {
+          const response = await assignTeamsInStore(
+            validated.command.roomId,
+            validated.command.requestedByPlayerId,
+            validated.command.stageNumber,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof AssignTeamsError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveAssignTeamsErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "ASSIGN_TEAMS_FAILED",
+                message: error instanceof Error ? error.message : "팀 배정 저장에 실패했습니다.",
               },
             },
             { status: 500 },

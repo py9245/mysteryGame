@@ -1,4 +1,5 @@
 import type {
+  AssignTeamsResponse,
   CreateRoomResponse,
   GameRuntimeSnapshot,
   GameSnapshotSummary,
@@ -18,9 +19,14 @@ import type {
   Player,
   PlayerRole,
   Room,
+  Stage,
+  StageEndReason,
+  StageStatus,
+  StageTeamAssignment,
   TeamSlot,
 } from "@/contracts/game";
 import type { RedactedValue, RoomViewSnapshot, ViewMode } from "@/contracts/view";
+import { assignPlayersToTeamSlots, TransitionError } from "@/server/game/state-machine";
 import { getSupabaseAdminClient } from "@/server/supabase-admin";
 import { nowUtcIso } from "@/server/time";
 
@@ -68,6 +74,30 @@ type DbGameRow = {
   updated_at: string;
 };
 
+type DbStageRow = {
+  id: string;
+  game_id: string;
+  room_id: string;
+  stage_number: number;
+  case_key: string;
+  status: StageStatus;
+  briefing_started_at: string | null;
+  started_at: string | null;
+  ends_at: string | null;
+  ended_at: string | null;
+  solved_player_ids: string[];
+  end_reason: StageEndReason | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DbStageTeamAssignmentRow = {
+  stage_id: string;
+  player_id: string;
+  team_slot_id: string;
+  created_at: string;
+};
+
 type DbChatMessageRow = {
   id: string;
   room_id: string;
@@ -97,6 +127,23 @@ export class RoomJoinError extends Error {
   ) {
     super(message);
     this.name = "RoomJoinError";
+  }
+}
+
+export class AssignTeamsError extends Error {
+  constructor(
+    public readonly code:
+      | "ROOM_NOT_FOUND"
+      | "GAME_NOT_FOUND"
+      | "REQUESTER_NOT_ALLOWED"
+      | "ROOM_NOT_READY"
+      | "ROOM_NOT_FULL"
+      | "STAGE_NUMBER_MISMATCH"
+      | "STAGE_NOT_ASSIGNABLE",
+    message: string,
+  ) {
+    super(message);
+    this.name = "AssignTeamsError";
   }
 }
 
@@ -162,6 +209,34 @@ function toGame(row: DbGameRow): Game {
   };
 }
 
+function toStage(row: DbStageRow): Stage {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    roomId: row.room_id,
+    stageNumber: row.stage_number,
+    caseKey: row.case_key,
+    status: row.status,
+    briefingStartedAt: row.briefing_started_at,
+    startedAt: row.started_at,
+    endsAt: row.ends_at,
+    endedAt: row.ended_at,
+    solvedPlayerIds: row.solved_player_ids,
+    endReason: row.end_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toStageTeamAssignment(row: DbStageTeamAssignmentRow): StageTeamAssignment {
+  return {
+    stageId: row.stage_id,
+    playerId: row.player_id,
+    teamSlotId: row.team_slot_id,
+    createdAt: row.created_at,
+  };
+}
+
 function toChatMessage(row: DbChatMessageRow): ChatMessage {
   return {
     id: row.id,
@@ -185,7 +260,15 @@ function buildScoreSnapshots(players: DbPlayerRow[]): PlayerScoreSnapshot[] {
   }));
 }
 
-function resolveViewMode(viewer: DbPlayerRow): ViewMode {
+function resolveViewMode(
+  viewer: DbPlayerRow,
+  room: DbRoomRow,
+  currentAssignments: DbStageTeamAssignmentRow[],
+): ViewMode {
+  if (room.status === "assigning" || currentAssignments.length > 0) {
+    return "team_assigned";
+  }
+
   return viewer.is_ready ? "ready_confirmed" : "lobby_waiting";
 }
 
@@ -194,12 +277,14 @@ function buildRoomSnapshot({
   game,
   players,
   teamSlots,
+  currentAssignments,
   viewerPlayerId,
 }: {
   room: DbRoomRow;
   game: DbGameRow | null;
   players: DbPlayerRow[];
   teamSlots: DbTeamSlotRow[];
+  currentAssignments: DbStageTeamAssignmentRow[];
   viewerPlayerId?: string;
 }): RoomSnapshot {
   if (players.length === 0) {
@@ -216,15 +301,18 @@ function buildRoomSnapshot({
   const teamSlotContracts = teamSlots.map(toTeamSlot);
   const scoreSnapshots = buildScoreSnapshots(players);
   const meStageScore = 0;
+  const assignmentByPlayerId = new Map(
+    currentAssignments.map((assignment) => [assignment.player_id, assignment.team_slot_id]),
+  );
 
   const snapshot: RoomViewSnapshot = {
-    viewMode: resolveViewMode(viewer),
+    viewMode: resolveViewMode(viewer, room, currentAssignments),
     me: {
       playerId: viewer.id,
       nickname: viewer.nickname,
       roomId: viewer.room_id,
       role: viewer.role,
-      teamSlotId: null,
+      teamSlotId: assignmentByPlayerId.get(viewer.id) ?? null,
       isReady: viewer.is_ready,
       connectionStatus: viewer.connection_status,
       stageStatus: null,
@@ -257,7 +345,7 @@ function buildRoomSnapshot({
       nickname: player.nickname,
       roomId: player.room_id,
       role: player.role,
-      teamSlotId: null,
+      teamSlotId: assignmentByPlayerId.get(player.id) ?? null,
       isReady: player.is_ready,
       connectionStatus: player.connection_status,
       stageStatus: null,
@@ -270,7 +358,7 @@ function buildRoomSnapshot({
       isMe: player.id === viewer.id,
     })),
     teamSlots: teamSlotContracts,
-    currentAssignments: [],
+    currentAssignments: currentAssignments.map(toStageTeamAssignment),
     playerStates: [],
     activeLock: null,
     visibleHints: [],
@@ -310,6 +398,8 @@ async function loadLobbyState(roomId: string): Promise<{
   game: DbGameRow | null;
   players: DbPlayerRow[];
   teamSlots: DbTeamSlotRow[];
+  currentStage: DbStageRow | null;
+  currentAssignments: DbStageTeamAssignmentRow[];
 }> {
   const supabase = getSupabaseAdminClient();
   const [{ data: room, error: roomError }, { data: game, error: gameError }, { data: players, error: playersError }, { data: teamSlots, error: teamSlotsError }] =
@@ -333,11 +423,46 @@ async function loadLobbyState(roomId: string): Promise<{
     throw new Error(`Failed to load team slots: ${teamSlotsError.message}`);
   }
 
+  let currentStage: DbStageRow | null = null;
+  let currentAssignments: DbStageTeamAssignmentRow[] = [];
+
+  if (game?.id) {
+    const { data: stage, error: stageError } = await supabase
+      .from("stages")
+      .select("*")
+      .eq("game_id", game.id)
+      .eq("stage_number", game.current_stage_number)
+      .maybeSingle<DbStageRow>();
+
+    if (stageError) {
+      throw new Error(`Failed to load current stage: ${stageError.message}`);
+    }
+
+    currentStage = stage ?? null;
+
+    if (currentStage) {
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from("stage_team_assignments")
+        .select("*")
+        .eq("stage_id", currentStage.id)
+        .order("created_at", { ascending: true })
+        .returns<DbStageTeamAssignmentRow[]>();
+
+      if (assignmentsError) {
+        throw new Error(`Failed to load stage assignments: ${assignmentsError.message}`);
+      }
+
+      currentAssignments = assignments ?? [];
+    }
+  }
+
   return {
     room,
     game: game ?? null,
     players: players ?? [],
     teamSlots: teamSlots ?? [],
+    currentStage,
+    currentAssignments,
   };
 }
 
@@ -426,6 +551,7 @@ export async function createRoomInStore(hostNickname: string): Promise<CreateRoo
       game: state.game,
       players: state.players,
       teamSlots: state.teamSlots,
+      currentAssignments: state.currentAssignments,
       viewerPlayerId: player.id,
     }),
   };
@@ -521,6 +647,7 @@ export async function joinRoomInStore(
       game: state.game,
       players: state.players,
       teamSlots: state.teamSlots,
+      currentAssignments: state.currentAssignments,
       viewerPlayerId: player.id,
     }),
   };
@@ -541,6 +668,7 @@ export async function getRoomSnapshotFromStore(
     game: state.game,
     players: state.players,
     teamSlots: state.teamSlots,
+    currentAssignments: state.currentAssignments,
     viewerPlayerId,
   });
 }
@@ -599,7 +727,198 @@ export async function setReadyInStore(
       game: state.game,
       players: state.players,
       teamSlots: state.teamSlots,
+      currentAssignments: state.currentAssignments,
       viewerPlayerId: playerId,
+    }),
+  };
+}
+
+function assertAssignableRoomState(input: {
+  room: DbRoomRow;
+  game: DbGameRow | null;
+  players: DbPlayerRow[];
+  currentStage: DbStageRow | null;
+  requestedByPlayerId: string;
+  stageNumber: number;
+}) {
+  if (!input.game) {
+    throw new AssignTeamsError("GAME_NOT_FOUND", "방에 연결된 게임 정보를 찾을 수 없습니다.");
+  }
+
+  const requester = input.players.find((player) => player.id === input.requestedByPlayerId);
+
+  if (!requester || (requester.role !== "host" && requester.role !== "admin")) {
+    throw new AssignTeamsError("REQUESTER_NOT_ALLOWED", "방장만 팀 배정을 실행할 수 있습니다.");
+  }
+
+  if (input.players.length !== input.room.max_players) {
+    throw new AssignTeamsError("ROOM_NOT_FULL", "정원이 가득 찼을 때만 팀 배정을 할 수 있습니다.");
+  }
+
+  if (input.room.status !== "ready" && input.room.status !== "assigning") {
+    throw new AssignTeamsError("ROOM_NOT_READY", "현재 상태에서는 팀 배정을 실행할 수 없습니다.");
+  }
+
+  if (input.game.current_stage_number !== input.stageNumber) {
+    throw new AssignTeamsError(
+      "STAGE_NUMBER_MISMATCH",
+      `현재는 ${input.game.current_stage_number} 스테이지 팀 배정만 가능합니다.`,
+    );
+  }
+
+  if (input.currentStage && input.currentStage.status !== "pending") {
+    throw new AssignTeamsError(
+      "STAGE_NOT_ASSIGNABLE",
+      "이미 진행 중인 스테이지에는 팀을 다시 배정할 수 없습니다.",
+    );
+  }
+}
+
+async function ensurePendingStage(
+  roomId: string,
+  game: DbGameRow,
+  stageNumber: number,
+): Promise<DbStageRow> {
+  const supabase = getSupabaseAdminClient();
+  const { data: existingStage, error: existingStageError } = await supabase
+    .from("stages")
+    .select("*")
+    .eq("game_id", game.id)
+    .eq("stage_number", stageNumber)
+    .maybeSingle<DbStageRow>();
+
+  if (existingStageError) {
+    throw new Error(`Failed to inspect pending stage: ${existingStageError.message}`);
+  }
+
+  if (existingStage) {
+    return existingStage;
+  }
+
+  const { data: stage, error: stageError } = await supabase
+    .from("stages")
+    .insert({
+      game_id: game.id,
+      room_id: roomId,
+      stage_number: stageNumber,
+      case_key: `pending-stage-${stageNumber}`,
+      status: "pending",
+      solved_player_ids: [],
+      end_reason: null,
+    })
+    .select("*")
+    .single<DbStageRow>();
+
+  if (stageError || !stage) {
+    throw new Error(`Failed to create pending stage: ${stageError?.message ?? "unknown error"}`);
+  }
+
+  return stage;
+}
+
+export async function assignTeamsInStore(
+  roomId: string,
+  requestedByPlayerId: string,
+  stageNumber: number,
+): Promise<AssignTeamsResponse> {
+  const room = await findRoomByRef(roomId);
+
+  if (!room) {
+    throw new AssignTeamsError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
+  }
+
+  const stateBeforeAssign = await loadLobbyState(room.id);
+  assertAssignableRoomState({
+    room: stateBeforeAssign.room,
+    game: stateBeforeAssign.game,
+    players: stateBeforeAssign.players,
+    currentStage: stateBeforeAssign.currentStage,
+    requestedByPlayerId,
+    stageNumber,
+  });
+
+  const game = stateBeforeAssign.game!;
+  const pendingStage = await ensurePendingStage(room.id, game, stageNumber);
+  const nowIso = nowUtcIso();
+
+  let assignments: StageTeamAssignment[];
+
+  try {
+    assignments = assignPlayersToTeamSlots(
+      pendingStage.id,
+      stateBeforeAssign.players.map(toPlayer),
+      stateBeforeAssign.teamSlots.map(toTeamSlot),
+      nowIso,
+    );
+  } catch (error) {
+    if (error instanceof TransitionError) {
+      throw new AssignTeamsError("ROOM_NOT_FULL", error.message);
+    }
+
+    throw error;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error: deleteAssignmentsError } = await supabase
+    .from("stage_team_assignments")
+    .delete()
+    .eq("stage_id", pendingStage.id);
+
+  if (deleteAssignmentsError) {
+    throw new Error(`Failed to reset stage assignments: ${deleteAssignmentsError.message}`);
+  }
+
+  const { error: insertAssignmentsError } = await supabase
+    .from("stage_team_assignments")
+    .insert(
+      assignments.map((assignment) => ({
+        stage_id: assignment.stageId,
+        player_id: assignment.playerId,
+        team_slot_id: assignment.teamSlotId,
+        created_at: assignment.createdAt,
+      })),
+    );
+
+  if (insertAssignmentsError) {
+    throw new Error(`Failed to persist stage assignments: ${insertAssignmentsError.message}`);
+  }
+
+  const { error: roomUpdateError } = await supabase
+    .from("rooms")
+    .update({
+      status: "assigning",
+      updated_at: nowIso,
+    })
+    .eq("id", room.id);
+
+  if (roomUpdateError) {
+    throw new Error(`Failed to update room status after team assignment: ${roomUpdateError.message}`);
+  }
+
+  const { error: gameUpdateError } = await supabase
+    .from("games")
+    .update({
+      current_stage_number: stageNumber,
+      updated_at: nowIso,
+    })
+    .eq("id", game.id);
+
+  if (gameUpdateError) {
+    throw new Error(`Failed to update game after team assignment: ${gameUpdateError.message}`);
+  }
+
+  const state = await loadLobbyState(room.id);
+
+  return {
+    teamSlots: state.teamSlots.map(toTeamSlot),
+    assignments: state.currentAssignments.map(toStageTeamAssignment),
+    snapshot: buildRoomSnapshot({
+      room: state.room,
+      game: state.game,
+      players: state.players,
+      teamSlots: state.teamSlots,
+      currentAssignments: state.currentAssignments,
+      viewerPlayerId: requestedByPlayerId,
     }),
   };
 }
@@ -680,9 +999,9 @@ export async function getGameRuntimeSnapshotFromStore(roomId: string): Promise<G
     roomId: state.room.id,
     roomCode: state.room.code,
     game: toGame(state.game),
-    stage: null,
+    stage: state.currentStage ? toStage(state.currentStage) : null,
     teamSlots: state.teamSlots.map(toTeamSlot),
-    currentAssignments: [],
+    currentAssignments: state.currentAssignments.map(toStageTeamAssignment),
     playerStates: [],
     activeLock: null,
     scores: buildScoreSnapshots(state.players),
