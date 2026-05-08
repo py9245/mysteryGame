@@ -6,6 +6,10 @@ import {
   submitCreateRoom,
   type SubmitCreateRoomResult,
 } from "./create-room-bootstrap";
+import {
+  submitJoinRoom,
+  type SubmitJoinRoomResult,
+} from "./join-room-bootstrap";
 
 function getRoomStatusLabel(status: string) {
   switch (status) {
@@ -24,21 +28,45 @@ function getRoomStatusLabel(status: string) {
 
 export function HomeEntrySurface() {
   const [hostNickname, setHostNickname] = useState("");
+  const [joinRoomCode, setJoinRoomCode] = useState("");
+  const [joinNickname, setJoinNickname] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<SubmitCreateRoomResult | null>(null);
-  const canSubmit = hostNickname.trim().length > 0 && !isSubmitting;
+  const [isJoining, setIsJoining] = useState(false);
+  const [createResult, setCreateResult] = useState<SubmitCreateRoomResult | null>(null);
+  const [joinResult, setJoinResult] = useState<SubmitJoinRoomResult | null>(null);
+  const canCreate = hostNickname.trim().length > 0 && !isSubmitting;
+  const canJoin =
+    joinRoomCode.trim().length > 0 &&
+    joinNickname.trim().length > 0 &&
+    !isJoining;
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canCreate) {
       return;
     }
 
     setIsSubmitting(true);
     const nextResult = await submitCreateRoom({ hostNickname });
-    setResult(nextResult);
+    setCreateResult(nextResult);
     setIsSubmitting(false);
+  }
+
+  async function handleJoinSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canJoin) {
+      return;
+    }
+
+    setIsJoining(true);
+    const nextResult = await submitJoinRoom({
+      roomCode: joinRoomCode,
+      nickname: joinNickname,
+    });
+    setJoinResult(nextResult);
+    setIsJoining(false);
   }
 
   return (
@@ -54,34 +82,13 @@ export function HomeEntrySurface() {
       </section>
 
       <section className="hero-grid">
-        <article className="panel panel-accent">
-          <h2 className="panel-title">게임 구조</h2>
-          <div className="metric-grid">
-            <div className="metric-card">
-              <span className="metric-label">점수</span>
-              <strong className="metric-value">개인 누적 점수</strong>
-              <span className="metric-detail">낮을수록 유리</span>
-            </div>
-            <div className="metric-card">
-              <span className="metric-label">조사</span>
-              <strong className="metric-value">조사실 단독 점유</strong>
-              <span className="metric-detail">질문과 정답 시도에 비용 발생</span>
-            </div>
-            <div className="metric-card">
-              <span className="metric-label">판정</span>
-              <strong className="metric-value">AI + 운영자</strong>
-              <span className="metric-detail">오판 시 수동 override 가능</span>
-            </div>
-          </div>
-        </article>
-
         <article className="panel">
           <h2 className="panel-title">방 만들기</h2>
           <p className="panel-copy">
             방장이 닉네임을 정하면 바로 대기실이 열립니다. 코드가 생성되면 플레이어들을 불러
             심리전을 시작할 수 있습니다.
           </p>
-          <form onSubmit={handleSubmit} className="field-group">
+          <form onSubmit={handleCreateSubmit} className="field-group">
             <label style={{ display: "grid", gap: 8 }}>
               <span>방장 닉네임</span>
               <input
@@ -92,21 +99,77 @@ export function HomeEntrySurface() {
                 placeholder="예: Mina"
               />
             </label>
-            <button className="button-primary" type="submit" disabled={!canSubmit}>
+            <button className="button-primary" type="submit" disabled={!canCreate}>
               {isSubmitting ? "방을 여는 중..." : "방 열기"}
+            </button>
+          </form>
+        </article>
+
+        <article className="panel panel-accent">
+          <h2 className="panel-title">코드로 입장</h2>
+          <p className="panel-copy">
+            이미 열린 방이 있다면 입장 코드와 닉네임만으로 대기실에 바로 합류할 수 있습니다.
+          </p>
+          <form onSubmit={handleJoinSubmit} className="field-group">
+            <label style={{ display: "grid", gap: 8 }}>
+              <span>입장 코드</span>
+              <input
+                className="text-input"
+                type="text"
+                value={joinRoomCode}
+                onChange={(event) => setJoinRoomCode(event.target.value.toUpperCase())}
+                placeholder="예: A7K3"
+                maxLength={6}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 8 }}>
+              <span>참가 닉네임</span>
+              <input
+                className="text-input"
+                type="text"
+                value={joinNickname}
+                onChange={(event) => setJoinNickname(event.target.value)}
+                placeholder="예: Sora"
+              />
+            </label>
+            <button className="button-primary" type="submit" disabled={!canJoin}>
+              {isJoining ? "입장 중..." : "방 참가"}
             </button>
           </form>
         </article>
       </section>
 
-      {result === null ? (
+      <section className="panel panel-accent">
+        <h2 className="panel-title">게임 구조</h2>
+        <div className="metric-grid">
+          <div className="metric-card">
+            <span className="metric-label">점수</span>
+            <strong className="metric-value">개인 누적 점수</strong>
+            <span className="metric-detail">낮을수록 유리</span>
+          </div>
+          <div className="metric-card">
+            <span className="metric-label">조사</span>
+            <strong className="metric-value">조사실 단독 점유</strong>
+            <span className="metric-detail">질문과 정답 시도에 비용 발생</span>
+          </div>
+          <div className="metric-card">
+            <span className="metric-label">판정</span>
+            <strong className="metric-value">AI + 운영자</strong>
+            <span className="metric-detail">오판 시 수동 override 가능</span>
+          </div>
+        </div>
+      </section>
+
+      {createResult === null && joinResult === null ? (
         <section className="panel">
           <h2 className="panel-title">입장 준비</h2>
           <p className="panel-copy">
-            닉네임을 정하면 방이 열리고, 생성된 코드로 바로 대기실에 들어갈 수 있습니다.
+            방장이 방을 열거나, 참가자가 입장 코드로 바로 합류할 수 있습니다.
           </p>
         </section>
-      ) : result.ok && result.response ? (
+      ) : null}
+
+      {createResult && createResult.ok && createResult.response ? (
         <section className="panel panel-accent">
           <h2 className="panel-title">방이 열렸습니다</h2>
           <p className="panel-copy">
@@ -116,46 +179,96 @@ export function HomeEntrySurface() {
           <div className="metric-grid">
             <div className="metric-card">
               <span className="metric-label">입장 코드</span>
-              <strong className="metric-value">{result.response.snapshot.room.code}</strong>
+              <strong className="metric-value">{createResult.response.snapshot.room.code}</strong>
             </div>
             <div className="metric-card">
               <span className="metric-label">방장</span>
-              <strong className="metric-value">{result.response.snapshot.me.nickname}</strong>
+              <strong className="metric-value">{createResult.response.snapshot.me.nickname}</strong>
             </div>
             <div className="metric-card">
               <span className="metric-label">현재 상태</span>
-              <strong className="metric-value">{getRoomStatusLabel(result.response.snapshot.room.status)}</strong>
+              <strong className="metric-value">{getRoomStatusLabel(createResult.response.snapshot.room.status)}</strong>
             </div>
             <div className="metric-card">
               <span className="metric-label">현재 인원</span>
-              <strong className="metric-value">{result.response.snapshot.players.length}</strong>
+              <strong className="metric-value">{createResult.response.snapshot.players.length}</strong>
             </div>
           </div>
           <div className="action-row" style={{ marginTop: 18 }}>
             <Link
               className="button-primary"
-              href={`/lobby?roomId=${encodeURIComponent(result.response.roomId)}&roomCode=${encodeURIComponent(
-                result.response.snapshot.room.code,
-              )}&playerId=${encodeURIComponent(result.response.playerId)}`}
+              href={`/lobby?roomId=${encodeURIComponent(createResult.response.roomId)}&roomCode=${encodeURIComponent(
+                createResult.response.snapshot.room.code,
+              )}&playerId=${encodeURIComponent(createResult.response.playerId)}`}
             >
               대기실 입장
             </Link>
             <Link
               className="button-secondary"
-              href={`/room/${encodeURIComponent(result.response.snapshot.room.code)}?roomId=${encodeURIComponent(
-                result.response.roomId,
-              )}&playerId=${encodeURIComponent(result.response.playerId)}`}
+              href={`/room/${encodeURIComponent(createResult.response.snapshot.room.code)}?roomId=${encodeURIComponent(
+                createResult.response.roomId,
+              )}&playerId=${encodeURIComponent(createResult.response.playerId)}`}
             >
               방 현황 보기
             </Link>
           </div>
         </section>
-      ) : (
+      ) : createResult ? (
         <section className="panel" style={{ borderColor: "rgba(139, 45, 45, 0.28)" }}>
           <h2 className="panel-title">방을 열지 못했습니다</h2>
-          <p className="message-negative">{result.errorMessage ?? "방 생성 요청에 실패했습니다."}</p>
+          <p className="message-negative">{createResult.errorMessage ?? "방 생성 요청에 실패했습니다."}</p>
         </section>
-      )}
+      ) : null}
+
+      {joinResult && joinResult.ok && joinResult.response ? (
+        <section className="panel panel-accent">
+          <h2 className="panel-title">방에 입장했습니다</h2>
+          <p className="panel-copy">
+            대기실에 합류했습니다. 준비를 마치면 방장이 팀 편성과 스테이지 시작을 이어갈 수 있습니다.
+          </p>
+          <div className="metric-grid">
+            <div className="metric-card">
+              <span className="metric-label">입장 코드</span>
+              <strong className="metric-value">{joinResult.response.snapshot.room.code}</strong>
+            </div>
+            <div className="metric-card">
+              <span className="metric-label">참가자</span>
+              <strong className="metric-value">{joinResult.response.snapshot.me.nickname}</strong>
+            </div>
+            <div className="metric-card">
+              <span className="metric-label">현재 상태</span>
+              <strong className="metric-value">{getRoomStatusLabel(joinResult.response.snapshot.room.status)}</strong>
+            </div>
+            <div className="metric-card">
+              <span className="metric-label">현재 인원</span>
+              <strong className="metric-value">{joinResult.response.snapshot.players.length}</strong>
+            </div>
+          </div>
+          <div className="action-row" style={{ marginTop: 18 }}>
+            <Link
+              className="button-primary"
+              href={`/lobby?roomId=${encodeURIComponent(joinResult.response.roomId)}&roomCode=${encodeURIComponent(
+                joinResult.response.snapshot.room.code,
+              )}&playerId=${encodeURIComponent(joinResult.response.playerId)}`}
+            >
+              대기실 입장
+            </Link>
+            <Link
+              className="button-secondary"
+              href={`/room/${encodeURIComponent(joinResult.response.snapshot.room.code)}?roomId=${encodeURIComponent(
+                joinResult.response.roomId,
+              )}&playerId=${encodeURIComponent(joinResult.response.playerId)}`}
+            >
+              방 현황 보기
+            </Link>
+          </div>
+        </section>
+      ) : joinResult ? (
+        <section className="panel" style={{ borderColor: "rgba(139, 45, 45, 0.28)" }}>
+          <h2 className="panel-title">방에 입장하지 못했습니다</h2>
+          <p className="message-negative">{joinResult.errorMessage ?? "방 참가 요청에 실패했습니다."}</p>
+        </section>
+      ) : null}
 
       <section className="panel-grid">
         <article className="panel" style={{ gridColumn: "span 7" }}>

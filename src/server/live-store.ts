@@ -2,6 +2,7 @@ import type {
   CreateRoomResponse,
   GameRuntimeSnapshot,
   GameSnapshotSummary,
+  JoinRoomResponse,
   ListChatMessagesResponse,
   PlayerScoreSnapshot,
   RoomSnapshot,
@@ -84,6 +85,20 @@ const REDACTED_OTHER_PLAYER: RedactedValue = { hidden: true, reason: "other_play
 const REDACTED_STAGE_SECRET: RedactedValue = { hidden: true, reason: "stage_secret" };
 const REDACTED_PRIVATE_CHAT: RedactedValue = { hidden: true, reason: "private_chat" };
 const REDACTED_AI_INTERNAL: RedactedValue = { hidden: true, reason: "ai_internal" };
+
+export class RoomJoinError extends Error {
+  constructor(
+    public readonly code:
+      | "ROOM_NOT_FOUND"
+      | "ROOM_NOT_JOINABLE"
+      | "ROOM_FULL"
+      | "NICKNAME_TAKEN",
+    message: string,
+  ) {
+    super(message);
+    this.name = "RoomJoinError";
+  }
+}
 
 function isUuidLike(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -399,6 +414,101 @@ export async function createRoomInStore(hostNickname: string): Promise<CreateRoo
 
   if (teamSlotsError) {
     throw new Error(`Failed to create team slots: ${teamSlotsError.message}`);
+  }
+
+  const state = await loadLobbyState(room.id);
+
+  return {
+    roomId: room.id,
+    playerId: player.id,
+    snapshot: buildRoomSnapshot({
+      room: state.room,
+      game: state.game,
+      players: state.players,
+      teamSlots: state.teamSlots,
+      viewerPlayerId: player.id,
+    }),
+  };
+}
+
+function assertJoinableRoom(room: DbRoomRow, players: DbPlayerRow[], nickname: string) {
+  if (room.status !== "waiting" && room.status !== "ready") {
+    throw new RoomJoinError(
+      "ROOM_NOT_JOINABLE",
+      "현재 상태에서는 이 방에 새로 입장할 수 없습니다.",
+    );
+  }
+
+  if (players.length >= room.max_players) {
+    throw new RoomJoinError("ROOM_FULL", "이 방은 이미 정원이 가득 찼습니다.");
+  }
+
+  const normalizedNickname = nickname.trim().toLowerCase();
+  const hasDuplicateNickname = players.some(
+    (player) => player.nickname.trim().toLowerCase() === normalizedNickname,
+  );
+
+  if (hasDuplicateNickname) {
+    throw new RoomJoinError("NICKNAME_TAKEN", "이미 같은 닉네임을 사용하는 플레이어가 있습니다.");
+  }
+}
+
+export async function joinRoomInStore(
+  roomCode: string,
+  nickname: string,
+): Promise<JoinRoomResponse> {
+  const room = await findRoomByRef(roomCode);
+
+  if (!room) {
+    throw new RoomJoinError("ROOM_NOT_FOUND", "입장 코드를 찾을 수 없습니다.");
+  }
+
+  const stateBeforeJoin = await loadLobbyState(room.id);
+  assertJoinableRoom(stateBeforeJoin.room, stateBeforeJoin.players, nickname);
+
+  const supabase = getSupabaseAdminClient();
+  const { data: player, error: playerError } = await supabase
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nickname,
+      role: "player",
+      is_ready: false,
+      connection_status: "connected",
+      total_score: 0,
+      solved_count: 0,
+      bonus_keyword_count: 0,
+      last_seen_at: nowUtcIso(),
+    })
+    .select("*")
+    .single<DbPlayerRow>();
+
+  if (playerError || !player) {
+    if (playerError?.code === "23505") {
+      throw new RoomJoinError(
+        "NICKNAME_TAKEN",
+        "이미 같은 닉네임을 사용하는 플레이어가 있습니다.",
+      );
+    }
+
+    throw new Error(`Failed to create joined player: ${playerError?.message ?? "unknown error"}`);
+  }
+
+  const joinedState = await loadLobbyState(room.id);
+  const nextRoomStatus = resolveLobbyStatus(joinedState.players);
+
+  if (joinedState.room.status !== nextRoomStatus) {
+    const { error: roomUpdateError } = await supabase
+      .from("rooms")
+      .update({
+        status: nextRoomStatus,
+        updated_at: nowUtcIso(),
+      })
+      .eq("id", room.id);
+
+    if (roomUpdateError) {
+      throw new Error(`Failed to sync room status after join: ${roomUpdateError.message}`);
+    }
   }
 
   const state = await loadLobbyState(room.id);

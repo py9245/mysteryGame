@@ -1,4 +1,8 @@
-import type { CreateRoomResponse, RoomSnapshot } from "@/contracts/api";
+import type {
+  CreateRoomResponse,
+  JoinRoomResponse,
+  RoomSnapshot,
+} from "@/contracts/api";
 import { nowUtcIso } from "@/server/time";
 
 export const SAMPLE_ROOM_ID = "room-001";
@@ -280,6 +284,102 @@ export function buildSampleCreateRoomResponse(
       ],
       privateChat: null,
       results: null,
+    },
+  };
+}
+
+export function buildSampleJoinRoomResponse(
+  roomCode: string,
+  nickname: string,
+): JoinRoomResponse {
+  const createdAt = nowUtcIso();
+  const roomId = buildSampleEntityId("room", createdAt);
+  const playerId = buildSampleEntityId("player-join", createdAt);
+  const baseSnapshot = buildSampleRoomSnapshot(roomId);
+  const selfScore = baseSnapshot.scores.find((score) => score.isMe) ?? baseSnapshot.scores[0];
+
+  return {
+    roomId,
+    playerId,
+    snapshot: {
+      ...baseSnapshot,
+      me: {
+        ...baseSnapshot.me,
+        playerId,
+        nickname,
+        roomId,
+        role: "player",
+        teamSlotId: null,
+        isReady: false,
+        connectionStatus: "connected",
+        stageStatus: null,
+        totalScore: 0,
+        stageScore: 0,
+        solvedCount: 0,
+        bonusKeywordCount: 0,
+        solvedLocked: false,
+      },
+      room: {
+        ...baseSnapshot.room,
+        id: roomId,
+        code: roomCode.trim().toUpperCase(),
+        status: "waiting",
+        updatedAt: createdAt,
+      },
+      game: baseSnapshot.game
+        ? {
+            ...baseSnapshot.game,
+            roomId,
+            updatedAt: createdAt,
+          }
+        : null,
+      players: [
+        ...baseSnapshot.players
+          .filter((player) => !player.isMe)
+          .map((player) => ({
+            ...player,
+            roomId,
+          })),
+        {
+          ...baseSnapshot.me,
+          playerId,
+          nickname,
+          roomId,
+          role: "player",
+          teamSlotId: null,
+          isReady: false,
+          connectionStatus: "connected",
+          stageStatus: null,
+          totalScore: 0,
+          stageScore: 0,
+          solvedCount: 0,
+          bonusKeywordCount: 0,
+          solvedLocked: false,
+          visibility: "self",
+          isMe: true,
+        },
+      ],
+      teamSlots: baseSnapshot.teamSlots.map((teamSlot) => ({
+        ...teamSlot,
+        roomId,
+      })),
+      scores: [
+        ...baseSnapshot.scores
+          .filter((score) => !score.isMe)
+          .map((score) => ({
+            ...score,
+          })),
+        {
+          ...selfScore,
+          playerId,
+          total: 0,
+          stageTotal: 0,
+          lastEventAt: null,
+          eventCount: 0,
+          visibility: "self",
+          isMe: true,
+        },
+      ],
     },
   };
 }
