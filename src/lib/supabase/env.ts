@@ -12,6 +12,13 @@ export const REQUIRED_SUPABASE_ENV_KEYS = [
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
+export function hasSupabaseServerEnv(env: EnvSource): boolean {
+  return REQUIRED_SUPABASE_ENV_KEYS.every((key) => {
+    const value = env[key];
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
+
 export function readSupabaseServerEnv(env: EnvSource): SupabaseServerEnv {
   return {
     NEXT_PUBLIC_SUPABASE_URL: getRequiredEnv(env, "NEXT_PUBLIC_SUPABASE_URL"),

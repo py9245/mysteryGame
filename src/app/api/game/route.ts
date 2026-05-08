@@ -11,6 +11,7 @@ import type {
   SubmitAnswerRequest,
   SubmitQuestionRequest,
 } from "@/contracts/api";
+import { listGameSnapshotsFromStore, setReadyInStore } from "@/server/live-store";
 import {
   buildSampleAcquireLockResponse,
   buildSampleAssignTeamsResponse,
@@ -22,11 +23,35 @@ import {
   IMPLEMENTED_SAMPLE_GAME_COMMAND_TYPES,
 } from "@/server/sample-game-command";
 import { buildSampleGameSnapshotsResponse } from "@/server/sample-game-snapshot";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { createPlaceholderFailure } from "../_shared/placeholder";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  if (isSupabaseEnabled()) {
+    try {
+      const games = await listGameSnapshotsFromStore();
+      const payload = {
+        ok: true,
+        data: { games },
+      } satisfies ApiResponse<ListGameSnapshotsResponse>;
+
+      return Response.json(payload, { status: 200 });
+    } catch (error) {
+      return Response.json(
+        {
+          ok: false,
+          error: {
+            code: "GAME_LIST_FAILED",
+            message: error instanceof Error ? error.message : "게임 목록을 불러오지 못했습니다.",
+          },
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   const payload = {
     ok: true,
     data: buildSampleGameSnapshotsResponse(),
@@ -536,6 +561,47 @@ export async function POST(request: Request) {
       return Response.json(payload, { status: 501 });
     }
     case "success": {
+      if (isSupabaseEnabled() && validated.command.type === "set_ready") {
+        try {
+          const response = await setReadyInStore(
+            validated.command.roomId,
+            validated.command.playerId,
+            validated.command.isReady,
+          );
+
+          if (!response) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: "PLAYER_NOT_FOUND",
+                  message: "해당 플레이어의 준비 상태를 바꿀 수 없습니다.",
+                },
+              },
+              { status: 404 },
+            );
+          }
+
+          const payload = {
+            ok: true,
+            data: response,
+          } satisfies ApiResponse<GameCommandResponse>;
+
+          return Response.json(payload, { status: 200 });
+        } catch (error) {
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "SET_READY_FAILED",
+                message: error instanceof Error ? error.message : "준비 상태 저장에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
       const response =
         validated.command.type === "set_ready"
           ? buildSampleSetReadyResponse(validated.command)

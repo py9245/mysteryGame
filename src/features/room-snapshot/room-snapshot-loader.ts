@@ -9,6 +9,7 @@ type SnapshotResults = NonNullable<RoomSnapshot["results"]>;
 export interface RoomSnapshotLoaderOptions {
   roomId?: string;
   roomCode?: string;
+  playerId?: string;
   stageNumber?: number;
   endpoint?: string;
   fetchImpl?: typeof fetch;
@@ -56,6 +57,9 @@ function resolveEndpoint(options: RoomSnapshotLoaderOptions): string {
 
   try {
     const url = new URL(base, "http://localhost");
+    if (typeof options.playerId === "string" && options.playerId.length > 0 && !url.searchParams.has("playerId")) {
+      url.searchParams.set("playerId", options.playerId);
+    }
     if (typeof options.stageNumber === "number" && !url.searchParams.has("stageNumber")) {
       url.searchParams.set("stageNumber", String(options.stageNumber));
     }

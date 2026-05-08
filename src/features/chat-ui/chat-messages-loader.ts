@@ -4,6 +4,7 @@ import { SAMPLE_ROOM_ID } from "@/server/sample-room-snapshot";
 
 export interface ChatMessagesLoaderOptions {
   roomId?: string;
+  playerId?: string;
   stageId?: string | null;
   endpoint?: string;
   fetchImpl?: typeof fetch;
@@ -80,6 +81,9 @@ function resolveEndpoint(options: ChatMessagesLoaderOptions): string {
 
   try {
     const url = new URL(base, "http://localhost");
+    if (typeof options.playerId === "string" && options.playerId.length > 0 && !url.searchParams.has("playerId")) {
+      url.searchParams.set("playerId", options.playerId);
+    }
     if (typeof options.stageId === "string" && options.stageId.length > 0 && !url.searchParams.has("stageId")) {
       url.searchParams.set("stageId", options.stageId);
     }

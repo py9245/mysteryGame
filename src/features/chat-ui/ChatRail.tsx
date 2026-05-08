@@ -5,6 +5,7 @@ import type { ChatSnapshot } from "./chat-ui-types";
 export async function ChatRail({ snapshot }: { snapshot: ChatSnapshot }) {
   const { messages, source, endpoint } = await loadChatMessages({
     roomId: snapshot.room.id,
+    playerId: snapshot.me.playerId,
     stageId: snapshot.stage?.stageId ?? null,
   });
 

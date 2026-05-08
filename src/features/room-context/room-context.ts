@@ -3,11 +3,13 @@ import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
 export interface RoomRouteSearchParams {
   roomId?: string | string[];
   roomCode?: string | string[];
+  playerId?: string | string[];
 }
 
 export interface ResolvedRoomContext {
   roomId?: string;
   roomCode?: string;
+  playerId?: string;
 }
 
 export function normalizeOptionalQueryParam(
@@ -32,16 +34,18 @@ export function resolveRoomContextFromSearchParams(
   return {
     roomId: normalizeOptionalQueryParam(searchParams?.roomId),
     roomCode: normalizeOptionalQueryParam(searchParams?.roomCode),
+    playerId: normalizeOptionalQueryParam(searchParams?.playerId),
   };
 }
 
 export function buildRoomContextQuery(
-  snapshot: Pick<RoomSnapshot, "room">,
+  snapshot: Pick<RoomSnapshot, "room" | "me">,
   requestedRoomCode?: string,
 ): string {
   const params = new URLSearchParams();
   params.set("roomId", snapshot.room.id);
   params.set("roomCode", requestedRoomCode ?? snapshot.room.code);
+  params.set("playerId", snapshot.me.playerId);
 
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
@@ -49,7 +53,7 @@ export function buildRoomContextQuery(
 
 export function appendRoomContextToHref(
   href: string,
-  snapshot: Pick<RoomSnapshot, "room">,
+  snapshot: Pick<RoomSnapshot, "room" | "me">,
   requestedRoomCode?: string,
 ): string {
   const query = buildRoomContextQuery(snapshot, requestedRoomCode);

@@ -3,6 +3,7 @@ import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigati
 import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
+import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
 function getRoomStatusLabel(status: string) {
   switch (status) {
@@ -26,9 +27,7 @@ export function RoomShell({
   snapshot: RoomSnapshot;
   requestedRoomCode?: string;
 }) {
-  const lobbyHref = `/lobby?roomId=${encodeURIComponent(snapshot.room.id)}&roomCode=${encodeURIComponent(
-    requestedRoomCode ?? snapshot.room.code,
-  )}`;
+  const lobbyHref = appendRoomContextToHref("/lobby", snapshot, requestedRoomCode);
 
   return (
     <section className="page-shell">

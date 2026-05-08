@@ -48,6 +48,9 @@ Cloudflare 공식 문서 기준으로 이 앱은 Pages보다 Workers 경로가 �
 현재 최소 필요값:
 
 - `GMS_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 설정 위치:
 
@@ -55,6 +58,7 @@ Cloudflare 공식 문서 기준으로 이 앱은 Pages보다 Workers 경로가 �
 - Runtime Variables and Secrets
 
 이 프로젝트는 AI 호출 시 `GMS_KEY`를 사용한다.
+Supabase를 실제 연결할 경우 위 3개 값도 함께 넣어야 한다.
 
 ## 로컬 확인 명령
 

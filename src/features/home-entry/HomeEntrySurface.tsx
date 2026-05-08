@@ -136,13 +136,15 @@ export function HomeEntrySurface() {
               className="button-primary"
               href={`/lobby?roomId=${encodeURIComponent(result.response.roomId)}&roomCode=${encodeURIComponent(
                 result.response.snapshot.room.code,
-              )}`}
+              )}&playerId=${encodeURIComponent(result.response.playerId)}`}
             >
               대기실 입장
             </Link>
             <Link
               className="button-secondary"
-              href={`/room/${encodeURIComponent(result.response.snapshot.room.code)}`}
+              href={`/room/${encodeURIComponent(result.response.snapshot.room.code)}?roomId=${encodeURIComponent(
+                result.response.roomId,
+              )}&playerId=${encodeURIComponent(result.response.playerId)}`}
             >
               방 현황 보기
             </Link>

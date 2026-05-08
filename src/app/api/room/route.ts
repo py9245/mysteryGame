@@ -5,6 +5,8 @@ import type {
   CreateRoomResponse,
 } from "@/contracts/api";
 import { buildSampleCreateRoomResponse } from "@/server/sample-room-snapshot";
+import { createRoomInStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
 
@@ -74,6 +76,25 @@ export async function POST(request: Request) {
   const validated = validateCreateRoomRequest(body);
   if (isApiFailure(validated)) {
     return Response.json(validated, { status: 400 });
+  }
+
+  if (isSupabaseEnabled()) {
+    try {
+      const response = await createRoomInStore(validated.hostNickname);
+      const payload = {
+        ok: true,
+        data: response,
+      } satisfies ApiResponse<CreateRoomResponse>;
+
+      return Response.json(payload, { status: 200 });
+    } catch (error) {
+      const payload = createValidationFailure(
+        error instanceof Error ? error.message : "Failed to create room in Supabase.",
+        { provider: "supabase" },
+      );
+
+      return Response.json(payload, { status: 500 });
+    }
   }
 
   const payload = {

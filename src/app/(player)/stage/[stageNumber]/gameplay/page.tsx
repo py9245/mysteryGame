@@ -13,10 +13,11 @@ export default async function GameplayPage({
   const { stageNumber } = await params;
   const resolvedStageNumber = Number(stageNumber);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const { roomId, roomCode } = resolveRoomContextFromSearchParams(resolvedSearchParams);
+  const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
   const snapshot = await loadRoomSnapshot({
     roomId,
     roomCode: roomId ? undefined : roomCode,
+    playerId,
     stageNumber: resolvedStageNumber,
   });
   const runtime = await loadGameRuntimeSnapshot({ roomId: snapshot.room.id });

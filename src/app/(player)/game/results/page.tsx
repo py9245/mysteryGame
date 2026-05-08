@@ -8,10 +8,11 @@ export default async function GameResultsPage({
   searchParams?: Promise<RoomRouteSearchParams>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const { roomId, roomCode } = resolveRoomContextFromSearchParams(resolvedSearchParams);
+  const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
   const snapshot = await loadRoomSnapshot({
     roomId,
     roomCode: roomId ? undefined : roomCode,
+    playerId,
   });
 
   return <GameResultsPanel snapshot={snapshot} />;

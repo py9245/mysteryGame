@@ -4,10 +4,12 @@ import type {
   SendChatMessageRequest,
   SendChatMessageResponse,
 } from "@/contracts/api";
+import { sendChatMessageToStore } from "@/server/live-store";
 import {
   buildSampleSentChatMessage,
   isSendableChatChannel,
 } from "@/server/sample-chat-messages";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
 
@@ -147,6 +149,28 @@ export async function POST(request: Request) {
   const validated = validateSendChatMessageRequest(body);
   if (isApiFailure(validated)) {
     return Response.json(validated, { status: 400 });
+  }
+
+  if (isSupabaseEnabled()) {
+    try {
+      const payload = {
+        ok: true,
+        data: await sendChatMessageToStore(validated),
+      } satisfies ApiResponse<SendChatMessageResponse>;
+
+      return Response.json(payload, { status: 200 });
+    } catch (error) {
+      return Response.json(
+        {
+          ok: false,
+          error: {
+            code: "CHAT_SEND_FAILED",
+            message: error instanceof Error ? error.message : "채팅 저장에 실패했습니다.",
+          },
+        },
+        { status: 500 },
+      );
+    }
   }
 
   const payload = {

@@ -11,10 +11,11 @@ export default async function StagePage({
 }) {
   const { stageNumber } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const { roomId, roomCode } = resolveRoomContextFromSearchParams(resolvedSearchParams);
+  const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
   const snapshot = await loadRoomSnapshot({
     roomId,
     roomCode: roomId ? undefined : roomCode,
+    playerId,
     stageNumber: Number(stageNumber),
   });
   return <StageShell snapshot={snapshot} />;
