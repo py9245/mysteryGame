@@ -7,6 +7,7 @@ import type {
 export interface SubmitJoinRoomOptions {
   roomCode: string;
   nickname: string;
+  roomPassword?: string | null;
   endpoint?: string;
   fetchImpl?: typeof fetch;
 }
@@ -74,6 +75,7 @@ export async function submitJoinRoom(
   const request: JoinRoomRequest = {
     roomCode: options.roomCode.trim().toUpperCase(),
     nickname: options.nickname.trim(),
+    roomPassword: typeof options.roomPassword === "string" ? options.roomPassword : null,
   };
 
   try {

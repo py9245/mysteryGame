@@ -6,12 +6,12 @@ export type DirectoryRoom = {
   code: string;
   title: string;
   mode: "public" | "secret" | "practice";
-  status: "waiting" | "ready" | "assigning" | "in_game";
   currentPlayers: number;
   maxPlayers: number;
   createdAt: string;
-  password?: string;
   stageCount: number;
+  passwordProtected: boolean;
+  joinable: boolean;
 };
 
 function modeLabel(mode: DirectoryRoom["mode"]) {
@@ -19,31 +19,73 @@ function modeLabel(mode: DirectoryRoom["mode"]) {
     case "secret":
       return "비밀방";
     case "practice":
-      return "연습모드";
+      return "연습방";
     default:
       return "공개방";
   }
 }
 
-function statusLabel(status: DirectoryRoom["status"]) {
-  switch (status) {
-    case "ready":
-      return "시작 가능";
-    case "assigning":
-      return "팀 편성 중";
-    case "in_game":
-      return "진행 중";
-    default:
-      return "입장 대기";
+function resolveRoomAction(room: DirectoryRoom) {
+  if (room.mode === "practice") {
+    return {
+      label: "연습 전용",
+      disabled: true,
+      tone: "blocked" as const,
+      description: "연습방은 방을 연 본인만 사용할 수 있습니다.",
+    };
   }
+
+  if (!room.joinable && room.currentPlayers >= room.maxPlayers) {
+    return {
+      label: "인원 마감",
+      disabled: true,
+      tone: "blocked" as const,
+      description: "정원이 가득 차서 지금은 합류할 수 없습니다.",
+    };
+  }
+
+  if (!room.joinable) {
+    return {
+      label: "입장 불가",
+      disabled: true,
+      tone: "blocked" as const,
+      description: "현재 상태에서는 새 플레이어를 받을 수 없습니다.",
+    };
+  }
+
+  if (room.passwordProtected) {
+    return {
+      label: "비밀번호 입력",
+      disabled: false,
+      tone: "secret" as const,
+      description: "입장 코드와 비밀번호가 모두 맞아야 들어갈 수 있습니다.",
+    };
+  }
+
+  return {
+    label: "입장하기",
+    disabled: false,
+    tone: "join" as const,
+    description: "빈 자리가 있다면 바로 대기실에 합류할 수 있습니다.",
+  };
+}
+
+function occupancyWidth(room: DirectoryRoom) {
+  if (room.maxPlayers <= 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.round((room.currentPlayers / room.maxPlayers) * 100));
 }
 
 export function RoomDirectoryPanel({
   rooms,
   onJoinRoom,
+  isLoading = false,
 }: {
   rooms: DirectoryRoom[];
-  onJoinRoom: (roomCode: string) => Promise<void>;
+  onJoinRoom: (roomCode: string, roomPassword?: string) => Promise<void>;
+  isLoading?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<"newest" | "least_players">("newest");
@@ -61,9 +103,9 @@ export function RoomDirectoryPanel({
 
     return [...filtered].sort((left, right) => {
       if (sortMode === "least_players") {
-        const leftRatio = left.currentPlayers / left.maxPlayers;
-        const rightRatio = right.currentPlayers / right.maxPlayers;
-        return leftRatio - rightRatio || right.createdAt.localeCompare(left.createdAt);
+        if (left.currentPlayers !== right.currentPlayers) {
+          return left.currentPlayers - right.currentPlayers;
+        }
       }
 
       return right.createdAt.localeCompare(left.createdAt);
@@ -71,12 +113,14 @@ export function RoomDirectoryPanel({
   }, [rooms, search, sortMode]);
 
   async function handleJoin(room: DirectoryRoom) {
-    if (busyRoomCode) {
+    const action = resolveRoomAction(room);
+    if (busyRoomCode || action.disabled) {
       return;
     }
 
-    if (room.mode === "secret" && room.password) {
+    if (room.passwordProtected) {
       setSelectedRoom(room);
+      setErrorMessage(null);
       return;
     }
 
@@ -97,18 +141,13 @@ export function RoomDirectoryPanel({
       return;
     }
 
-    if (selectedRoom.password && passwordDraft.trim() !== selectedRoom.password) {
-      setErrorMessage("비밀번호가 맞지 않습니다.");
-      return;
-    }
-
     setBusyRoomCode(selectedRoom.code);
     setErrorMessage(null);
-    setSelectedRoom(null);
-    setPasswordDraft("");
 
     try {
-      await onJoinRoom(selectedRoom.code);
+      await onJoinRoom(selectedRoom.code, passwordDraft.trim());
+      setSelectedRoom(null);
+      setPasswordDraft("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "방 입장에 실패했습니다.");
     } finally {
@@ -117,16 +156,7 @@ export function RoomDirectoryPanel({
   }
 
   return (
-    <section className="panel panel-accent">
-      <div className="composer-header">
-        <div>
-          <h2 className="panel-title">방 목록</h2>
-          <p className="panel-copy">제목 검색, 최신순, 적은 인원 순으로 바로 방을 좁힐 수 있습니다.</p>
-        </div>
-        <span className="status-badge" data-tone="live">
-          {visibleRooms.length}개
-        </span>
-      </div>
+    <>
       <div className="room-directory-toolbar">
         <input
           className="text-input"
@@ -152,15 +182,21 @@ export function RoomDirectoryPanel({
           </button>
         </div>
       </div>
-      {rooms.length === 0 ? (
+
+      {isLoading ? (
         <div className="modal-card room-empty-state">
-          <strong>아직 열린 방이 없습니다.</strong>
-          <p>첫 방을 열면 이 목록에 바로 나타납니다. 공개방이나 연습방으로 흐름을 먼저 확인해 보세요.</p>
+          <strong>열려 있는 방을 불러오는 중입니다.</strong>
+          <p>공개방과 비밀방 상태를 새로 가져오고 있습니다.</p>
+        </div>
+      ) : rooms.length === 0 ? (
+        <div className="modal-card room-empty-state">
+          <strong>지금은 열려 있는 방이 없습니다.</strong>
+          <p>입장 코드가 없다면 새 방을 만들거나 조금 뒤에 다시 확인해 주세요.</p>
         </div>
       ) : visibleRooms.length === 0 ? (
         <div className="modal-card room-empty-state">
           <strong>검색 결과가 없습니다.</strong>
-          <p>검색어를 비우거나 최신순으로 다시 보면 현재 열려 있는 방을 빠르게 찾을 수 있습니다.</p>
+          <p>검색어를 비우거나 정렬을 바꿔서 다시 찾아보세요.</p>
           {hasSearchQuery ? (
             <div className="action-row">
               <button className="button-secondary" type="button" onClick={() => setSearch("")}>
@@ -171,51 +207,56 @@ export function RoomDirectoryPanel({
         </div>
       ) : (
         <ul className="room-directory-list">
-          {visibleRooms.map((room) => (
-            <li key={room.code} className="room-directory-card">
-              <div className="composer-header">
-                <div>
-                  <h3 className="panel-title">{room.title}</h3>
-                  <p className="panel-copy">{room.code}</p>
+          {visibleRooms.map((room) => {
+            const action = resolveRoomAction(room);
+
+            return (
+              <li
+                key={room.code}
+                className="room-directory-card"
+                data-state={action.disabled ? "disabled" : "active"}
+              >
+                <div className="room-directory-card-top">
+                  <div>
+                    <h3 className="panel-title">{room.title}</h3>
+                    <p className="panel-copy">
+                      {modeLabel(room.mode)} · 스테이지 {room.stageCount}개
+                    </p>
+                  </div>
+                  <code className="room-code-chip">{room.code}</code>
                 </div>
-                <span className="status-badge" data-tone={room.status === "in_game" ? "alert" : "live"}>
-                  {statusLabel(room.status)}
-                </span>
-              </div>
-              <div className="meta-row">
-                <span>{modeLabel(room.mode)}</span>
-                <span>
-                  {room.currentPlayers}/{room.maxPlayers}명
-                </span>
-                <span>스테이지 {room.stageCount}개</span>
-              </div>
-              <p className="panel-copy">
-                {room.mode === "practice"
-                  ? "연습방은 방장 1명만 들어갈 수 있어 외부 합류가 닫혀 있습니다."
-                  : room.mode === "secret"
-                    ? "비밀방은 비밀번호를 확인한 뒤 입장합니다."
-                    : "공개방은 입장 코드만 맞으면 바로 합류합니다."}
-              </p>
-              <div className="action-row">
+
+                <div className="room-occupancy-block">
+                  <div className="meta-row room-occupancy-meta">
+                    <span>참가자</span>
+                    <span>
+                      {room.currentPlayers}/{room.maxPlayers}명
+                    </span>
+                  </div>
+                  <div className="room-occupancy-meter">
+                    <div
+                      className="room-occupancy-fill"
+                      style={{ width: `${occupancyWidth(room)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <p className="panel-copy">{action.description}</p>
+
                 <button
-                  className="button-primary"
+                  className="button-primary room-join-button"
                   type="button"
                   onClick={() => handleJoin(room)}
-                  disabled={busyRoomCode === room.code || room.mode === "practice"}
+                  disabled={busyRoomCode === room.code || action.disabled}
                 >
-                  {busyRoomCode === room.code
-                    ? "입장 중..."
-                    : room.mode === "secret"
-                      ? "비밀번호 확인"
-                      : room.mode === "practice"
-                        ? "입장 불가"
-                        : "바로 입장"}
+                  {busyRoomCode === room.code ? "입장 확인 중..." : action.label}
                 </button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
+
       {errorMessage ? <p className="message-negative">{errorMessage}</p> : null}
 
       {selectedRoom ? (
@@ -229,7 +270,7 @@ export function RoomDirectoryPanel({
           >
             <div className="composer-header">
               <div>
-                <h3 className="panel-title">비밀방 비밀번호</h3>
+                <h3 className="panel-title">비밀방 입장</h3>
                 <p className="panel-copy">{selectedRoom.title}에 들어가기 전에 비밀번호를 확인합니다.</p>
               </div>
               <button className="button-secondary" type="button" onClick={() => setSelectedRoom(null)}>
@@ -267,6 +308,6 @@ export function RoomDirectoryPanel({
           </section>
         </div>
       ) : null}
-    </section>
+    </>
   );
 }

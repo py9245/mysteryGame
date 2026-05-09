@@ -6,6 +6,11 @@ import type {
 
 export interface SubmitCreateRoomOptions {
   hostNickname: string;
+  roomMode?: CreateRoomRequest["roomMode"];
+  roomTitle?: string;
+  roomPassword?: string | null;
+  stageCount?: number;
+  maxPlayers?: number;
   endpoint?: string;
   fetchImpl?: typeof fetch;
 }
@@ -72,6 +77,11 @@ export async function submitCreateRoom(
   const fetchImpl = options.fetchImpl ?? fetch;
   const request: CreateRoomRequest = {
     hostNickname: options.hostNickname.trim(),
+    roomMode: options.roomMode,
+    roomTitle: options.roomTitle?.trim() || undefined,
+    roomPassword: typeof options.roomPassword === "string" ? options.roomPassword : null,
+    stageCount: options.stageCount,
+    maxPlayers: options.maxPlayers,
   };
 
   try {
