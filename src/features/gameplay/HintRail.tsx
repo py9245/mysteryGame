@@ -1,12 +1,19 @@
 import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
 
 export function HintRail({ snapshot }: { snapshot: RoomSnapshot }) {
+  const hints = snapshot.stage?.visibleHints ?? [];
   return (
     <aside className="panel panel-muted">
-      <h3 className="panel-title">공개 힌트</h3>
-      {snapshot.stage?.visibleHints.length ? (
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">공개 힌트</h3>
+          <p className="panel-copy">브리핑과 진행 중 공개되는 힌트만 모았습니다.</p>
+        </div>
+        <span className="status-badge">{hints.length}개</span>
+      </div>
+      {hints.length ? (
         <ul className="hint-list">
-          {snapshot.stage.visibleHints.map((hint) => (
+          {hints.map((hint) => (
             <li className="hint-card" key={hint.id}>
               <strong>{hint.player}</strong>
               {hint.admin ? <p className="roster-meta">{hint.admin}</p> : null}

@@ -18,11 +18,13 @@ This document ties the AI runtime route examples to the read-only operator revie
    - `data.finishReason`
    - `data.usage`
 4. Parse `data.text` into the judgement contract.
-5. Apply `reviewRoutingRules[*]`:
+5. If parse or schema validation fails, retry once with the same input and a stricter JSON-only reminder.
+6. If the retry still fails, keep the raw text snippet and create the same manual review path for operators.
+7. Apply `reviewRoutingRules[*]`:
    - `manualReviewRequired === true` -> create `question_review`
    - `needsOperatorOverride === true` or `publicOutcome === needs_review` -> create `answer_review`
    - otherwise skip queue creation
-6. After operator approval or rejection, apply `overrideTransitions[*]` to see which `override-log.json` record and `override_follow_up` queue item should exist.
+8. After operator approval or rejection, apply `overrideTransitions[*]` to see which `override-log.json` record and `override_follow_up` queue item should exist.
 
 ## How Operators Use The Samples
 

@@ -11,12 +11,11 @@ export function GlobalChatPanel({
   messages: ChatMessageViewModel[];
 }) {
   return (
-    <section className="chat-section">
-      <h4>전체 채널</h4>
+    <div className="chat-panel-body">
       <p className="panel-copy">
-        입장 코드 {roomCode} · {stageLabel}
+        {roomCode} · {stageLabel}
       </p>
       <ChatMessageList emptyMessage="아직 공개 채팅이 없습니다." messages={messages} />
-    </section>
+    </div>
   );
 }

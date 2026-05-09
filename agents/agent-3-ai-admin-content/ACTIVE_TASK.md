@@ -12,7 +12,7 @@ OWNER_SCOPE:
 당신은 혼자 작업하는 것이 아니다. 다른 에이전트가 동시에 같은 저장소를 만지고 있으니, 다른 사람의 변경을 되돌리지 말고 자신의 소유 범위 안에서만 additive하게 작업하라.
 
 목표:
-현재 AI runtime은 route와 helper는 있지만, `/admin`에서 운영자가 `지금 어떤 provider/model/env 전략으로 AI가 동작하는지` 읽기 좋게 확인하는 read-only surface가 더 필요하다. 이번 라운드에서는 [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/AI_PROVIDER_NOTES.md)를 기준으로 `/admin`의 `AI Runtime` 섹션을 강화하라.
+현재 AI runtime은 route와 helper는 있지만, `/admin`에서 운영자가 `지금 어떤 provider/model/env 전략으로 AI가 동작하는지` 읽기 좋게 확인하는 read-only surface가 더 필요하다. 이번 라운드에서는 [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md)를 기준으로 `/admin`의 `AI Runtime` 섹션을 강화하라.
 
 요구사항:
 1. GMS text/image provider 구조, 기본 모델, fallback/provider 선택 기준을 운영자가 읽기 좋게 보여라.

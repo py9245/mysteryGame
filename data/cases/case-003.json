@@ -2,20 +2,20 @@
   "id": "case-003",
   "stageNumber": 3,
   "difficulty": "hard",
-  "title": "연습실의 잠긴 녹음실",
-  "publicDescription": "공연 당일 밤, 연습실 안쪽 녹음실에서 매니저가 사망한 채 발견되었다. 출입 기록은 모두 정상처럼 보였다.",
-  "question": "누가, 어떤 장치로, 왜 매니저를 죽였는가?",
+  "title": "기록이 너무 깨끗한 녹음실",
+  "publicDescription": "공연이 끝난 뒤에도 연습실 안쪽 녹음실 문은 안에서 걸린 것처럼 보였다. 그런데 출입 기록은 너무 깨끗했고, 매니저는 이미 돌아오지 못한 상태였다.",
+  "question": "잠긴 녹음실에서 매니저를 노린 사람은 누구이며, 무엇을 이용해 어떤 목적을 숨겼는가?",
   "truth": "범인은 무대 담당 스태프다. 스태프는 악보 폴더에 숨긴 복제 열쇠로 녹음실을 열고, 매니저가 보관하던 계약서를 빼앗으려 했다. 매니저가 이를 막으려 하자 밀실처럼 보이도록 출입 기록을 덮어쓴 뒤 폭행했다.",
   "requiredKeywords": ["무대 담당 스태프", "복제 열쇠", "악보 폴더", "계약서", "출입 기록", "녹음실"],
   "bonusKeywords": ["밀실", "덮어쓰기"],
-  "acceptedAnswerSummary": "범인은 무대 담당 스태프이며, 악보 폴더에 숨긴 복제 열쇠로 녹음실에 들어가 계약서를 빼앗으려 했고 출입 기록을 덮어 밀실처럼 꾸몄다.",
+  "acceptedAnswerSummary": "범인은 무대 담당 스태프이며, 악보 폴더에 숨긴 복제 열쇠로 녹음실에 들어가 계약서를 빼앗으려 했고 출입 기록을 덮어 밀실처럼 보이게 만들었다.",
   "hints": [
     {
       "hintId": "case-003-hint-1",
       "order": 1,
       "triggerType": "time_elapsed",
       "strength": "weak",
-      "publicText": "출입 기록만으로는 사건의 전부를 설명할 수 없다.",
+      "publicText": "출입 기록이 멀쩡하다고 해서 사건도 멀쩡한 것은 아니다.",
       "internalNote": "기록 조작 가능성을 열어둔다."
     },
     {
@@ -23,7 +23,7 @@
       "order": 2,
       "triggerType": "first_player_solved",
       "strength": "medium",
-      "publicText": "사건의 핵심은 물리적 침입보다 내부 자료다.",
+      "publicText": "이 사건의 핵심은 문을 여는 방법보다 지키려던 자료에 있다.",
       "internalNote": "계약서와 내부자 동기를 강조한다."
     },
     {
@@ -31,11 +31,11 @@
       "order": 3,
       "triggerType": "stage_pressure",
       "strength": "strong",
-      "publicText": "가장 접근이 쉬운 숨김 장소는 무대 관련 소지품이다.",
+      "publicText": "가장 접근이 쉬운 은닉처는 무대 뒤에서 늘 들고 다니는 소지품이다.",
       "internalNote": "악보 폴더와 복제 열쇠를 연결한다."
     }
   ],
-  "reviewNotes": "후반 스테이지용.",
+  "reviewNotes": "후반 스테이지용. 기록 조작, 내부자 동기, 물증 은닉을 한 번에 읽어내게 한다.",
   "status": "approved",
   "version": "1.0.0"
 }

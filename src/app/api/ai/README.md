@@ -70,3 +70,6 @@ curl http://localhost:3000/api/ai/image \
   - `google_imagen` -> `imagen-4.0-ultra-generate-001`
 - Route responses are intentionally split into normalized fields and `raw` provider payload so admin/backend code can start with stable keys and still inspect upstream details when needed.
 - Prompt assets live in [`prompts/`](../../../../prompts/README.md). The runtime accepts plain request bodies and does not hard-bind prompt files yet; callers are expected to compose prompt content before invoking these routes.
+- Callers that expect judgement JSON should validate `data.text` against the matching schema before writing to storage.
+- If schema validation fails, retry the same prompt once with a stricter JSON-only reminder.
+- If the second attempt still fails, route the item to manual review and keep a raw text snippet for operators.

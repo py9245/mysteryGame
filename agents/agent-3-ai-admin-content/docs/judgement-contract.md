@@ -35,8 +35,9 @@
 
 - 메타 질문은 `중요하지 않습니다.`로 처리할 수 있다.
 - 단일 사실 질문은 가능하면 명확한 yes/no로 수렴한다.
-- 사실과 거짓이 섞이면 `그럴 수도 있습니다.`를 사용한다.
+- 사실과 거짓이 섞이면 `그럴 수도 있습니다.`와 내부 `MAYBE`를 사용한다.
 - 질문이 사건 해결에 무관하면 `중요하지 않습니다.`를 사용한다.
+- 질문이 애매하거나 안전 경계에 걸리면 `manualReviewRequired`를 `true`로 올린다.
 
 ## 2. 정답 판정 계약
 
@@ -59,6 +60,8 @@
 - 키워드는 단순 포함이 아니라 맥락 일치까지 본다.
 - 모호하지만 가능성 있는 답변은 `ambiguous`로 남긴다.
 - AI가 확신하지 못하면 `manual_review`로 넘긴다.
+- `publicSummary`는 플레이어가 바로 읽을 수 있는 한 줄 설명으로 제한한다.
+- `manual_review`는 내부 상태이고, 플레이어 공개 상태는 `needs_review`로 축약한다.
 
 ## 3. 공개 범위
 
@@ -66,16 +69,22 @@
 - 운영자에게는 이유 코드와 키워드 매칭 결과까지 보여준다.
 - 사건 원문 전체는 운영자 내부에서만 유지한다.
 
-## 4. Agent 1 전달 메모
+## 4. retry / review fallback
+
+- JSON 파싱이나 schema 검증에 실패하면 같은 입력으로 1회만 다시 시도한다.
+- 재시도 시에는 system 또는 developer 메시지에 `JSON only`와 `schema aligned`를 다시 강조한다.
+- 2회차까지 실패하면 운영자 검토로 넘기고, raw text snippet과 실패 사유를 함께 보관한다.
+- 질문 판정은 `manualReviewRequired=true`로, 정답 판정은 `needsOperatorOverride=true` 또는 `publicOutcome=needs_review`로 review queue에 연결한다.
+
+## 5. Agent 1 전달 메모
 
 - `QuestionJudgement`는 `publicReply`와 `manualReviewRequired`를 분리해 저장한다.
 - `AnswerResult`는 `publicOutcome`과 `needsOperatorOverride`를 분리해 저장한다.
-- `manual_review` 상태는 내부 상태이고, 플레이어 공개 상태는 `needs_review`에 가깝게 축약한다.
 - 운영자 필드인 `reasonCode`, `matchedRequiredKeywords`, `missingRequiredKeywords`, `matchedBonusKeywords`는 기본 공개 대상이 아니다.
 - Agent 1 저장 envelope의 `publicPayload.publicSummary`는 질문/정답 모두에서 필수로 채운다.
 - 질문 응답의 `publicSummary`는 `publicReply`와 함께 UI 요약으로 내려간다.
 
-## 5. Agent 2 public-facing field memo
+## 6. Agent 2 public-facing field memo
 
 - 질문 카드: `publicReply`, `publicSummary`
 - 정답 카드: `publicOutcome`, `publicSummary`

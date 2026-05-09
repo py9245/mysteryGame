@@ -30,8 +30,8 @@
         }
       },
       "response": {
-        "judgement": "PARTIAL",
-        "reasonCode": "QUESTION_PARTIALLY_ALIGNS",
+        "judgement": "MAYBE",
+        "reasonCode": "QUESTION_MAYBE_ALIGNS",
         "publicReply": "그럴 수도 있습니다.",
         "publicSummary": "범인 후보를 좁히는 질문입니다.",
         "manualReviewRequired": false,
@@ -48,8 +48,8 @@
           "publicSummary": "범인 후보를 좁히는 질문입니다."
         },
         "internalPayload": {
-          "judgement": "PARTIAL",
-          "reasonCode": "QUESTION_PARTIALLY_ALIGNS",
+          "judgement": "MAYBE",
+          "reasonCode": "QUESTION_MAYBE_ALIGNS",
           "safetyFlags": [],
           "logSummary": "조카 여부를 직접 단정하지 않고 가능성만 남김."
         }

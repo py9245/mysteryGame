@@ -10,10 +10,15 @@
 
 작업 전에 반드시 아래 문서를 이 순서대로 읽는다.
 
-1. [AGENT_COMMAND_PROTOCOL.md](/home/yusin/mysteryGame/app/AGENT_COMMAND_PROTOCOL.md)
-2. [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/SHARED_CONTRACTS.md)
-3. [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/AI_PROVIDER_NOTES.md)
-4. [PLAN.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/PLAN.md)
+1. [ai에이전트.md](/home/yusin/mysteryGame/app/agents/ai에이전트.md)
+2. [WORK_PROTOCOL.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/WORK_PROTOCOL.md)
+3. [SHARED_CONTEXT.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/SHARED_CONTEXT.md)
+4. [CURRENT_STATUS.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/CURRENT_STATUS.md)
+5. [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md)
+6. [PLAN.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/PLAN.md)
+
+`시작해!`라는 짧은 명령만 받아도 먼저 [ai에이전트.md](/home/yusin/mysteryGame/app/agents/ai에이전트.md)를 기준으로 현재 역할, 참조 문서, 남은 작업 순서를 해석해야 한다.
+`/home/yusin/mysteryGame/app/pm` 아래 문서는 PM 전용 원본이므로 기본 읽기 대상에서 제외한다.
 
 ---
 
@@ -23,6 +28,7 @@
 
 핵심 책임:
 
+- 로그인 / 비로그인 / 방 타입 / 룰북 카피
 - 사건 데이터 스키마
 - 초기 수동 사건 데이터
 - AI 사건 생성 / 검수 흐름
@@ -30,6 +36,7 @@
 - 정답 판정 프롬프트
 - 힌트 생성 / 공개 규칙
 - AI 응답 구조화
+- 조사실 대기열 / 1:1 채팅 상태 카피
 - 운영자 확인 / 수동 개입 흐름
 
 AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적은 `AI 실패를 운영 가능 상태로 만드는 것`이다.
@@ -65,7 +72,8 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 3. 질문 판정 프롬프트 초안
 4. 정답 판정 프롬프트 초안
 5. 힌트 데이터 구조 초안
-6. 운영자 수동 판정 흐름 초안
+6. 룰북 콘텐츠 초안
+7. 운영자 수동 판정 흐름 초안
 
 현재 스캐폴드 기준 파일:
 
@@ -100,12 +108,19 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 
 ## Phase 0. 계약 수용
 
-- [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/SHARED_CONTRACTS.md)를 기준으로 `Case`, `QuestionJudgement`, `AnswerJudgement`, `HintReveal` 구조를 고정한다.
+- [SHARED_CONTEXT.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/SHARED_CONTEXT.md)를 기준으로 `Case`, `QuestionJudgement`, `AnswerJudgement`, `HintReveal` 구조를 고정한다.
 - 플레이어 공개 데이터와 운영자 내부 데이터를 먼저 분리한다.
 - `개인 정답 성공` 구조를 기준으로 AI 판정 결과를 설계한다.
+- 조사실 대기열과 1:1 채팅 상태는 플레이어가 오해하지 않도록 짧은 상태 카피 세트를 먼저 고정한다.
+- 로그인 / 비로그인 / 방 타입 / 비밀번호 / 룰북 카피도 먼저 고정한다.
 
 ## Phase 1. 사건 / 판정 설계
 
+- 게스트 랜덤 닉네임 안내 카피 정의
+- 로그인 / 회원가입 / 전적 요약 카피 정의
+- 공개방 / 비밀방 / 연습모드 라벨과 설명 카피 정의
+- 비밀방 비밀번호 입력 / 오류 카피 정의
+- 메인 / 대기방 / 게임중 룰북 카피 정의
 - 사건 JSON 스키마 정의
 - 이미지 프롬프트 필드 정의
 - 초기 수동 사건 3개 작성
@@ -113,6 +128,8 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 - 정답 판정 규칙 정의
 - 힌트 공개 규칙 정의
 - 메타 질문 / 시스템 질문 차단 규칙 정의
+- 조사실 대기열 / 자동 입장 / 재진입 쿨다운 카피 정의
+- 1:1 채팅 요청 / busy / 수락 / 거절 / 만료 / 종료 카피 정의
 
 ## Phase 2. 1차 MVP 연결
 
@@ -122,6 +139,8 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 - 실패 시 재시도 정책
 - 애매한 결과의 `manual review` 경로 구현
 - 결과 화면에 줄 수 있는 공개 설명 데이터 정의
+- 룰북 섹션 구조와 짧은 튜토리얼 가이드 정의
+- 전화형 1:1 채팅과 질문방 상태에 대한 플레이어 공개 문구 정의
 
 ## Phase 3. 확장 / 운영
 
@@ -134,6 +153,7 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 - 운영자 오답 처리
 - 점수 보정 흐름
 - 강제 종료 흐름
+- 1:1 채팅 요청 로그 / 조사실 대기열 로그의 운영자 라벨 정리
 
 ## Phase 4. 현재 스캐폴드 해석
 
@@ -147,7 +167,7 @@ AI가 완벽할 것이라고 가정하면 안 된다. 이 에이전트의 목적
 
 ## 5. 보고/종료 신호 규칙
 
-이 에이전트는 모든 작업 응답에서 [AGENT_COMMAND_PROTOCOL.md](/home/yusin/mysteryGame/app/AGENT_COMMAND_PROTOCOL.md)의 보고 형식을 지켜야 한다.
+이 에이전트는 모든 작업 응답에서 [WORK_PROTOCOL.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/WORK_PROTOCOL.md)의 보고 형식을 지켜야 한다.
 
 필수 규칙:
 
@@ -181,6 +201,8 @@ Agent 3가 필요로 하는 것:
 - 힌트 공개 트리거 지점
 - 수동 개입 반영 API
 - 운영자 권한 처리 방식
+- 1:1 채팅 상태값과 조사실 대기열 상태값 정의
+- 게스트 / 로그인 / 방 모드 / 비밀번호 상태값 정의
 
 AI 판정 결과는 Agent 1이 흡수할 수 있는 `명확한 구조화 결과`로만 넘겨야 한다.
 
@@ -190,11 +212,13 @@ AI 판정 결과는 Agent 1이 흡수할 수 있는 `명확한 구조화 결과`
 
 Agent 2가 필요로 하는 문서/데이터:
 
+- 로그인 / 비로그인 / 방 타입 / 룰북 카피
 - 질문 판정 결과의 노출 문구 기준
 - 정답 / 오답 노출 규칙
 - 사건 표시 필드 기준
 - 힌트 노출 형식
 - 결과 화면에서 공개 가능한 설명 데이터 범위
+- 1:1 채팅 상태 카피와 질문방 대기열 카피
 
 운영자 화면은 플레이어 화면과 공개 범위가 다르므로 반드시 분리해서 전달한다.
 
@@ -208,7 +232,9 @@ Agent 2가 필요로 하는 문서/데이터:
 4. 추가 키워드는 보너스 판단용으로 별도 추출한다.
 5. AI 실패를 숨기지 말고 `manual review`로 넘긴다.
 6. 사건은 사람이 테스트 가능한 수준으로 먼저 적게 만든다.
-7. 현재 AI provider/runtime 기준은 [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/AI_PROVIDER_NOTES.md)를 따른다.
+7. 현재 AI provider/runtime 기준은 [AI_PROVIDER_NOTES.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md)를 따른다.
+8. 질문방 / 1:1 채팅의 시스템 상태는 설명형 문장보다 짧은 상태 문구를 우선한다.
+9. 룰북은 긴 설명보다 `빠르게 읽히는 카드형 문장`이 우선이다.
 
 ---
 
@@ -220,6 +246,8 @@ Agent 2가 필요로 하는 문서/데이터:
 - 힌트 데이터가 단계적으로 공개 가능하게 정리된다.
 - AI 실패 시 수동 판정 경로가 존재한다.
 - 운영자가 질문 / 정답 / 점수 기록을 보고 개입할 수 있다.
+- 조사실 대기열과 1:1 채팅 상태 카피가 Agent 2가 바로 붙일 수 있게 정리된다.
+- 로그인 / 비로그인 / 방 타입 / 비밀번호 / 룰북 카피가 Agent 2가 바로 붙일 수 있게 정리된다.
 
 ---
 
@@ -230,8 +258,9 @@ Agent 2가 필요로 하는 문서/데이터:
 ```text
 당신은 Mystery Time 프로젝트의 Agent 3이다.
 역할은 AI / Admin / Content Owner다.
-반드시 app/AGENT_COMMAND_PROTOCOL.md, app/SHARED_CONTRACTS.md, app/AI_PROVIDER_NOTES.md, app/agents/agent-3-ai-admin-content/PLAN.md를 먼저 읽고 시작해라.
+반드시 app/agents/ai에이전트.md, app/agents/agent-3-ai-admin-content/WORK_PROTOCOL.md, app/agents/agent-3-ai-admin-content/SHARED_CONTEXT.md, app/agents/agent-3-ai-admin-content/CURRENT_STATUS.md, app/agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md, app/agents/agent-3-ai-admin-content/PLAN.md를 먼저 읽고 시작해라.
 이번 작업에서는 사건 데이터 스키마, 수동 사건 데이터, 질문/정답 판정 프롬프트, 힌트 구조, 운영자 수동 개입 흐름을 다뤄라.
+로그인 / 비로그인 / 방 타입 / 비밀번호 / 룰북 카피도 함께 다뤄라.
 방 생성/입장/점수 핵심 서버 로직과 플레이어 메인 UI는 건드리지 마라.
 작업 후에는 변경 파일, 판정 구조, 테스트/검증, 남은 리스크, Agent 1과 Agent 2가 필요한 입력과 다음 handoff를 보고해라.
 응답 마지막 줄은 반드시 상태에 맞는 신호로 끝내라.

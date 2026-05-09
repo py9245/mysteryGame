@@ -12,7 +12,7 @@
 
 ## 출력 형식
 
-반드시 JSON만 출력한다.
+반드시 JSON만 출력한다. 마크다운 코드펜스, 주석, 설명 문장은 쓰지 않는다.
 
 ```json
 {
@@ -34,3 +34,6 @@
 - 보너스 키워드는 점수 보정이나 추가 보상용이다.
 - 모호한 표현은 `ambiguous`로 남긴다.
 - 확정이 어려우면 `manual_review`로 넘긴다.
+- `publicSummary`는 플레이어가 바로 읽을 수 있는 한 줄 결과 설명만 쓴다.
+- `manual_review`일 때는 `publicOutcome`을 `needs_review`로 두고, `needsOperatorOverride`를 실제 상황에 맞게 설정한다.
+- `matchedRequiredKeywords`, `missingRequiredKeywords`, `matchedBonusKeywords`는 중복 없이 정리한다.

@@ -69,12 +69,13 @@ export function deriveRoomStatus(
   playerCount: number,
   readyCount: number,
   hasActiveGame: boolean,
+  maxPlayers = MAX_PLAYERS_PER_ROOM,
 ): RoomStatus {
   if (hasActiveGame) {
     return "in_game";
   }
 
-  if (playerCount === MAX_PLAYERS_PER_ROOM && readyCount === MAX_PLAYERS_PER_ROOM) {
+  if (playerCount === maxPlayers && readyCount === maxPlayers) {
     return "ready";
   }
 
@@ -127,7 +128,12 @@ export function assignPlayersToTeamSlots(
   );
   const uniquePlayerIds = new Set(sortedPlayers.map((player) => player.id));
 
-  if (sortedPlayers.length !== TEAM_COUNT * PLAYERS_PER_TEAM) {
+  if (
+    !(
+      sortedPlayers.length === TEAM_COUNT * PLAYERS_PER_TEAM ||
+      (sortedPlayers.length === 1 && teamSlots.length === 1)
+    )
+  ) {
     throw new TransitionError(
       `Expected ${TEAM_COUNT * PLAYERS_PER_TEAM} players, received ${sortedPlayers.length}`,
     );
@@ -137,10 +143,19 @@ export function assignPlayersToTeamSlots(
     throw new TransitionError("Duplicate player detected during team assignment");
   }
 
-  if (teamSlots.length !== TEAM_COUNT) {
+  if (!(teamSlots.length === TEAM_COUNT || (sortedPlayers.length === 1 && teamSlots.length === 1))) {
     throw new TransitionError(
       `Expected ${TEAM_COUNT} team slots, received ${teamSlots.length}`,
     );
+  }
+
+  if (sortedPlayers.length === 1 && teamSlots.length === 1) {
+    return [{
+      stageId,
+      playerId: sortedPlayers[0].id,
+      teamSlotId: teamSlots[0]?.id ?? "",
+      createdAt: nowIso,
+    }];
   }
 
   return sortedPlayers.map((player, index) => ({

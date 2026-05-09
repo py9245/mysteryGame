@@ -13,6 +13,8 @@
 
 - `stage.briefing.*`
 - `stage.hint.*`
+- `privateChat.*`
+- `investigationQueue.*`
 - `stage.questionJudge.*`
 - `stage.answerResult.*`
 - `stage.spectator.*`
@@ -36,6 +38,35 @@
 - `HintRail.items[].admin` -> `stage.hint.items[].admin`
 - `HintRail.items[].strength` -> `stage.hint.items[].strength`
 - `HintRail.items[].triggerType` -> `stage.hint.items[].triggerType`
+
+### Private Chat
+
+- `PrivateChatBanner.title` -> `privateChat.title`
+- `PrivateChatBanner.incoming` -> `privateChat.incoming`
+- `PrivateChatBanner.responseTimer` -> `privateChat.responseTimer`
+- `PrivateChatBanner.choose` -> `privateChat.choose`
+- `PrivateChatBanner.busy` -> `privateChat.busy`
+- `PrivateChatBanner.accepted` -> `privateChat.accepted`
+- `PrivateChatBanner.rejected` -> `privateChat.rejected`
+- `PrivateChatBanner.expired` -> `privateChat.expired`
+- `PrivateChatBanner.inCall` -> `privateChat.inCall`
+- `PrivateChatBanner.minHold` -> `privateChat.minHold`
+- `PrivateChatBanner.cooldown` -> `privateChat.cooldown`
+- `PrivateChatBanner.requestAgain` -> `privateChat.requestAgain`
+- `PrivateChatBanner.request` -> `privateChat.request`
+
+### Investigation Queue
+
+- `InvestigationQueueBanner.title` -> `investigationQueue.title`
+- `InvestigationQueueBanner.waiting` -> `investigationQueue.waiting`
+- `InvestigationQueueBanner.autoEnter` -> `investigationQueue.autoEnter`
+- `InvestigationQueueBanner.queued` -> `investigationQueue.queued`
+- `InvestigationQueueBanner.requeueCooldown` -> `investigationQueue.requeueCooldown`
+- `InvestigationQueueBanner.blockedBusy` -> `investigationQueue.blockedBusy`
+- `InvestigationQueueBanner.blockedStage` -> `investigationQueue.blockedStage`
+- `InvestigationQueueBanner.blockedReason` -> `investigationQueue.blockedReason`
+- `InvestigationQueueBanner.ready` -> `investigationQueue.ready`
+- `InvestigationQueueBanner.release` -> `investigationQueue.release`
 
 ### Question Judge
 
@@ -63,6 +94,7 @@
 
 - `StageResultsSummary.title` -> `stage.results.title`
 - `StageResultsSummary.summary` -> `stage.results.summary`
+- `StageResultsSummary.publicCaseSummary` -> `stage.results.publicCaseSummary`
 - `StageResultsSummary.personalDeltaLabel` -> `stage.results.personalDeltaLabel`
 - `StageResultsSummary.solveOrderLabel` -> `stage.results.solveOrderLabel`
 
@@ -70,8 +102,20 @@
 
 - `GameResultsSummary.title` -> `game.results.title`
 - `GameResultsSummary.summary` -> `game.results.summary`
+- `GameResultsSummary.publicCaseExplanation` -> `game.results.publicCaseExplanation`
 - `RankingTable.title` -> `game.results.rankingTitle`
 - `PersonalScoreBreakdown.title` -> `game.results.personalScoreTitle`
+
+### Rulebook / Onboarding
+
+- `RulebookModal.title` -> `rulebook.title`
+- `RulebookModal.intro` -> `rulebook.intro`
+- `RulebookSections.mainOrder[]` -> `rulebookSections.mainOrder[]`
+- `RulebookSections.lobbyOrder[]` -> `rulebookSections.lobbyOrder[]`
+- `RulebookSections.gameOrder[]` -> `rulebookSections.gameOrder[]`
+- `OnboardingGuide.guide1*` -> `onboarding.guide1*`
+- `OnboardingGuide.guide2*` -> `onboarding.guide2*`
+- `OnboardingGuide.guide3*` -> `onboarding.guide3*`
 
 ### Privacy / Score
 
@@ -91,6 +135,14 @@
 - `admin.scoreAdjustment` -> `admin.scoreAdjustment`
 - `admin.hintForce` -> `admin.hintForce`
 - `admin.stageClose` -> `admin.stageClose`
+- `ReviewQueueStatus.pendingHelper` -> `reviewQueue.pendingHelper`
+- `ReviewQueueStatus.escalatedHelper` -> `reviewQueue.escalatedHelper`
+- `ReviewQueueStatus.resolvedHelper` -> `reviewQueue.resolvedHelper`
+- `OverrideResult.approvedHelper` -> `overrideResult.approvedHelper`
+- `OverrideResult.rejectedHelper` -> `overrideResult.rejectedHelper`
+- `OverrideResult.appliedHelper` -> `overrideResult.appliedHelper`
+- `OverrideResult.pendingHelper` -> `overrideResult.pendingHelper`
+- `OverrideResult.closedHelper` -> `overrideResult.closedHelper`
 
 ## 4. 1:1 주입 지점 정리
 
@@ -111,13 +163,18 @@
 
 - `category=briefing`는 스테이지 시작 전 공개 문구다.
 - `category=hint`는 시간 경과나 트리거에 따라 공개되는 문구다.
+- `category=privateChat`는 1:1 요청/응답/쿨다운 문구다.
+- `category=investigationQueue`는 질문방 FIFO 대기열 문구다.
 - `category=judgement.question`은 플레이어 질문 판정 결과다.
 - `category=judgement.answer`는 정답 결과와 검토 문구다.
 - `category=spectator`는 solved 상태와 관전 전환 문구다.
 - `category=results.stage`는 스테이지 종료 요약이다.
 - `category=results.game`는 게임 종료 요약이다.
 - `category=review`는 manual_review 공개 문구다.
+- `category=override`는 승인/반려/반영 운영자 문구다.
 - `category=admin`는 운영자 전용 문구다.
+- `publicSummary`는 `judgement.question`과 `judgement.answer` 각각의 1줄 공개 설명을 묶는 상위 개념이다.
+- `publicCaseSummary`와 `publicCaseExplanation`은 결과 화면에서 사건 해설을 공개 범위로 나누는 슬롯이다.
 
 ## 6. Agent 2 연결 메모
 

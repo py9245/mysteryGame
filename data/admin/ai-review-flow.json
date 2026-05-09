@@ -9,6 +9,7 @@
   "operatorChecklist": [
     "POST /api/ai/text의 normalized response에서 data.text, data.finishReason, data.usage를 먼저 확인한다.",
     "data.text 안의 JSON을 judgement contract에 맞게 파싱하고 manualReviewRequired 또는 needsOperatorOverride 플래그를 확인한다.",
+    "JSON이 schema를 통과하지 못하면 동일 입력으로 1회 재시도하고, 재시도 후에도 실패하면 raw text snippet과 실패 사유를 review queue에 남긴다.",
     "question judgement에서 manualReviewRequired가 true이면 question_review queue item을 만든다.",
     "answer judgement에서 needsOperatorOverride가 true이거나 publicOutcome이 needs_review이면 answer_review queue item을 escalated 상태로 만든다.",
     "운영자가 승인 또는 반려를 결정하면 override-log.json에 기록하고, 후속 공개 payload 확인용 override_follow_up item으로 이어진다."
@@ -65,7 +66,7 @@
         "result": "create_review_queue_item",
         "targetCategory": "question_review",
         "targetQueueItemId": "review-q-002",
-        "note": "질문 판정을 바로 공개하지 않고 pending review로 보낸다."
+        "note": "질문 판정을 바로 공개하지 않고 pending review로 보낸다. 파싱 실패 시 1회 재시도 후 같은 흐름을 따른다."
       }
     },
     {
@@ -129,7 +130,7 @@
         "result": "create_review_queue_item",
         "targetCategory": "answer_review",
         "targetQueueItemId": "review-a-002",
-        "note": "needs_review outcome을 escalated review queue로 보내고 운영자 승인을 기다린다."
+        "note": "needs_review outcome을 escalated review queue로 보내고 운영자 승인을 기다린다. 파싱 실패 시 1회 재시도 후 같은 흐름을 따른다."
       }
     }
   ],

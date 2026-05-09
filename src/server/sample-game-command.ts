@@ -1,6 +1,8 @@
 import type {
   AcquireInvestigationLockRequest,
   AcquireInvestigationLockResponse,
+  AdvanceStageRequest,
+  AdvanceStageResponse,
   AssignTeamsRequest,
   AssignTeamsResponse,
   PlayerScoreSnapshot,
@@ -41,6 +43,7 @@ export const IMPLEMENTED_SAMPLE_GAME_COMMAND_TYPES = [
   "set_ready",
   "assign_teams",
   "start_stage",
+  "advance_stage",
   "acquire_lock",
   "release_lock",
   "submit_question",
@@ -780,6 +783,55 @@ export function buildSampleStartStageResponse(
     stage,
     playerStates,
     snapshot: stageSnapshot,
+  };
+}
+
+export function buildSampleAdvanceStageResponse(
+  input: AdvanceStageRequest,
+): AdvanceStageResponse {
+  const updatedAt = nowUtcIso();
+  const baseSnapshot = buildSampleRoomSnapshot(input.roomId);
+  const game: Game =
+    baseSnapshot.game
+      ? {
+          ...baseSnapshot.game,
+          roomId: input.roomId,
+          status: "lobby",
+          currentStageNumber: baseSnapshot.game.currentStageNumber + 1,
+          updatedAt,
+        }
+      : {
+          id: "game-001",
+          roomId: input.roomId,
+          status: "lobby",
+          currentStageNumber: 2,
+          startedAt: updatedAt,
+          endedAt: null,
+          createdAt: updatedAt,
+          updatedAt,
+        };
+
+  return {
+    room: {
+      ...baseSnapshot.room,
+      id: input.roomId,
+      status: "ready",
+      updatedAt,
+    },
+    game,
+    snapshot: {
+      ...baseSnapshot,
+      viewMode: "ready_confirmed",
+      room: {
+        ...baseSnapshot.room,
+        id: input.roomId,
+        status: "ready",
+        updatedAt,
+      },
+      game,
+      stage: null,
+      results: null,
+    },
   };
 }
 

@@ -1,4 +1,4 @@
-This workspace mirrors the backend-owned paths from `app/SHARED_CONTRACTS.md`.
+This workspace mirrors the backend-owned paths from `agent-1-platform-backend/SHARED_CONTEXT.md`.
 
 Current interpretation:
 

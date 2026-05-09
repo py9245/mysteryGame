@@ -34,20 +34,22 @@ export function ReadyPanel({
   onToggleReady?: () => void;
 }) {
   return (
-    <section className="panel panel-muted">
-      <div className="chip-row">
+    <section className="panel panel-muted ready-panel">
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">내 준비 상태</h3>
+          <p className="panel-copy">{me.nickname}님이 다음 단계로 넘어갈 준비가 됐는지 확인합니다.</p>
+        </div>
         <span className="status-badge" data-tone={me.isReady ? "live" : "alert"}>
           {me.isReady ? "준비 완료" : "대기 중"}
         </span>
-        <span className="status-badge">현재 단계: {getViewModeLabel(viewMode)}</span>
       </div>
-      <p className="panel-copy">
-        {me.nickname}님의 준비 상태를 확정하는 구간입니다. 모두가 정리되면 팀이 갈리고 본격적인
-        심리전이 시작됩니다.
-      </p>
-      <button className="button-primary" type="button" onClick={onToggleReady} disabled={isSubmitting}>
-        {isSubmitting ? "상태 갱신 중..." : me.isReady ? "준비 해제" : "준비 완료"}
-      </button>
+      <div className="message-note">현재 단계: {getViewModeLabel(viewMode)}</div>
+      <div className="action-row">
+        <button className="button-primary" type="button" onClick={onToggleReady} disabled={isSubmitting}>
+          {isSubmitting ? "상태 갱신 중..." : me.isReady ? "준비 해제" : "준비 완료"}
+        </button>
+      </div>
       {statusMessage ? <p className="message-positive">{statusMessage}</p> : null}
       {errorMessage ? <p className="message-negative">{errorMessage}</p> : null}
     </section>

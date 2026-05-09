@@ -25,6 +25,33 @@
         "admin": "최종 힌트 공개"
       }
     },
+    "privateChat": {
+      "title": "전화",
+      "incoming": "통화 요청이 도착했습니다.",
+      "responseTimer": "15초 안에 응답하세요.",
+      "choose": "하나를 선택하세요.",
+      "busy": "상대방이 누군가와 이야기 중입니다.",
+      "accepted": "수락",
+      "rejected": "거절",
+      "expired": "응답 시간이 끝났습니다.",
+      "inCall": "통화중",
+      "minHold": "채팅 시작 후 30초가 지나야 퇴장할 수 있습니다.",
+      "cooldown": "거절 또는 종료 후 10초 뒤 다시 요청할 수 있습니다.",
+      "requestAgain": "다시 요청",
+      "request": "통화 요청"
+    },
+    "investigationQueue": {
+      "title": "조사실 대기열",
+      "waiting": "FIFO 대기 중",
+      "autoEnter": "자동 입장",
+      "queued": "대기열 진입",
+      "requeueCooldown": "퇴장 후 5초 뒤 재진입",
+      "blockedBusy": "조사실 사용 중",
+      "blockedStage": "현재 스테이지 불가",
+      "blockedReason": "입장 불가 사유",
+      "ready": "입장 가능",
+      "release": "다음 차례"
+    },
     "questionJudge": {
       "YES": "네, 그렇습니다.",
       "NO": "아니오, 그렇지 않습니다.",
@@ -51,16 +78,67 @@
       "publicCaseSummary": "공개 가능한 사건 요약"
     },
     "gameResults": {
-      "summary": "게임이 종료되었습니다.",
+      "summary": "게임의 결말이 확정되었습니다.",
       "finalScore": "최종 개인 누적 점수",
       "solveCount": "개인별 정답 성공 수",
       "bonusCount": "개인별 추가 키워드 기여",
-      "publicCaseExplanation": "공개 가능한 최종 사건 해설"
+      "publicCaseExplanation": "공개 가능한 최종 사건 해설",
+      "rankingTitle": "순위",
+      "winnerLine": "가장 낮은 점수의 플레이어가 승리합니다.",
+      "closingLine": "기록은 여기서 잠깁니다."
+    },
+    "profile": {
+      "title": "내 기록",
+      "body": "승패와 점수는 계정에 남습니다.",
+      "summary": "최근 흐름과 누적 전적을 확인합니다.",
+      "wins": "승리",
+      "losses": "패배",
+      "bestRank": "최고 순위",
+      "recent": "최근 기록",
+      "gamesPlayed": "참여 판수"
+    },
+    "recentHistory": {
+      "title": "최근 기록",
+      "empty": "아직 남은 판이 없습니다.",
+      "win": "승리",
+      "loss": "패배",
+      "solved": "정답 성공",
+      "joined": "참가"
     },
     "manualReview": {
       "player": "운영자 확인이 필요합니다.",
       "admin": "manual_review 대기",
-      "adminNote": "판정 근거 검토 후 최종 상태를 확정하세요."
+      "adminNote": "근거 확인 후 상태를 확정하세요."
+    },
+    "reviewQueue": {
+      "title": "리뷰 큐",
+      "pending": "대기",
+      "escalated": "승인 대기",
+      "resolved": "처리됨",
+      "empty": "대기 중인 항목이 없습니다.",
+      "itemCount": "대상 수",
+      "needsAttention": "운영자 확인 필요",
+      "questionReviewTitle": "질문 검토",
+      "answerReviewTitle": "정답 검토",
+      "overrideFollowUpTitle": "override 후속",
+      "questionReviewBody": "질문 경계만 확인",
+      "answerReviewBody": "키워드와 맥락 확인",
+      "overrideFollowUpBody": "공개 문구와 결과 동기화",
+      "pendingHelper": "manual_review 대기",
+      "escalatedHelper": "운영자 승인 대기",
+      "resolvedHelper": "처리 완료",
+      "actionApprove": "승인",
+      "actionReject": "반려",
+      "actionRecheck": "재검토",
+      "actionApplyOverride": "override 반영",
+      "filterHint": "상태만 골라 보세요."
+    },
+    "overrideResult": {
+      "approved": "승인됨",
+      "rejected": "반려됨",
+      "applied": "반영됨",
+      "pending": "대기 중",
+      "needsReview": "재검토 필요"
     },
     "adminOnly": {
       "questionHold": "질문 판정 보류",
@@ -74,12 +152,18 @@
   "copyCategory": [
     "stage",
     "hint",
+    "privateChat",
+    "investigationQueue",
     "questionJudge",
     "answerResult",
     "spectator",
     "stageResults",
     "gameResults",
+    "profile",
+    "reviewQueue",
+    "overrideResult",
     "manualReview",
+    "override",
     "adminOnly"
   ],
   "agent1Memo": {

@@ -6,16 +6,20 @@
 
 ## 읽는 순서
 
-1. [AGENT_COMMAND_PROTOCOL.md](/home/yusin/mysteryGame/app/AGENT_COMMAND_PROTOCOL.md)
-2. [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/SHARED_CONTRACTS.md)
-3. [PLAN.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/PLAN.md)
-4. [docs/judgement-contract.md](./docs/judgement-contract.md)
-5. [docs/admin-flow.md](./docs/admin-flow.md)
-6. [docs/visibility-matrix.md](./docs/visibility-matrix.md)
-7. [docs/copy-pack.md](./docs/copy-pack.md)
-8. [docs/view-model-boundary.md](./docs/view-model-boundary.md)
-9. [docs/copy-key-map.md](./docs/copy-key-map.md)
-10. [docs/integration-checklist.md](./docs/integration-checklist.md)
+1. [ai에이전트.md](/home/yusin/mysteryGame/app/agents/ai에이전트.md)
+2. [WORK_PROTOCOL.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/WORK_PROTOCOL.md)
+3. [SHARED_CONTEXT.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/SHARED_CONTEXT.md)
+4. [CURRENT_STATUS.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/CURRENT_STATUS.md)
+5. [PLAN.md](/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/PLAN.md)
+6. [docs/judgement-contract.md](./docs/judgement-contract.md)
+7. [docs/admin-flow.md](./docs/admin-flow.md)
+8. [docs/visibility-matrix.md](./docs/visibility-matrix.md)
+9. [docs/private-chat-policy.md](./docs/private-chat-policy.md)
+10. [docs/investigation-queue-policy.md](./docs/investigation-queue-policy.md)
+11. [docs/copy-pack.md](./docs/copy-pack.md)
+12. [docs/view-model-boundary.md](./docs/view-model-boundary.md)
+13. [docs/copy-key-map.md](./docs/copy-key-map.md)
+14. [docs/integration-checklist.md](./docs/integration-checklist.md)
 
 ## 현재 포함물
 

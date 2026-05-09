@@ -8,13 +8,14 @@
     ]
   },
   "include": [
+    ".next-dev/types/**/*.ts",
     ".next/types/**/*.ts",
     "next.config.mjs",
     "src/app/api/**/*.ts",
     "src/contracts/**/*.ts",
     "src/lib/supabase/**/*.ts",
     "src/server/**/*.ts",
-    ".next-dev/types/**/*.ts"
+    ".next-build/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

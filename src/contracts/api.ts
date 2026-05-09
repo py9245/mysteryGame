@@ -12,6 +12,7 @@ import type {
   PrivateChatSession,
   Question,
   Room,
+  RoomMode,
   Stage,
   StageTeamAssignment,
   TeamSlot,
@@ -93,24 +94,80 @@ export interface ListGameSnapshotsResponse {
 }
 
 export interface CreateRoomRequest {
-  hostNickname: string;
+  hostNickname?: string;
+  roomMode?: RoomMode;
+  roomTitle?: string;
+  roomPassword?: string | null;
+  stageCount?: number;
+  maxPlayers?: number;
+}
+
+export interface RoomSettingsView {
+  roomId: EntityId;
+  title: string;
+  mode: RoomMode;
+  stageCount: number;
+  maxPlayers: number;
+  passwordProtected: boolean;
+  updatedAt: IsoTimestamp;
 }
 
 export interface CreateRoomResponse {
   roomId: EntityId;
   playerId: EntityId;
+  settings: RoomSettingsView;
   snapshot: RoomSnapshot;
 }
 
 export interface JoinRoomRequest {
   roomCode: string;
-  nickname: string;
+  nickname?: string;
+  roomPassword?: string | null;
 }
 
 export interface JoinRoomResponse {
   roomId: EntityId;
   playerId: EntityId;
+  settings: RoomSettingsView;
   snapshot: RoomSnapshot;
+}
+
+export interface RoomDirectoryEntry {
+  roomId: EntityId;
+  roomCode: string;
+  title: string;
+  mode: RoomMode;
+  stageCount: number;
+  maxPlayers: number;
+  currentPlayers: number;
+  passwordProtected: boolean;
+  joinable: boolean;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+}
+
+export type RoomDirectorySort = "newest" | "least_players";
+
+export interface ListRoomDirectoryResponse {
+  sort: RoomDirectorySort;
+  search: string | null;
+  rooms: RoomDirectoryEntry[];
+}
+
+export interface RoomSettingsResponse {
+  roomId: EntityId;
+  settings: RoomSettingsView;
+  snapshot: RoomSnapshot;
+}
+
+export interface UpdateRoomSettingsRequest {
+  roomId: EntityId;
+  requestedByPlayerId: EntityId;
+  title?: string;
+  mode?: RoomMode;
+  roomPassword?: string | null;
+  stageCount?: number;
+  maxPlayers?: number;
 }
 
 export interface GetRoomStateRequest {
@@ -155,6 +212,18 @@ export interface StartStageResponse {
   game: Game;
   stage: Stage;
   playerStates: PlayerStageState[];
+  snapshot: RoomSnapshot;
+}
+
+export interface AdvanceStageRequest {
+  type: "advance_stage";
+  roomId: EntityId;
+  requestedByPlayerId: EntityId;
+}
+
+export interface AdvanceStageResponse {
+  room: Room;
+  game: Game;
   snapshot: RoomSnapshot;
 }
 
@@ -241,6 +310,19 @@ export interface RespondPrivateChatResponse {
   snapshot: RoomSnapshot;
 }
 
+export interface EndPrivateChatRequest {
+  type: "end_private_chat";
+  roomId: EntityId;
+  stageId: EntityId;
+  sessionId: EntityId;
+  playerId: EntityId;
+}
+
+export interface EndPrivateChatResponse {
+  session: PrivateChatSession;
+  snapshot: RoomSnapshot;
+}
+
 export interface CloseRoomRequest {
   type: "close_room";
   roomId: EntityId;
@@ -302,12 +384,14 @@ export type GameCommandRequest =
   | SetReadyRequest
   | AssignTeamsRequest
   | StartStageRequest
+  | AdvanceStageRequest
   | AcquireInvestigationLockRequest
   | ReleaseInvestigationLockRequest
   | SubmitQuestionRequest
   | SubmitAnswerRequest
   | RequestPrivateChatRequest
   | RespondPrivateChatRequest
+  | EndPrivateChatRequest
   | CloseRoomRequest
   | JudgeQuestionRequest
   | JudgeAnswerRequest
@@ -317,12 +401,14 @@ export type GameCommandResponse =
   | SetReadyResponse
   | AssignTeamsResponse
   | StartStageResponse
+  | AdvanceStageResponse
   | AcquireInvestigationLockResponse
   | ReleaseInvestigationLockResponse
   | SubmitQuestionResponse
   | SubmitAnswerResponse
   | RequestPrivateChatResponse
   | RespondPrivateChatResponse
+  | EndPrivateChatResponse
   | CloseRoomResponse
   | JudgeQuestionResponse
   | JudgeAnswerResponse

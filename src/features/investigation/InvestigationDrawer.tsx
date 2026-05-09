@@ -56,22 +56,25 @@ export function InvestigationDrawer({
   const statusCopy = getStatusCopy({ isLockedByMe, lockOwnerNickname });
 
   return (
-    <aside className="panel panel-accent">
-      <h3 className="panel-title">조사실 점유 상태</h3>
-      <div className="chip-row">
+    <aside className="panel panel-accent investigation-lock-panel">
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">조사실 점유 상태</h3>
+          <p className="panel-copy">지금 누가 쓰는지와 남은 시간만 보여줍니다.</p>
+        </div>
         <span className="status-badge" data-tone={statusCopy.tone}>
           {statusCopy.label}
         </span>
       </div>
       <p className="panel-copy">{statusCopy.detail}</p>
-      <div className="metric-grid">
-        <article className="metric-card">
+      <div className="metric-grid investigation-meter-grid">
+        <article className="metric-card metric-card-emphasis">
           <span className="metric-label">남은 점유 시간</span>
           <strong className="metric-value">{snapshot.stage?.investigation?.remainingSeconds ?? 0}s</strong>
           <span className="metric-detail">시간 안에 질문과 정답 시도를 끝내야 합니다.</span>
         </article>
       </div>
-      <div className="chip-row">
+      <div className="composer-footer">
         <button
           className="button-primary"
           type="button"

@@ -7,7 +7,10 @@ export function QuestionJudgeBadge({
 }) {
   return (
     <div className="message-note" data-result-key={resultKey}>
-      질문 응답: {publicReply}
+      <span className="metric-label">최근 질문 응답</span>
+      <p className="panel-copy" style={{ margin: "6px 0 0" }}>
+        {publicReply}
+      </p>
     </div>
   );
 }

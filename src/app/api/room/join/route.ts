@@ -4,9 +4,15 @@ import type {
   JoinRoomRequest,
   JoinRoomResponse,
 } from "@/contracts/api";
+import {
+  applyGuestProfileCookie,
+  createGuestViewer,
+  getCurrentViewerFromCookies,
+} from "@/server/auth-session";
 import { joinRoomInStore, RoomJoinError } from "@/server/live-store";
 import { buildSampleJoinRoomResponse } from "@/server/sample-room-snapshot";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -58,15 +64,11 @@ function validateJoinRoomRequest(
   }
 
   const nickname = normalizeRequiredString(body.nickname);
-  if (!nickname) {
-    return createValidationFailure("nickname is required.", {
-      field: "nickname",
-    });
-  }
-
+  const roomPassword = normalizeRequiredString(body.roomPassword);
   return {
     roomCode: roomCode.toUpperCase(),
-    nickname,
+    nickname: nickname ?? undefined,
+    roomPassword: roomPassword ?? undefined,
   };
 }
 
@@ -77,7 +79,10 @@ function resolveJoinErrorStatus(error: RoomJoinError): number {
     case "ROOM_FULL":
     case "NICKNAME_TAKEN":
     case "ROOM_NOT_JOINABLE":
+    case "ROOM_PASSWORD_REQUIRED":
       return 409;
+    case "ROOM_PASSWORD_INVALID":
+      return 403;
     default:
       return 400;
   }
@@ -101,18 +106,37 @@ export async function POST(request: Request) {
     return Response.json(validated, { status: 400 });
   }
 
+  const viewer = await getCurrentViewerFromCookies();
+  const guestViewer = viewer ?? createGuestViewer();
+  const resolvedNickname = guestViewer.nickname;
+
+  if (!resolvedNickname) {
+    return Response.json(
+      createValidationFailure("닉네임을 먼저 설정하거나 로그인해야 합니다.", {
+        field: "nickname",
+      }),
+      { status: 400 },
+    );
+  }
+
   if (isSupabaseEnabled()) {
     try {
       const response = await joinRoomInStore(
         validated.roomCode,
-        validated.nickname,
+        resolvedNickname,
+        viewer?.kind === "account" ? viewer.account.accountId : null,
+        validated.roomPassword ?? null,
       );
       const payload = {
         ok: true,
         data: response,
       } satisfies ApiResponse<JoinRoomResponse>;
 
-      return Response.json(payload, { status: 200 });
+      const nextResponse = NextResponse.json(payload, { status: 200 });
+      if (!viewer || viewer.kind === "guest") {
+        applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
+      }
+      return nextResponse;
     } catch (error) {
       if (error instanceof RoomJoinError) {
         return Response.json(
@@ -139,8 +163,12 @@ export async function POST(request: Request) {
 
   const payload = {
     ok: true,
-    data: buildSampleJoinRoomResponse(validated.roomCode, validated.nickname),
+    data: buildSampleJoinRoomResponse(validated.roomCode, resolvedNickname),
   } satisfies ApiResponse<JoinRoomResponse>;
 
-  return Response.json(payload, { status: 200 });
+  const nextResponse = NextResponse.json(payload, { status: 200 });
+  if (!viewer || viewer.kind === "guest") {
+    applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
+  }
+  return nextResponse;
 }

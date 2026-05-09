@@ -22,6 +22,10 @@
 - `investigation`
 - `lastQuestionJudgement`
 - `lastAnswerResult`
+- `lastQuestionJudgement.publicSummary`
+- `lastAnswerResult.publicSummary`
+- `stageResults.publicCaseSummary`
+- `gameResults.publicCaseExplanation`
 
 ### redacted 필드
 
@@ -36,6 +40,8 @@
 - `publicTitle` / `publicDescription`는 `StageBriefingPanel`과 `CasePanel`에서 그대로 쓴다.
 - `visibleHints`는 `HintRail`이 순서대로 렌더링한다.
 - `lastQuestionJudgement`와 `lastAnswerResult`는 `QuestionJudgeBadge`, `AnswerJudgeBadge`에만 전달한다.
+- `lastQuestionJudgement.publicSummary`와 `lastAnswerResult.publicSummary`는 결과 문구 카드에만 쓴다.
+- `stageResults.publicCaseSummary`와 `gameResults.publicCaseExplanation`은 스테이지/게임 결과 해설 카드에만 쓴다.
 - `redacted.*`는 플레이어 화면에서 원문 대신 축약 상태로만 보이게 한다.
 
 ## 2. InvestigationLockView 기준
@@ -93,12 +99,14 @@
 ### 질문 판정
 
 - `lastQuestionJudgement.publicReply` -> 플레이어 문구
+- `lastQuestionJudgement.publicSummary` -> 공개 질문 설명
 - `reasonCode`, `safetyFlags` -> 운영자 내부
 - `manualReviewRequired` -> 운영자 경고 배지
 
 ### 정답 판정
 
 - `lastAnswerResult.publicOutcome` -> 플레이어 문구
+- `lastAnswerResult.publicSummary` -> 공개 정답 설명
 - `needsOperatorOverride` -> 운영자 확인 필요 배지
 - `matchedRequiredKeywords`, `missingRequiredKeywords`, `matchedBonusKeywords` -> 운영자 내부
 
@@ -124,4 +132,5 @@
 - `AnswerJudgeBadge` <- `lastAnswerResult.publicOutcome`
 - `SpectatorBanner` <- `status`, `solvedPlayerIds`, `endReason`
 - `StageResultsSummary` <- `stageNumber`, `endReason`, `visibleHints`, `public summary`
-- `GameResultsSummary` <- `ScoreView.total`, final ranking, public explanation
+- `StageResultsSummary` <- `stageNumber`, `endReason`, `visibleHints`, `publicCaseSummary`
+- `GameResultsSummary` <- `ScoreView.total`, final ranking, `publicCaseExplanation`

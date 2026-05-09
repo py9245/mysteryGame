@@ -2,6 +2,7 @@ export type EntityId = string;
 export type IsoTimestamp = string;
 
 export type RoomStatus = "waiting" | "ready" | "assigning" | "in_game" | "closed";
+export type RoomMode = "public" | "secret" | "practice";
 export type GameStatus =
   | "lobby"
   | "briefing"
@@ -41,6 +42,7 @@ export type StageEndReason =
 export type ChatChannel = "global" | "team" | "private" | "system";
 export type PrivateChatRequestStatus =
   | "pending"
+  | "busy"
   | "accepted"
   | "rejected"
   | "expired"
@@ -214,6 +216,9 @@ export interface PrivateChatRequest {
   targetPlayerId: EntityId;
   status: PrivateChatRequestStatus;
   createdAt: IsoTimestamp;
+  expiresAt: IsoTimestamp;
+  respondedAt: IsoTimestamp | null;
+  responseReason: string | null;
 }
 
 export interface PrivateChatSession {
@@ -223,7 +228,9 @@ export interface PrivateChatSession {
   playerAId: EntityId;
   playerBId: EntityId;
   startedAt: IsoTimestamp;
-  endsAt: IsoTimestamp;
+  releaseAllowedAt: IsoTimestamp;
+  endedAt: IsoTimestamp | null;
+  closedByPlayerId: EntityId | null;
 }
 
 export interface HintReveal {

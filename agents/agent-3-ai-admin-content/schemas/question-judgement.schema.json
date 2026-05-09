@@ -19,13 +19,14 @@
       "enum": [
         "YES",
         "NO",
-        "PARTIAL",
+        "MAYBE",
         "IRRELEVANT"
       ]
     },
-    "reasonCode": { "type": "string" },
+    "reasonCode": { "type": "string", "minLength": 1 },
     "publicReply": {
       "type": "string",
+      "minLength": 1,
       "enum": [
         "네, 그렇습니다.",
         "아니오, 그렇지 않습니다.",
@@ -33,9 +34,9 @@
         "중요하지 않습니다."
       ]
     },
-    "publicSummary": { "type": "string" },
+    "publicSummary": { "type": "string", "minLength": 1 },
     "manualReviewRequired": { "type": "boolean" },
     "safetyFlags": { "type": "array", "items": { "type": "string" } },
-    "logSummary": { "type": "string" }
+    "logSummary": { "type": "string", "minLength": 1 }
   }
 }

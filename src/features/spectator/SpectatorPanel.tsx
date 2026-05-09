@@ -22,9 +22,15 @@ function getPublicSummary(snapshot: RoomSnapshot) {
 }
 
 export function SpectatorPanel({ snapshot }: { snapshot: RoomSnapshot }) {
+  const nextStateMessage = snapshot.game?.status === "finished" ? "최종 결과 공개" : "스테이지 결과 대기";
+
   return (
-    <section>
-      <h2>Spectator</h2>
+    <section className="page-shell">
+      <header className="page-header">
+        <p className="eyebrow">관전 상태</p>
+        <h2 className="page-title">관전 중</h2>
+        <p className="page-kicker">다음 상태: {nextStateMessage}. 공개 흐름만 확인하고 입력은 닫혀 있습니다.</p>
+      </header>
       <SolvedLockSummary snapshot={snapshot} />
       <SpectatorBanner
         titleKey="stage.spectator.title"

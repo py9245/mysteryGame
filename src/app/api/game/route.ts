@@ -1,24 +1,42 @@
 import type {
   AcquireInvestigationLockRequest,
+  AdvanceStageRequest,
   AssignTeamsRequest,
   ApiFailure,
   ApiResponse,
+  EndPrivateChatRequest,
   GameCommandResponse,
   ListGameSnapshotsResponse,
   ReleaseInvestigationLockRequest,
+  RequestPrivateChatRequest,
+  RespondPrivateChatRequest,
   SetReadyRequest,
   StartStageRequest,
   SubmitAnswerRequest,
   SubmitQuestionRequest,
 } from "@/contracts/api";
 import {
+  acquireInvestigationLockInStore,
+  advanceStageInStore,
+  AdvanceStageError,
   assignTeamsInStore,
   AssignTeamsError,
+  endPrivateChatInStore,
+  InvestigationLockError,
   listGameSnapshotsFromStore,
+  PrivateChatError,
+  requestPrivateChatInStore,
+  releaseInvestigationLockInStore,
+  respondPrivateChatInStore,
   setReadyInStore,
+  submitAnswerInStore,
+  submitQuestionInStore,
+  startStageInStore,
+  StartStageError,
 } from "@/server/live-store";
 import {
   buildSampleAcquireLockResponse,
+  buildSampleAdvanceStageResponse,
   buildSampleAssignTeamsResponse,
   buildSampleSubmitAnswerResponse,
   buildSampleSubmitQuestionResponse,
@@ -44,6 +62,84 @@ function resolveAssignTeamsErrorStatus(error: AssignTeamsError): number {
     case "ROOM_NOT_FULL":
     case "STAGE_NUMBER_MISMATCH":
     case "STAGE_NOT_ASSIGNABLE":
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+function resolveStartStageErrorStatus(error: StartStageError): number {
+  switch (error.code) {
+    case "ROOM_NOT_FOUND":
+    case "GAME_NOT_FOUND":
+    case "STAGE_NOT_FOUND":
+      return 404;
+    case "REQUESTER_NOT_ALLOWED":
+      return 403;
+    case "STAGE_NOT_STARTABLE":
+    case "ASSIGNMENTS_NOT_READY":
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+function resolveAdvanceStageErrorStatus(error: AdvanceStageError): number {
+  switch (error.code) {
+    case "ROOM_NOT_FOUND":
+    case "GAME_NOT_FOUND":
+      return 404;
+    case "REQUESTER_NOT_ALLOWED":
+      return 403;
+    case "STAGE_NOT_READY":
+    case "FINAL_STAGE_NOT_ADVANCABLE":
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+function resolveInvestigationLockErrorStatus(error: InvestigationLockError): number {
+  switch (error.code) {
+    case "ROOM_NOT_FOUND":
+    case "STAGE_NOT_FOUND":
+    case "PLAYER_NOT_FOUND":
+      return 404;
+    case "LOCK_CONFLICT":
+    case "LOCK_NOT_OWNED":
+    case "PLAYER_NOT_ACTIVE":
+    case "LOCK_LIMIT_REACHED":
+    case "TEAM_SLOT_MISMATCH":
+    case "STAGE_NOT_ACTIVE":
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+function resolvePrivateChatErrorStatus(error: PrivateChatError): number {
+  switch (error.code) {
+    case "ROOM_NOT_FOUND":
+    case "STAGE_NOT_FOUND":
+    case "PLAYER_NOT_FOUND":
+    case "REQUEST_NOT_FOUND":
+    case "SESSION_NOT_FOUND":
+      return 404;
+    case "REQUESTER_NOT_ALLOWED":
+    case "RESPONDER_NOT_ALLOWED":
+    case "SESSION_NOT_ALLOWED":
+      return 403;
+    case "TARGET_BUSY":
+    case "REQUESTER_BUSY":
+    case "REQUEST_COOLDOWN":
+    case "ACTIVE_REQUEST_EXISTS":
+    case "REQUEST_NOT_PENDING":
+    case "REQUEST_EXPIRED":
+    case "SESSION_LOCKED":
+    case "STAGE_NOT_ACTIVE":
+    case "PLAYER_NOT_ACTIVE":
+    case "SAME_PLAYER":
+    case "SAME_TEAM":
       return 409;
     default:
       return 400;
@@ -86,10 +182,14 @@ type ValidatedGameCommand =
   | { kind: "success"; command: SetReadyRequest }
   | { kind: "success"; command: AssignTeamsRequest }
   | { kind: "success"; command: StartStageRequest }
+  | { kind: "success"; command: AdvanceStageRequest }
   | { kind: "success"; command: AcquireInvestigationLockRequest }
   | { kind: "success"; command: ReleaseInvestigationLockRequest }
   | { kind: "success"; command: SubmitQuestionRequest }
   | { kind: "success"; command: SubmitAnswerRequest }
+  | { kind: "success"; command: RequestPrivateChatRequest }
+  | { kind: "success"; command: RespondPrivateChatRequest }
+  | { kind: "success"; command: EndPrivateChatRequest }
   | { kind: "unsupported"; requestedType: string }
   | { kind: "failure"; error: ApiFailure };
 
@@ -274,6 +374,41 @@ function validateStartStageCommand(
       requestedByPlayerId,
       caseKey,
       durationSeconds,
+    },
+  };
+}
+
+function validateAdvanceStageCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  if (!roomId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId is required.", {
+        field: "roomId",
+        type: "advance_stage",
+      }),
+    };
+  }
+
+  const requestedByPlayerId = normalizeRequiredString(body.requestedByPlayerId);
+  if (!requestedByPlayerId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("requestedByPlayerId is required.", {
+        field: "requestedByPlayerId",
+        type: "advance_stage",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "advance_stage",
+      roomId,
+      requestedByPlayerId,
     },
   };
 }
@@ -514,6 +649,92 @@ function validateSubmitAnswerCommand(
   };
 }
 
+function validateRequestPrivateChatCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  const stageId = normalizeRequiredString(body.stageId);
+  const requesterPlayerId = normalizeRequiredString(body.requesterPlayerId);
+  const targetPlayerId = normalizeRequiredString(body.targetPlayerId);
+
+  if (!roomId || !stageId || !requesterPlayerId || !targetPlayerId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId, stageId, requesterPlayerId, targetPlayerId are required.", {
+        type: "request_private_chat",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "request_private_chat",
+      roomId,
+      stageId,
+      requesterPlayerId,
+      targetPlayerId,
+    },
+  };
+}
+
+function validateRespondPrivateChatCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  const requestId = normalizeRequiredString(body.requestId);
+  const responderPlayerId = normalizeRequiredString(body.responderPlayerId);
+
+  if (!roomId || !requestId || !responderPlayerId || typeof body.accept !== "boolean") {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId, requestId, responderPlayerId, accept are required.", {
+        type: "respond_private_chat",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "respond_private_chat",
+      roomId,
+      requestId,
+      responderPlayerId,
+      accept: body.accept,
+    },
+  };
+}
+
+function validateEndPrivateChatCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  const stageId = normalizeRequiredString(body.stageId);
+  const sessionId = normalizeRequiredString(body.sessionId);
+  const playerId = normalizeRequiredString(body.playerId);
+
+  if (!roomId || !stageId || !sessionId || !playerId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId, stageId, sessionId, playerId are required.", {
+        type: "end_private_chat",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "end_private_chat",
+      roomId,
+      stageId,
+      sessionId,
+      playerId,
+    },
+  };
+}
+
 function validateGameCommandRequest(body: unknown): ValidatedGameCommand {
   if (!isRecord(body)) {
     return {
@@ -539,6 +760,8 @@ function validateGameCommandRequest(body: unknown): ValidatedGameCommand {
       return validateAssignTeamsCommand(body);
     case "start_stage":
       return validateStartStageCommand(body);
+    case "advance_stage":
+      return validateAdvanceStageCommand(body);
     case "acquire_lock":
       return validateAcquireLockCommand(body);
     case "release_lock":
@@ -547,6 +770,12 @@ function validateGameCommandRequest(body: unknown): ValidatedGameCommand {
       return validateSubmitQuestionCommand(body);
     case "submit_answer":
       return validateSubmitAnswerCommand(body);
+    case "request_private_chat":
+      return validateRequestPrivateChatCommand(body);
+    case "respond_private_chat":
+      return validateRespondPrivateChatCommand(body);
+    case "end_private_chat":
+      return validateEndPrivateChatCommand(body);
     default:
       return {
         kind: "unsupported",
@@ -666,20 +895,440 @@ export async function POST(request: Request) {
         }
       }
 
-      const response =
-        validated.command.type === "set_ready"
-          ? buildSampleSetReadyResponse(validated.command)
-          : validated.command.type === "assign_teams"
-            ? buildSampleAssignTeamsResponse(validated.command)
-            : validated.command.type === "start_stage"
-              ? buildSampleStartStageResponse(validated.command)
-              : validated.command.type === "acquire_lock"
-                ? buildSampleAcquireLockResponse(validated.command)
-                : validated.command.type === "release_lock"
-                  ? buildSampleReleaseLockResponse(validated.command)
-                  : validated.command.type === "submit_question"
-                    ? buildSampleSubmitQuestionResponse(validated.command)
-                    : buildSampleSubmitAnswerResponse(validated.command);
+      if (isSupabaseEnabled() && validated.command.type === "start_stage") {
+        try {
+          const response = await startStageInStore(
+            validated.command.roomId,
+            validated.command.requestedByPlayerId,
+            validated.command.caseKey,
+            validated.command.durationSeconds,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof StartStageError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveStartStageErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "START_STAGE_FAILED",
+                message: error instanceof Error ? error.message : "스테이지 시작에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "advance_stage") {
+        try {
+          const response = await advanceStageInStore(
+            validated.command.roomId,
+            validated.command.requestedByPlayerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof AdvanceStageError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveAdvanceStageErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "ADVANCE_STAGE_FAILED",
+                message: error instanceof Error ? error.message : "다음 스테이지 준비에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "acquire_lock") {
+        try {
+          const response = await acquireInvestigationLockInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "ACQUIRE_LOCK_FAILED",
+                message: error instanceof Error ? error.message : "조사실 입장에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "release_lock") {
+        try {
+          const response = await releaseInvestigationLockInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "RELEASE_LOCK_FAILED",
+                message: error instanceof Error ? error.message : "조사실 퇴장에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "submit_question") {
+        try {
+          const response = await submitQuestionInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+            validated.command.teamSlotId,
+            validated.command.content,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "SUBMIT_QUESTION_FAILED",
+                message: error instanceof Error ? error.message : "질문 제출에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "submit_answer") {
+        try {
+          const response = await submitAnswerInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+            validated.command.teamSlotId,
+            validated.command.content,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "SUBMIT_ANSWER_FAILED",
+                message: error instanceof Error ? error.message : "정답 제출에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "request_private_chat") {
+        try {
+          const response = await requestPrivateChatInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.requesterPlayerId,
+            validated.command.targetPlayerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof PrivateChatError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolvePrivateChatErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "REQUEST_PRIVATE_CHAT_FAILED",
+                message: error instanceof Error ? error.message : "1:1 채팅 요청에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "respond_private_chat") {
+        try {
+          const response = await respondPrivateChatInStore(
+            validated.command.roomId,
+            validated.command.requestId,
+            validated.command.responderPlayerId,
+            validated.command.accept,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof PrivateChatError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolvePrivateChatErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "RESPOND_PRIVATE_CHAT_FAILED",
+                message: error instanceof Error ? error.message : "1:1 채팅 응답 처리에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "end_private_chat") {
+        try {
+          const response = await endPrivateChatInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.sessionId,
+            validated.command.playerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof PrivateChatError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolvePrivateChatErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "END_PRIVATE_CHAT_FAILED",
+                message: error instanceof Error ? error.message : "1:1 채팅 종료에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (
+        !isSupabaseEnabled() &&
+        (validated.command.type === "request_private_chat" ||
+          validated.command.type === "respond_private_chat" ||
+          validated.command.type === "end_private_chat")
+      ) {
+        const payload = createPlaceholderFailure({
+          route: "game.command",
+          status: "supabase_required",
+          requestedType: validated.command.type,
+        }) satisfies ApiResponse<GameCommandResponse>;
+
+        return Response.json(payload, { status: 501 });
+      }
+
+      const response = (() => {
+        switch (validated.command.type) {
+          case "set_ready":
+            return buildSampleSetReadyResponse(validated.command);
+          case "assign_teams":
+            return buildSampleAssignTeamsResponse(validated.command);
+          case "start_stage":
+            return buildSampleStartStageResponse(validated.command);
+          case "advance_stage":
+            return buildSampleAdvanceStageResponse(validated.command);
+          case "acquire_lock":
+            return buildSampleAcquireLockResponse(validated.command);
+          case "release_lock":
+            return buildSampleReleaseLockResponse(validated.command);
+          case "submit_question":
+            return buildSampleSubmitQuestionResponse(validated.command);
+          case "submit_answer":
+            return buildSampleSubmitAnswerResponse(validated.command);
+          case "request_private_chat":
+          case "respond_private_chat":
+          case "end_private_chat":
+            return null;
+        }
+      })();
+
+      if (!response) {
+        const payload = createPlaceholderFailure({
+          route: "game.command",
+          status: "supabase_required",
+          requestedType: validated.command.type,
+        }) satisfies ApiResponse<GameCommandResponse>;
+
+        return Response.json(payload, { status: 501 });
+      }
       const payload = {
         ok: true,
         data: response,

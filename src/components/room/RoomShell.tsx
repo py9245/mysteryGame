@@ -34,31 +34,37 @@ export function RoomShell({
       <header className="page-header">
         <p className="eyebrow">상황실</p>
         <h2 className="page-title">방 현황</h2>
-        <p className="page-kicker">
-          지금 이 방에 누가 들어와 있고, 어떤 팀 배치가 가능한지 한눈에 파악하는 공간입니다.
-        </p>
+        <p className="page-kicker">방 코드, 내 자리, 팀 배치만 간결하게 확인하는 화면입니다.</p>
       </header>
       <SampleFlowNavigation snapshot={snapshot} requestedRoomCode={requestedRoomCode} />
       <div className="panel-grid">
         <section className="panel panel-accent span-5">
-          <h3 className="panel-title">현재 상태</h3>
-          <p className="panel-copy">
-            입장 코드와 현재 상태를 확인한 뒤 대기실이나 스테이지 화면으로 이동할 수 있습니다.
-          </p>
-          <ul className="surface-list">
-            <li className="assignment-card">
-              <strong>입장 코드</strong>: {requestedRoomCode ?? snapshot.room.code}
-            </li>
-            <li className="assignment-card">
-              <strong>현재 상태</strong>: {getRoomStatusLabel(snapshot.room.status)}
-            </li>
-            <li className="assignment-card">
-              <strong>참가 인원</strong>: {snapshot.players.length}명
-            </li>
-            <li className="assignment-card">
-              <strong>내 위치</strong>: {snapshot.me.teamSlotId ?? "팀 배정 전"}
-            </li>
-          </ul>
+          <div className="composer-header">
+            <div>
+              <h3 className="panel-title">현재 상태</h3>
+              <p className="panel-copy">방 정보를 한 줄씩만 확인하고 바로 돌아갈 수 있습니다.</p>
+            </div>
+            <span className="status-badge" data-tone="live">
+              {getRoomStatusLabel(snapshot.room.status)}
+            </span>
+          </div>
+          <div className="metric-grid">
+            <article className="metric-card">
+              <span className="metric-label">입장 코드</span>
+              <strong className="metric-value">{requestedRoomCode ?? snapshot.room.code}</strong>
+              <span className="metric-detail">방 입장에 사용됩니다.</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">참가 인원</span>
+              <strong className="metric-value">{snapshot.players.length}명</strong>
+              <span className="metric-detail">정원 {snapshot.room.maxPlayers}명</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">내 위치</span>
+              <strong className="metric-value">{snapshot.me.teamSlotId ?? "팀 배정 전"}</strong>
+              <span className="metric-detail">현재 배정 상태</span>
+            </article>
+          </div>
           <div className="action-row">
             <Link className="button-secondary" href={lobbyHref}>
               대기실로 이동

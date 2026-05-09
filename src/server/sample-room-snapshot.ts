@@ -1,6 +1,7 @@
 import type {
   CreateRoomResponse,
   JoinRoomResponse,
+  RoomSettingsView,
   RoomSnapshot,
 } from "@/contracts/api";
 import { nowUtcIso } from "@/server/time";
@@ -185,6 +186,27 @@ function buildSampleRoomCode(isoTimestamp: string): string {
   return `RM${buildCompactTimestamp(isoTimestamp).slice(-4)}`;
 }
 
+function buildSampleRoomSettingsView(
+  roomId: string,
+  createdAt: string,
+  input: {
+    title: string;
+    mode: RoomSettingsView["mode"];
+    stageCount: number;
+    maxPlayers: number;
+  },
+): RoomSettingsView {
+  return {
+    roomId,
+    title: input.title,
+    mode: input.mode,
+    stageCount: input.stageCount,
+    maxPlayers: input.maxPlayers,
+    passwordProtected: input.mode === "secret",
+    updatedAt: createdAt,
+  };
+}
+
 export function buildSampleCreateRoomResponse(
   hostNickname: string,
 ): CreateRoomResponse {
@@ -193,6 +215,12 @@ export function buildSampleCreateRoomResponse(
   const playerId = buildSampleEntityId("player-host", createdAt);
   const gameId = buildSampleEntityId("game", createdAt);
   const roomCode = buildSampleRoomCode(createdAt);
+  const settings = buildSampleRoomSettingsView(roomId, createdAt, {
+    title: `${hostNickname}의 방`,
+    mode: "public",
+    stageCount: 3,
+    maxPlayers: 6,
+  });
   const baseSnapshot = buildSampleRoomSnapshot(roomId);
   const selfPlayer = baseSnapshot.players.find((player) => player.isMe) ?? baseSnapshot.players[0];
   const selfScore = baseSnapshot.scores.find((score) => score.isMe) ?? baseSnapshot.scores[0];
@@ -200,6 +228,7 @@ export function buildSampleCreateRoomResponse(
   return {
     roomId,
     playerId,
+    settings,
     snapshot: {
       ...baseSnapshot,
       viewMode: "lobby_waiting",
@@ -297,10 +326,17 @@ export function buildSampleJoinRoomResponse(
   const playerId = buildSampleEntityId("player-join", createdAt);
   const baseSnapshot = buildSampleRoomSnapshot(roomId);
   const selfScore = baseSnapshot.scores.find((score) => score.isMe) ?? baseSnapshot.scores[0];
+  const settings = buildSampleRoomSettingsView(roomId, createdAt, {
+    title: `${roomCode.trim().toUpperCase()} 방`,
+    mode: "public",
+    stageCount: 3,
+    maxPlayers: 6,
+  });
 
   return {
     roomId,
     playerId,
+    settings,
     snapshot: {
       ...baseSnapshot,
       me: {

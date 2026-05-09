@@ -45,7 +45,7 @@ export async function buildAdminAiRuntimeGuide(): Promise<AdminAiRuntimeGuide> {
   const runtimeStatus = getAiRuntimeStatus();
   const textDoc = getTextRouteDocumentation();
   const imageDoc = getImageRouteDocumentation();
-  const notesPath = join(process.cwd(), "AI_PROVIDER_NOTES.md");
+  const notesPath = join(process.cwd(), "agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md");
 
   return {
     envKeys: runtimeStatus.requiredEnv,
@@ -108,7 +108,7 @@ export async function buildAdminAiRuntimeGuide(): Promise<AdminAiRuntimeGuide> {
         note: "사건 비주얼, 브리핑 이미지, 대표 썸네일 생성에 사용한다.",
       },
     ],
-    notesDocumentPath: "/home/yusin/mysteryGame/app/AI_PROVIDER_NOTES.md",
+    notesDocumentPath: "/home/yusin/mysteryGame/app/agents/agent-3-ai-admin-content/AI_PROVIDER_NOTES.md",
     notesExcerpt: await readNotesExcerpt(notesPath),
   };
 }

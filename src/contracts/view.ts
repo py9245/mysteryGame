@@ -148,9 +148,11 @@ export interface MeView {
 }
 
 export interface PrivateChatView {
-  request: PrivateChatRequest | RedactedValue;
+  request: PrivateChatRequest | RedactedValue | null;
+  incomingRequests: PrivateChatRequest[] | RedactedValue;
   session: PrivateChatSession | RedactedValue | null;
   participants: Array<EntityId> | RedactedValue;
+  cooldownEndsAt: IsoTimestamp | null;
 }
 
 export interface ChatMessageView extends ChatMessage {

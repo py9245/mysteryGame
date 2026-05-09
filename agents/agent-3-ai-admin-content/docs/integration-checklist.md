@@ -19,8 +19,10 @@
 
 - 질문 판정 schema
 - 정답 판정 schema
+- 질문 judgement enum `YES | NO | MAYBE | IRRELEVANT`
 - `publicReply` / `publicOutcome` / `publicSummary` 정렬
 - `manualReviewRequired` / `needsOperatorOverride` 분리
+- JSON parse 실패 시 1회 재시도 후 manual review 전환
 - `copy-key-map.json`의 slot/key 확정
 
 ### P1
@@ -35,6 +37,7 @@
 - 운영자 copy 세부 문구
 - hint 공개 연출 문구
 - stage/game results 보조 문구
+- `publicCaseSummary` / `publicCaseExplanation` 공개 범위 정리
 
 ## 3. Blocker
 
@@ -68,6 +71,7 @@
 - `needsOperatorOverride=true`는 UI 최종 확정 blocker다.
 - reason/keyword 매칭이 없으면 운영자는 승인하지 말고 `pending` 상태를 유지한다.
 - 플레이어 화면에는 내부 blocker를 그대로 노출하지 말고 `review.notice`만 보여준다.
+- JSON이 schema를 통과하지 못하면 같은 프롬프트로 1회 재시도 후 `manual_review`로 넘긴다.
 
 ## 7. 반입 체크
 

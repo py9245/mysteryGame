@@ -25,42 +25,41 @@ function formatStageStatus(status: RoomSnapshot["players"][number]["stageStatus"
   }
 }
 
-function formatStageScore(
-  value: RoomSnapshot["players"][number]["stageScore"],
-) {
-  return typeof value === "number" ? String(value) : value.reason;
-}
-
 export function PlayerRoster({
   players,
   visibility,
-  redacted,
+  redacted: _redacted,
 }: Pick<RoomSnapshot, "players" | "visibility" | "redacted">) {
   return (
     <section className="panel">
-      <h3 className="panel-title">플레이어 현황</h3>
-      <p className="panel-copy">
-        현재 공개 가능한 범위의 플레이어 목록입니다. 다른 플레이어 정보는 시야 규칙에 따라 축약될 수
-        있습니다.
-      </p>
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">플레이어 현황</h3>
+          <p className="panel-copy">현재 공개 가능한 범위의 플레이어만 보여줍니다.</p>
+        </div>
+        <span className="status-badge">{players.length}명</span>
+      </div>
       <ul className="roster-list">
-      {players.map((player) => (
-        <li className={`roster-item${player.isMe ? " is-me" : ""}`} key={player.playerId}>
-          <div className="roster-top">
-            <span className="roster-name">{player.nickname}</span>
-            <span className="status-badge" data-tone={player.connectionStatus === "connected" ? "live" : "alert"}>
-              {formatConnectionStatus(player.connectionStatus)}
-            </span>
-          </div>
-          <p className="roster-meta">
-            {formatTeamLabel(player.teamSlotId)} · {formatStageStatus(player.stageStatus)} · {player.isReady ? "준비 완료" : "대기 중"}
-          </p>
-          <p className="roster-meta">
-            {visibility.players === "redacted" ? "비공개 규칙 적용" : "공개 정보"} · 이번 점수{" "}
-            {formatStageScore(player.stageScore)}
-          </p>
-        </li>
-      ))}
+        {players.map((player) => (
+          <li className={`roster-item${player.isMe ? " is-me" : ""}`} key={player.playerId}>
+            <div className="roster-top">
+              <span className="roster-name">{player.nickname}</span>
+              <span
+                className="status-badge"
+                data-tone={player.connectionStatus === "connected" ? "live" : "alert"}
+              >
+                {formatConnectionStatus(player.connectionStatus)}
+              </span>
+            </div>
+            <p className="roster-meta">
+              {formatTeamLabel(player.teamSlotId)} · {formatStageStatus(player.stageStatus)} ·{" "}
+              {player.isReady ? "준비 완료" : "대기 중"}
+            </p>
+            <p className="roster-meta">
+              {visibility.players === "redacted" ? "비공개 규칙 적용" : "공개 정보"}
+            </p>
+          </li>
+        ))}
       </ul>
     </section>
   );

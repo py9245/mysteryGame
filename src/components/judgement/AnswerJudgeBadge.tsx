@@ -24,7 +24,10 @@ export function AnswerJudgeBadge({
       data-failure-key={failureKey}
       data-needs-review-key={needsReviewKey}
     >
-      {label}
+      <span className="metric-label">최근 정답 판정</span>
+      <p className="panel-copy" style={{ margin: "6px 0 0" }}>
+        {label}
+      </p>
     </div>
   );
 }

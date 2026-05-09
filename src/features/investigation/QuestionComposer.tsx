@@ -5,35 +5,71 @@ export function QuestionComposer({
   draft = "",
   onDraftChange,
   isEditable = false,
+  isSubmitting = false,
+  canSubmit = false,
+  feedbackMessage = null,
+  feedbackTone = "note",
+  onSubmit,
 }: {
   snapshot: RoomSnapshot;
   draft?: string;
   onDraftChange?: (value: string) => void;
   isEditable?: boolean;
+  isSubmitting?: boolean;
+  canSubmit?: boolean;
+  feedbackMessage?: string | null;
+  feedbackTone?: "positive" | "negative" | "note";
+  onSubmit?: () => void;
 }) {
   return (
-    <section className="panel">
-      <h3 className="panel-title">질문 메모</h3>
-      <p className="panel-copy">
-        {snapshot.me.nickname}님이 사건을 흔들 수 있는 예/아니오형 질문을 정리하는 공간입니다.
-      </p>
+    <section className="panel composer-card">
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">질문</h3>
+          <p className="panel-copy">짧고 분명하게 한 번에 보냅니다.</p>
+        </div>
+        <span className="status-badge" data-tone={isEditable ? "live" : "alert"}>
+          {isEditable ? "조사실 입력 가능" : "조사실 점유 필요"}
+        </span>
+      </div>
       <div className="field">
         <label htmlFor="question-preview">질문 문장</label>
         <textarea
           id="question-preview"
           className="text-area"
-          rows={3}
+          rows={4}
           placeholder="예: 범인은 행사장 내부 동선을 미리 알고 있었나요?"
           value={draft}
           onChange={(event) => onDraftChange?.(event.target.value)}
           readOnly={!isEditable}
         />
       </div>
-      <p className="message-note">
-        {isEditable
-          ? "조사실을 점유한 동안 문장을 다듬어 두면 판단 속도를 올릴 수 있습니다."
-          : "조사실에 입장하면 이 칸이 열리고, 질문 문장을 바로 정리할 수 있습니다."}
-      </p>
+      <div className="composer-footer">
+        <p className="message-note">
+          {isEditable ? "질문은 즉시 판정됩니다." : "조사실을 점유해야 열립니다."}
+        </p>
+        <button
+          className="button-primary"
+          type="button"
+          onClick={onSubmit}
+          disabled={!canSubmit || isSubmitting}
+        >
+          {isSubmitting ? "질문 제출 중..." : "질문 제출"}
+        </button>
+      </div>
+      {feedbackMessage ? (
+        <p
+          className={
+            feedbackTone === "positive"
+              ? "message-positive"
+              : feedbackTone === "negative"
+                ? "message-negative"
+                : "message-note"
+          }
+        >
+          {feedbackMessage}
+        </p>
+      ) : null}
     </section>
   );
 }

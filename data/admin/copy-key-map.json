@@ -5,17 +5,174 @@
     "visibility": ["public", "self", "redacted", "ai_internal", "not_visible_yet"],
     "categorySet": [
       "briefing",
+      "rulebook",
+      "identity",
+      "room.mode",
+      "room.list",
+      "room.password",
+      "room.settings",
+      "practice.mode",
       "hint",
       "judgement.question",
       "judgement.answer",
       "spectator",
       "results.stage",
       "results.game",
+      "results.endReason",
+      "results.waiting",
+      "profile",
+      "privateChat",
+      "investigation.queue",
+      "status",
+      "review.queue",
+      "override.result",
       "review",
       "admin"
     ]
   },
   "slots": {
+    "AuthPanel": {
+      "title": "auth.welcomeTitle",
+      "body": "auth.welcomeBody"
+    },
+    "RegisterPanel": {
+      "title": "auth.registerTitle",
+      "body": "auth.registerBody",
+      "button": "auth.registerButton"
+    },
+    "LoginPanel": {
+      "title": "auth.loginTitle",
+      "body": "auth.loginBody",
+      "button": "auth.loginButton"
+    },
+    "IdentityPanel": {
+      "guestTitle": "identity.guestTitle",
+      "guestBody": "identity.guestBody",
+      "loginTitle": "identity.loginTitle",
+      "loginBody": "identity.loginBody",
+      "signupTitle": "identity.signupTitle",
+      "signupBody": "identity.signupBody",
+      "nicknameTitle": "identity.nicknameTitle",
+      "nicknameBody": "identity.nicknameBody",
+      "randomNickname": "identity.randomNickname",
+      "nicknameEditable": "identity.nicknameEditable",
+      "nicknameLocked": "identity.nicknameLocked",
+      "recordTitle": "identity.recordTitle",
+      "recordBody": "identity.recordBody"
+    },
+    "RoomModePicker": {
+      "publicTitle": "roomMode.publicTitle",
+      "publicBody": "roomMode.publicBody",
+      "secretTitle": "roomMode.secretTitle",
+      "secretBody": "roomMode.secretBody",
+      "practiceTitle": "roomMode.practiceTitle",
+      "practiceBody": "roomMode.practiceBody",
+      "passwordTitle": "roomMode.passwordTitle",
+      "passwordBody": "roomMode.passwordBody",
+      "practiceLocked": "roomMode.practiceLocked"
+    },
+    "RoomDirectoryPanel": {
+      "title": "roomList.title",
+      "body": "roomList.body",
+      "searchLabel": "roomList.searchLabel",
+      "searchPlaceholder": "roomList.searchPlaceholder",
+      "emptyTitle": "roomList.emptyTitle",
+      "emptyBody": "roomList.emptyBody",
+      "searchEmptyTitle": "roomList.searchEmptyTitle",
+      "searchEmptyBody": "roomList.searchEmptyBody",
+      "sortNewestLabel": "roomList.sortNewestLabel",
+      "sortLeastPlayersLabel": "roomList.sortLeastPlayersLabel"
+    },
+    "RoomPasswordModal": {
+      "title": "roomPassword.title",
+      "body": "roomPassword.body",
+      "label": "roomPassword.label",
+      "placeholder": "roomPassword.placeholder",
+      "confirm": "roomPassword.confirm",
+      "retry": "roomPassword.retry",
+      "error": "roomPassword.error",
+      "locked": "roomPassword.locked",
+      "cancel": "roomPassword.cancel"
+    },
+    "PracticeModeCard": {
+      "title": "practiceMode.title",
+      "body": "practiceMode.body",
+      "constraint1": "practiceMode.constraint1",
+      "constraint2": "practiceMode.constraint2",
+      "constraint3": "practiceMode.constraint3",
+      "warning": "practiceMode.warning"
+    },
+    "RoomSettingsModal": {
+      "title": "roomSettings.title",
+      "body": "roomSettings.body",
+      "warning": "roomSettings.warning",
+      "modeLabel": "roomSettings.modeLabel",
+      "passwordLabel": "roomSettings.passwordLabel",
+      "passwordHint": "roomSettings.passwordHint",
+      "practiceWarning": "roomSettings.practiceWarning",
+      "save": "roomSettings.save",
+      "cancel": "roomSettings.cancel"
+    },
+    "NicknamePanel": {
+      "title": "auth.nicknameTitle",
+      "body": "auth.nicknameBody",
+      "saveLabel": "auth.saved",
+      "updateLabel": "auth.updated"
+    },
+    "RulebookModal": {
+      "title": "rulebook.title",
+      "intro": "rulebook.intro",
+      "main": "rulebook.main",
+      "lobby": "rulebook.lobby",
+      "game": "rulebook.game",
+      "investigation": "rulebook.investigation",
+      "chat": "rulebook.chat",
+      "close": "rulebook.close"
+    },
+    "RulebookSections": {
+      "mainOrder": "rulebookSections.mainOrder[]",
+      "lobbyOrder": "rulebookSections.lobbyOrder[]",
+      "gameOrder": "rulebookSections.gameOrder[]",
+      "mainBody": "rulebookSections.mainBody",
+      "lobbyBody": "rulebookSections.lobbyBody",
+      "gameBody": "rulebookSections.gameBody"
+    },
+    "OnboardingGuide": {
+      "guide1Title": "onboarding.guide1Title",
+      "guide1Body": "onboarding.guide1Body",
+      "guide2Title": "onboarding.guide2Title",
+      "guide2Body": "onboarding.guide2Body",
+      "guide3Title": "onboarding.guide3Title",
+      "guide3Body": "onboarding.guide3Body",
+      "guide1Hint": "onboarding.guide1Hint",
+      "guide2Hint": "onboarding.guide2Hint",
+      "guide3Hint": "onboarding.guide3Hint"
+    },
+    "LobbyHeader": {
+      "title": "lobby.title",
+      "body": "lobby.body"
+    },
+    "LobbyActionRail": {
+      "createRoom": "lobby.createRoom",
+      "joinRoom": "lobby.joinRoom",
+      "startGame": "lobby.startGame"
+    },
+    "LobbyStatusPill": {
+      "ready": "lobby.ready",
+      "waiting": "lobby.waiting",
+      "assigning": "lobby.assigning",
+      "inGame": "lobby.inGame"
+    },
+    "RoomHeader": {
+      "title": "room.title",
+      "body": "room.body"
+    },
+    "RoomMeta": {
+      "host": "room.host",
+      "status": "room.status",
+      "members": "room.members",
+      "readyHint": "room.readyHint"
+    },
     "StageBriefingPanel": {
       "title": "stage.briefing.title",
       "body": "stage.briefing.body"
@@ -49,9 +206,58 @@
     "AnswerComposer": {
       "helperText": "stage.answerResult.helperText"
     },
+    "InvestigationPanel": {
+      "title": "investigation.title",
+      "body": "investigation.body",
+      "lockTitle": "investigation.lockTitle",
+      "lockBody": "investigation.lockBody",
+      "questionHelper": "investigation.questionHelper",
+      "answerHelper": "investigation.answerHelper"
+    },
+    "InvestigationQueueBanner": {
+      "title": "investigationQueue.title",
+      "waiting": "investigationQueue.waiting",
+      "autoEnter": "investigationQueue.autoEnter",
+      "queued": "investigationQueue.queued",
+      "requeueCooldown": "investigationQueue.requeueCooldown",
+      "blockedBusy": "investigationQueue.blockedBusy",
+      "blockedStage": "investigationQueue.blockedStage",
+      "blockedReason": "investigationQueue.blockedReason",
+      "ready": "investigationQueue.ready",
+      "release": "investigationQueue.release"
+    },
+    "PrivateChatBanner": {
+      "title": "privateChat.title",
+      "incoming": "privateChat.incoming",
+      "responseTimer": "privateChat.responseTimer",
+      "choose": "privateChat.choose",
+      "busy": "privateChat.busy",
+      "accepted": "privateChat.accepted",
+      "rejected": "privateChat.rejected",
+      "expired": "privateChat.expired",
+      "inCall": "privateChat.inCall",
+      "minHold": "privateChat.minHold",
+      "cooldown": "privateChat.cooldown",
+      "requestAgain": "privateChat.requestAgain",
+      "request": "privateChat.request"
+    },
+    "StatusBanner": {
+      "selfReady": "status.selfReady",
+      "selfBusy": "status.selfBusy",
+      "selfWaiting": "status.selfWaiting",
+      "selfLocked": "status.selfLocked",
+      "selfCooldown": "status.selfCooldown",
+      "selfQueued": "status.selfQueued",
+      "selfCall": "status.selfCall"
+    },
     "SpectatorBanner": {
       "title": "stage.spectator.title",
       "body": "stage.spectator.body"
+    },
+    "SpectatorStatus": {
+      "title": "spectator.title",
+      "body": "spectator.body",
+      "subtext": "spectator.subtext"
     },
     "SolvedLockSummary": {
       "title": "stage.spectator.lockTitle"
@@ -62,12 +268,54 @@
     "StageResultsSummary": {
       "title": "stage.results.title",
       "summary": "stage.results.summary",
+      "publicCaseSummary": "stage.results.publicCaseSummary",
       "personalDeltaLabel": "stage.results.personalDeltaLabel",
-      "solveOrderLabel": "stage.results.solveOrderLabel"
+      "solveOrderLabel": "stage.results.solveOrderLabel",
+      "ctaNext": "stage.results.ctaNext",
+      "ctaNextHint": "stage.results.ctaNextHint",
+      "returnHome": "stage.results.returnHome",
+      "returnHomeHint": "stage.results.returnHomeHint",
+      "waiting": "stage.results.waiting"
     },
     "GameResultsSummary": {
       "title": "game.results.title",
-      "summary": "game.results.summary"
+      "summary": "game.results.summary",
+      "publicCaseExplanation": "game.results.publicCaseExplanation",
+      "closingCta": "game.results.closingCta",
+      "closingHint": "game.results.closingHint"
+    },
+    "StageEndReasonBadge": {
+      "two_players_solved": "stageEndReason.two_players_solved",
+      "timer_expired": "stageEndReason.timer_expired",
+      "admin_closed": "stageEndReason.admin_closed",
+      "cancelled": "stageEndReason.cancelled"
+    },
+    "WaitingStateBanner": {
+      "title": "waitingState.title",
+      "body": "waitingState.body",
+      "hostCta": "waitingState.hostCta",
+      "hostCtaHint": "waitingState.hostCtaHint",
+      "playerBody": "waitingState.playerBody",
+      "playerBodyHint": "waitingState.playerBodyHint",
+      "finalReturn": "waitingState.finalReturn"
+    },
+    "ProfileSummary": {
+      "title": "profile.title",
+      "body": "profile.body",
+      "summary": "profile.summary",
+      "wins": "profile.wins",
+      "losses": "profile.losses",
+      "bestRank": "profile.bestRank",
+      "recent": "profile.recent",
+      "gamesPlayed": "profile.gamesPlayed"
+    },
+    "RecentHistory": {
+      "title": "recentHistory.title",
+      "empty": "recentHistory.empty",
+      "win": "recentHistory.win",
+      "loss": "recentHistory.loss",
+      "solved": "recentHistory.solved",
+      "joined": "recentHistory.joined"
     },
     "RankingTable": {
       "title": "game.results.rankingTitle"
@@ -94,6 +342,75 @@
     "manualReview": {
       "notice": "review.notice",
       "adminNotice": "admin.manualReviewNotice"
+    },
+    "ReviewQueueStatus": {
+      "title": "reviewQueue.title",
+      "pending": "reviewQueue.pending",
+      "escalated": "reviewQueue.escalated",
+      "resolved": "reviewQueue.resolved",
+      "empty": "reviewQueue.empty",
+      "itemCount": "reviewQueue.itemCount",
+      "needsAttention": "reviewQueue.needsAttention",
+      "questionReviewTitle": "reviewQueue.questionReviewTitle",
+      "answerReviewTitle": "reviewQueue.answerReviewTitle",
+      "overrideFollowUpTitle": "reviewQueue.overrideFollowUpTitle",
+      "questionReviewBody": "reviewQueue.questionReviewBody",
+      "answerReviewBody": "reviewQueue.answerReviewBody",
+      "overrideFollowUpBody": "reviewQueue.overrideFollowUpBody",
+      "pendingHelper": "reviewQueue.pendingHelper",
+      "escalatedHelper": "reviewQueue.escalatedHelper",
+      "resolvedHelper": "reviewQueue.resolvedHelper",
+      "actionApprove": "reviewQueue.actionApprove",
+      "actionReject": "reviewQueue.actionReject",
+      "actionRecheck": "reviewQueue.actionRecheck",
+      "actionApplyOverride": "reviewQueue.actionApplyOverride",
+      "filterHint": "reviewQueue.filterHint"
+    },
+    "ReviewCard": {
+      "questionTitle": "reviewCard.questionTitle",
+      "answerTitle": "reviewCard.answerTitle",
+      "overrideTitle": "reviewCard.overrideTitle",
+      "questionBody": "reviewCard.questionBody",
+      "answerBody": "reviewCard.answerBody",
+      "overrideBody": "reviewCard.overrideBody",
+      "pendingPill": "reviewCard.pendingPill",
+      "escalatedPill": "reviewCard.escalatedPill",
+      "resolvedPill": "reviewCard.resolvedPill",
+      "empty": "reviewCard.empty",
+      "helper": "reviewCard.helper"
+    },
+    "OverrideRow": {
+      "title": "overrideRow.title",
+      "subtitle": "overrideRow.subtitle",
+      "approvedPill": "overrideRow.approvedPill",
+      "rejectedPill": "overrideRow.rejectedPill",
+      "appliedPill": "overrideRow.appliedPill",
+      "pendingPill": "overrideRow.pendingPill",
+      "needsReviewPill": "overrideRow.needsReviewPill",
+      "helper": "overrideRow.helper",
+      "empty": "overrideRow.empty"
+    },
+    "ReviewFilter": {
+      "all": "reviewFilter.all",
+      "question": "reviewFilter.question",
+      "answer": "reviewFilter.answer",
+      "override": "reviewFilter.override",
+      "pending": "reviewFilter.pending",
+      "escalated": "reviewFilter.escalated",
+      "resolved": "reviewFilter.resolved",
+      "clear": "reviewFilter.clear"
+    },
+    "OverrideResult": {
+      "approved": "overrideResult.approved",
+      "rejected": "overrideResult.rejected",
+      "applied": "overrideResult.applied",
+      "pending": "overrideResult.pending",
+      "needsReview": "overrideResult.needsReview",
+      "approvedHelper": "overrideResult.approvedHelper",
+      "rejectedHelper": "overrideResult.rejectedHelper",
+      "appliedHelper": "overrideResult.appliedHelper",
+      "pendingHelper": "overrideResult.pendingHelper",
+      "closedHelper": "overrideResult.closedHelper"
     },
     "admin": {
       "questionHold": "admin.questionHold",

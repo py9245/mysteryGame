@@ -25,7 +25,12 @@ export function RankingTable({ snapshot }: { snapshot: RoomSnapshot }) {
 
   return (
     <section className="panel">
-      <h3 className="panel-title">개인 랭킹</h3>
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">개인 순위</h3>
+          <p className="panel-copy">최종 누적 점수만 보고 비교합니다.</p>
+        </div>
+      </div>
       <table className="results-table">
         <thead>
           <tr>

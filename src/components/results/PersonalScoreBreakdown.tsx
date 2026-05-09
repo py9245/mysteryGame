@@ -3,7 +3,12 @@ import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
 export function PersonalScoreBreakdown({ snapshot }: { snapshot: RoomSnapshot }) {
   return (
     <section className="panel panel-muted">
-      <h3 className="panel-title">내 점수 분석</h3>
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">내 기록</h3>
+          <p className="panel-copy">이번 판에서 남은 내 흔적만 정리합니다.</p>
+        </div>
+      </div>
       <div className="metric-grid">
         <article className="metric-card">
           <span className="metric-label">누적 점수</span>

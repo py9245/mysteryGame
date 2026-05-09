@@ -11,7 +11,7 @@
 3. PM은 그 신호와 보고 내용을 기반으로 다음 명령을 이어서 보낸다.
 
 이 문서는 제품 기능 계약 문서가 아니라 `에이전트 운영 문서`다.  
-제품 공통 계약은 [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/SHARED_CONTRACTS.md)를 따른다.
+제품 공통 계약은 [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/pm/SHARED_CONTRACTS.md)를 따른다.
 
 ---
 
@@ -84,8 +84,8 @@ PM은 각 에이전트에게 가능한 한 아래 형식으로만 지시한다.
 TASK_ID: A1-001
 ROLE: Agent 1 / Platform Backend
 READ_FIRST:
-- app/AGENT_COMMAND_PROTOCOL.md
-- app/SHARED_CONTRACTS.md
+- app/pm/AGENT_COMMAND_PROTOCOL.md
+- app/pm/SHARED_CONTRACTS.md
 - app/agents/agent-1-platform-backend/PLAN.md
 
 OBJECTIVE:
@@ -214,7 +214,7 @@ PM은 아래 순서로 세 에이전트를 운용한다.
 4. `..._명령_마무리`가 오면 보고 본문에서 변경 파일과 handoff를 읽는다.
 5. handoff 내용을 바로 다음 명령 패킷에 반영한다.
 6. `..._명령_보류`가 오면 해당 입력을 해결하거나 다른 에이전트에 선행 작업을 보낸다.
-7. `..._계약변경요청`이 오면 구현을 멈추고 [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/SHARED_CONTRACTS.md)를 먼저 수정한다.
+7. `..._계약변경요청`이 오면 구현을 멈추고 [SHARED_CONTRACTS.md](/home/yusin/mysteryGame/app/pm/SHARED_CONTRACTS.md)를 먼저 수정한다.
 8. 수정된 계약은 세 에이전트 모두에게 다시 동기화한다.
 
 핵심은 `신호를 기준으로 상태를 판정`하고, `보고 본문을 기준으로 다음 작업을 설계`하는 것이다.
@@ -269,8 +269,8 @@ PM은 아래 순서로 세 에이전트를 운용한다.
 TASK_ID: A1-001
 ROLE: Agent 1 / Platform Backend
 READ_FIRST:
-- app/AGENT_COMMAND_PROTOCOL.md
-- app/SHARED_CONTRACTS.md
+- app/pm/AGENT_COMMAND_PROTOCOL.md
+- app/pm/SHARED_CONTRACTS.md
 - app/agents/agent-1-platform-backend/PLAN.md
 
 OBJECTIVE:

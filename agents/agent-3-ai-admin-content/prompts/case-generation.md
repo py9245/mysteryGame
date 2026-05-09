@@ -12,6 +12,11 @@
 
 ## 필수 산출
 
+- `id`
+- `stageNumber`
+- `difficulty`
+- `status`
+- `version`
 - `title`
 - `publicDescription`
 - `question`
@@ -21,6 +26,14 @@
 - `acceptedAnswerSummary`
 - `hints`
 - `reviewNotes`
+
+## 값 규칙
+
+- `stageNumber`는 1부터 3 사이의 정수다.
+- `difficulty`는 `easy | normal | hard` 중 하나다.
+- `status`는 `draft | in_review | approved | archived` 중 하나다.
+- `version`은 사람이 읽을 수 있는 안정 버전 문자열이다.
+- `hints[].triggerType`은 `time_elapsed | first_player_solved | stage_pressure | operator_forced` 중 하나다.
 
 ## 금지사항
 

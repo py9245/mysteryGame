@@ -16,13 +16,40 @@
 - `stageBriefing.title`
 - `stageBriefing.body`
 - `hintReveal.items[]`
+- `privateChat.title`
+- `privateChat.incoming`
+- `privateChat.responseTimer`
+- `privateChat.choose`
+- `privateChat.busy`
+- `privateChat.accepted`
+- `privateChat.rejected`
+- `privateChat.expired`
+- `privateChat.inCall`
+- `privateChat.minHold`
+- `privateChat.cooldown`
+- `privateChat.requestAgain`
+- `privateChat.request`
+- `investigationQueue.title`
+- `investigationQueue.waiting`
+- `investigationQueue.autoEnter`
+- `investigationQueue.queued`
+- `investigationQueue.requeueCooldown`
+- `investigationQueue.blockedBusy`
+- `investigationQueue.blockedStage`
+- `investigationQueue.blockedReason`
+- `investigationQueue.ready`
+- `investigationQueue.release`
 - `questionJudge.publicReply`
+- `questionJudge.publicSummary`
 - `answerResult.success`
 - `answerResult.failure`
 - `answerResult.needsReview`
+- `answerResult.publicSummary`
 - `solvedSpectator.banner`
 - `stageResults.summary`
+- `stageResults.publicCaseSummary`
 - `gameResults.summary`
+- `gameResults.publicCaseExplanation`
 - `manualReview.notice`
 - `adminCopy.*`
 
@@ -30,6 +57,8 @@
 
 - `StageBriefingPanel` -> `stageBriefing.*`
 - `HintRail` -> `hintReveal.items[]`
+- `PrivateChatBanner` -> `privateChat.*`
+- `InvestigationQueueBanner` -> `investigationQueue.*`
 - `QuestionJudgeBadge` -> `questionJudge.publicReply`
 - `AnswerJudgeBadge` -> `answerResult.*`
 - `SpectatorBanner` -> `solvedSpectator.banner`
@@ -80,6 +109,7 @@
 - `아니오, 그렇지 않습니다.`
 - `그럴 수도 있습니다.`
 - `중요하지 않습니다.`
+- 질문 결과 한 줄 요약은 `publicSummary`로 따로 둔다.
 
 ### 운영자
 
@@ -93,6 +123,7 @@
 
 - 플레이어: `정답을 맞혔습니다.`
 - 관전 전환: `정답 성공으로 관전 상태로 전환됩니다.`
+- 공개 결과 설명은 `publicSummary`로 따로 둔다.
 
 ### 실패
 
@@ -120,6 +151,7 @@
 - `당신의 정답 시도 횟수`
 - `정답 성공 순서`
 - `공개 가능한 사건 요약`
+- `publicCaseSummary`
 
 ### 게임 결과
 
@@ -128,14 +160,71 @@
 - `개인별 정답 성공 수`
 - `개인별 추가 키워드 기여`
 - `공개 가능한 최종 사건 해설`
+- `publicCaseExplanation`
 
-## 9. Manual Review Copy
+## 9. Private Chat Copy
+
+### 플레이어
+
+- `통화 요청이 도착했습니다.`
+- `하나를 선택하세요.`
+- `15초 안에 응답하세요.`
+- `상대방이 누군가와 이야기 중입니다.`
+- `채팅 시작 후 30초가 지나야 퇴장할 수 있습니다.`
+- `10초 뒤 다시 요청할 수 있습니다.`
+
+### 운영자
+
+- `통화 요청 대기`
+- `수신자 선택 대기`
+- `busy 처리`
+- `거절/종료 후 쿨다운`
+
+## 10. Investigation Queue Copy
+
+### 플레이어
+
+- `FIFO 대기 중`
+- `자동 입장`
+- `퇴장 후 5초 뒤 재진입`
+- `입장 가능`
+- `다음 차례`
+- `입장 불가 사유`
+
+### 운영자
+
+- `FIFO 대기열`
+- `자동 입장 처리`
+- `재진입 쿨다운`
+- `blockedBusy`
+- `blockedStage`
+
+## 11. Review Queue Copy
+
+- 플레이어: `운영자 확인이 필요합니다.`
+- 운영자: `manual_review 대기`
+- 운영자: `질문 판정 보류`
+- 운영자: `정답 판정 보류`
+- 운영자: `판정 근거 검토 후 최종 상태를 확정하세요.`
+
+## 12. Manual Review Copy
 
 - 플레이어: `운영자 확인이 필요합니다.`
 - 운영자: `manual_review 대기`
 - 운영자: `판정 근거 검토 후 최종 상태를 확정하세요.`
 
-## 10. Admin-only Copy
+## 13. Override Copy
+
+### 운영자
+
+- `승인 대기`
+- `반려 대기`
+- `override 반영`
+- `재검토 필요`
+- `결정 대기`
+- `기록 완료`
+
+## 14. Admin-only Copy
 
 - `질문 판정 보류`
 - `정답 판정 보류`
@@ -144,8 +233,18 @@
 - `힌트 강제 공개 가능`
 - `스테이지 강제 종료 가능`
 
-## 11. Agent 1 메모
+## 12. Agent 1 메모
 
-- `copyCategory`는 `stage`, `hint`, `questionJudge`, `answerResult`, `spectator`, `stageResults`, `gameResults`, `manualReview`, `adminOnly` 중 하나를 사용한다.
+- `copyCategory`는 `stage`, `hint`, `privateChat`, `investigationQueue`, `questionJudge`, `answerResult`, `spectator`, `stageResults`, `gameResults`, `manualReview`, `override`, `adminOnly` 중 하나를 사용한다.
 - Agent 1은 저장 시 원문 copy와 공개 범주를 같이 보관해야 한다.
 - Agent 1은 `manual_review`를 `publicOutcome: needs_review`와 분리해 저장해야 한다.
+- `publicSummary`와 `publicCaseSummary`는 각각 질문/정답 결과와 스테이지/게임 해설을 분리하는 공개 요약 슬롯이다.
+
+## 13. Rulebook / Onboarding
+
+- `rulebookSections.mainOrder`는 `게임 목표 -> 로그인 방식 -> 방 종류 -> 룰북 열기` 순서를 사용한다.
+- `rulebookSections.lobbyOrder`는 `방 상태 -> 팀 배정 -> 조사실 대기 -> 채팅 규칙` 순서를 사용한다.
+- `rulebookSections.gameOrder`는 `사건 요약 -> 팀 채팅 -> 전체 채팅 -> 질문방 대기열 -> 전화형 1:1 -> 결과 확인` 순서를 사용한다.
+- `onboarding.guide1*`는 첫 화면 요약과 채팅 위치를 설명한다.
+- `onboarding.guide2*`는 조사실 대기열과 자동 입장을 설명한다.
+- `onboarding.guide3*`는 전화형 1:1 상태와 쿨다운을 설명한다.

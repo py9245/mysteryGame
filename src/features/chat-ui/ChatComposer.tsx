@@ -14,9 +14,11 @@ import type { ChatSnapshot } from "./chat-ui-types";
 export function ChatComposer({
   snapshot,
   onSubmittedPreview,
+  compact = false,
 }: {
   snapshot: ChatSnapshot;
   onSubmittedPreview?: (preview: SubmittedChatPreview) => void;
+  compact?: boolean;
 }) {
   const hasTeamChannel = snapshot.me.teamSlotId !== null;
   const teamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots) ?? "미배정";
@@ -62,8 +64,8 @@ export function ChatComposer({
   }
 
   return (
-    <section className="chat-section">
-      <h4>메시지 보내기</h4>
+    <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
+      <h4>{compact ? "보내기" : "메시지 보내기"}</h4>
       <p className="panel-copy">
         {snapshot.me.nickname} · {teamLabel} · {stageLabel}
       </p>
@@ -87,7 +89,7 @@ export function ChatComposer({
           <textarea
             id="composer-message"
             className="text-area"
-            rows={3}
+            rows={compact ? 2 : 3}
             value={content}
             onChange={(event) => setContent(event.target.value)}
             placeholder={
@@ -102,7 +104,11 @@ export function ChatComposer({
         </button>
       </form>
       {submittedPreview === null ? (
-        <p className="message-note">가장 최근 전송 결과가 여기에 표시됩니다.</p>
+        <p className="message-note">{compact ? "보낼 채널을 고른 뒤 짧게 공유하세요." : "가장 최근 전송 결과가 여기에 표시됩니다."}</p>
+      ) : compact ? (
+        <p className={submittedPreview.status === "success" ? "message-positive" : "message-note"}>
+          {submittedPreview.notice}
+        </p>
       ) : (
         <section className="panel panel-muted">
           <h5>{submittedPreview.status === "success" ? "전송 결과" : "전송 보류"}</h5>

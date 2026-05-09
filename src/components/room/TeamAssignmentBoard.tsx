@@ -3,8 +3,13 @@ import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
 export function TeamAssignmentBoard({ snapshot }: { snapshot: RoomSnapshot }) {
   return (
     <section className="panel panel-muted">
-      <h3 className="panel-title">팀 배치</h3>
-      <p className="panel-copy">현재 팀 슬롯과 내 배정 상태를 한 번에 보는 보드입니다.</p>
+      <div className="composer-header">
+        <div>
+          <h3 className="panel-title">팀 배치</h3>
+          <p className="panel-copy">이번 스테이지에서 사용할 팀 슬롯만 보여줍니다.</p>
+        </div>
+        <span className="status-badge">{snapshot.teamSlots.length}개 슬롯</span>
+      </div>
       <div className="assignment-grid">
         {snapshot.teamSlots.map((slot) => (
           <article className="assignment-card" key={slot.id}>

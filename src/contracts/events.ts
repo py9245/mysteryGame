@@ -33,6 +33,8 @@ export type RealtimeEventName =
   | "player.locked"
   | "score.updated"
   | "private_chat.requested"
+  | "private_chat.expired"
+  | "private_chat.busy"
   | "private_chat.accepted"
   | "private_chat.rejected"
   | "private_chat.ended"
@@ -120,6 +122,14 @@ export interface RealtimeEventPayloadMap {
     scores: PlayerScoreSnapshot[];
   };
   "private_chat.requested": {
+    roomId: EntityId;
+    request: PrivateChatRequest;
+  };
+  "private_chat.expired": {
+    roomId: EntityId;
+    request: PrivateChatRequest;
+  };
+  "private_chat.busy": {
     roomId: EntityId;
     request: PrivateChatRequest;
   };
