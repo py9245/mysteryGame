@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { SpectatorBanner } from "@/components/spectator/SpectatorBanner";
 import { SolvedLockSummary } from "@/components/spectator/SolvedLockSummary";
 import { ProgressLogFeed } from "@/components/spectator/ProgressLogFeed";

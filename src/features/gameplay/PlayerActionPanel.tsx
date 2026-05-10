@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
 function resolveActionCopy(snapshot: RoomSnapshot) {

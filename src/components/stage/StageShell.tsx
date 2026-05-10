@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { StageHUD } from "@/components/stage/StageHUD";
 import { PrivacyMask } from "@/components/privacy/PrivacyMask";
 

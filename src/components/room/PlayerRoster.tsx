@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function formatTeamLabel(teamSlotId: string | null) {
   return teamSlotId ?? "팀 배정 전";

@@ -8,7 +8,7 @@ import type {
 } from "@/contracts/api";
 import type { AnswerAttempt, Question } from "@/contracts/game";
 import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 export interface SubmitInvestigationCommandResultBase {
   ok: boolean;

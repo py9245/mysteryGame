@@ -7,7 +7,7 @@ import type {
   ReleaseInvestigationLockResponse,
 } from "@/contracts/api";
 import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 export interface SubmitInvestigationLockOptions {
   roomId: string;

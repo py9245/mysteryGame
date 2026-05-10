@@ -1,5 +1,5 @@
 import type { PrivateChatRequest, PrivateChatSession } from "@/contracts/game";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function isRedactedValue(value: unknown): value is { hidden: true } {
   return typeof value === "object" && value !== null && "hidden" in value;

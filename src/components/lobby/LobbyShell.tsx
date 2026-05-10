@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { PrivacyMask } from "@/components/privacy/PrivacyMask";
 import { RoomStatusBadge } from "@/components/lobby/RoomStatusBadge";

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";

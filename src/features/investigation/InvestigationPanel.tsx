@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
 import { InvestigationDrawer } from "@/features/investigation/InvestigationDrawer";
 import { InvestigationLimitMeter } from "@/features/investigation/InvestigationLimitMeter";

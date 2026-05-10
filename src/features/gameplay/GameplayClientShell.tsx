@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 import { StageGameplayPanel } from "./StageGameplayPanel";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";

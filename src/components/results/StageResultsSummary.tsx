@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function getEndReasonLabel(endReason: RoomSnapshot["stage"]["endReason"] | null | undefined) {
   switch (endReason) {

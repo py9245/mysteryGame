@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function toNumber(value: number | { hidden: true } | undefined) {
   return typeof value === "number" ? value : 0;

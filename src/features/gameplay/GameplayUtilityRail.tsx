@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { MyScoreCard } from "./MyScoreCard";
 import { PrivateChatBanner } from "@/components/chat-ui/PrivateChatBanner";
 import { InvestigationQueueBanner } from "@/components/investigation/InvestigationQueueBanner";

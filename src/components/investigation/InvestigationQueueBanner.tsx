@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function resolveRemainingSeconds(expiresAt: string | null | undefined, fallback: number | undefined, nowMs?: number) {
   if (expiresAt && typeof nowMs === "number") {

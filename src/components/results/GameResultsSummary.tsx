@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 export function GameResultsSummary({ snapshot }: { snapshot: RoomSnapshot }) {
   const ranking = snapshot.results?.finalRanking ?? [];

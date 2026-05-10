@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 export function StageStartCountdown({ snapshot }: { snapshot: RoomSnapshot }) {
   return (

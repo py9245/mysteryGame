@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 
 function toSortableNumber(value: RoomSnapshot["scores"][number]["total"]) {
   return typeof value === "number" ? value : Number.POSITIVE_INFINITY;

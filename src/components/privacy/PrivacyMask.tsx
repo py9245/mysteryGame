@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import { RedactedField } from "@/components/privacy/RedactedField";
 import { RedactedPlayerRow } from "@/components/privacy/RedactedPlayerRow";
 
