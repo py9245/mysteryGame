@@ -9,6 +9,7 @@ function resolveActionCopy(snapshot: RoomSnapshot) {
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLockedByMe = lockOwnerId === snapshot.me.playerId;
   const isAvailable = !lockOwnerId;
+  const queuePosition = investigation?.queuePosition ?? null;
 
   if (isLockedByMe) {
     return {
@@ -25,6 +26,15 @@ function resolveActionCopy(snapshot: RoomSnapshot) {
       label: "질문방으로 이동",
       status: "바로 행동 가능",
       description: "질문방이 비어 있습니다. 지금 들어가 질문이나 정답 시도를 정리하세요.",
+    };
+  }
+
+  if (queuePosition) {
+    return {
+      href: investigationHref,
+      label: "대기열 상태 보기",
+      status: `대기열 ${queuePosition}번`,
+      description: "앞사람이 나오면 자동으로 입장합니다. 지금은 대기열 상태만 확인하면 됩니다.",
     };
   }
 

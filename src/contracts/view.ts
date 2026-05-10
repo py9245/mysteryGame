@@ -100,6 +100,10 @@ export interface InvestigationLockView {
   lockedAt: IsoTimestamp | null;
   expiresAt: IsoTimestamp | null;
   remainingSeconds: number;
+  queuePosition: number | null;
+  waitingPlayerCount: number;
+  queuedPlayerIds: EntityId[];
+  reentryCooldownEndsAt: IsoTimestamp | null;
   questionCountRemaining: number | RedactedValue;
   answerAttemptCountRemaining: number | RedactedValue;
   visibility: VisibilityScope;

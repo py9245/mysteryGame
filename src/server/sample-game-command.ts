@@ -328,6 +328,10 @@ function buildSampleLockView(
       lock.expiresAt && lock.lockedAt
         ? diffSeconds(nowIso, lock.expiresAt)
         : 0,
+    queuePosition: null,
+    waitingPlayerCount: 0,
+    queuedPlayerIds: [],
+    reentryCooldownEndsAt: null,
     questionCountRemaining: isOwner
       ? Math.max(0, 3 - lock.questionCount)
       : redactedValue,

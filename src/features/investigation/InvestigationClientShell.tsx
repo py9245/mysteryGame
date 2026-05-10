@@ -7,6 +7,10 @@ import {
   submitReleaseInvestigationLock,
 } from "./investigation-lock-command";
 import {
+  submitJoinInvestigationQueue,
+  submitLeaveInvestigationQueue,
+} from "./investigation-queue-command";
+import {
   submitInvestigationAnswer,
   submitInvestigationQuestion,
 } from "./investigation-command";
@@ -33,6 +37,20 @@ function getRemainingSeconds(snapshot: RoomSnapshot, nowMs: number): number {
   return typeof investigation.remainingSeconds === "number"
     ? Math.max(0, investigation.remainingSeconds)
     : 0;
+}
+
+function getQueueCooldownSeconds(snapshot: RoomSnapshot, nowMs: number): number {
+  const cooldownEndsAt = snapshot.stage?.investigation?.reentryCooldownEndsAt;
+  if (!cooldownEndsAt) {
+    return 0;
+  }
+
+  const expiresAtMs = Date.parse(cooldownEndsAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
 }
 
 export function InvestigationClientShell({
@@ -118,6 +136,10 @@ export function InvestigationClientShell({
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLockedByMe = lockOwnerId === displayedSnapshot.me.playerId;
   const isLockedByOther = Boolean(lockOwnerId && lockOwnerId !== displayedSnapshot.me.playerId);
+  const queuePosition = investigation?.queuePosition ?? null;
+  const isQueued = queuePosition !== null;
+  const waitingPlayerCount = investigation?.waitingPlayerCount ?? 0;
+  const queueCooldownSeconds = getQueueCooldownSeconds(displayedSnapshot, nowMs);
   const hasStageContext = Boolean(displayedSnapshot.stage?.stageId);
 
   async function handleAcquireLock() {
@@ -142,6 +164,63 @@ export function InvestigationClientShell({
     }
 
     setErrorMessage(result.errorMessage ?? "조사실 입장에 실패했습니다.");
+    setStatusMessage(null);
+    setIsSubmitting(false);
+  }
+
+  async function handleJoinQueue() {
+    if (isSubmitting || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    const result = await submitJoinInvestigationQueue({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      const admitted = result.snapshot.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId;
+      setStatusMessage(
+        admitted
+          ? "질문방이 비어 있어서 바로 입장했습니다."
+          : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 입장합니다.",
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    setErrorMessage(result.errorMessage ?? "질문방 대기열에 참가하지 못했습니다.");
+    setStatusMessage(null);
+    setIsSubmitting(false);
+  }
+
+  async function handleLeaveQueue() {
+    if (isSubmitting || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    const result = await submitLeaveInvestigationQueue({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setStatusMessage("질문방 대기열에서 빠졌습니다.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    setErrorMessage(result.errorMessage ?? "질문방 대기열 취소에 실패했습니다.");
     setStatusMessage(null);
     setIsSubmitting(false);
   }
@@ -274,8 +353,16 @@ export function InvestigationClientShell({
       statusMessage={statusMessage}
       onAcquireLock={handleAcquireLock}
       onReleaseLock={handleReleaseLock}
+      onJoinQueue={handleJoinQueue}
+      onLeaveQueue={handleLeaveQueue}
       canAcquireLock={hasStageContext && !isLockedByMe && !isLockedByOther}
       canReleaseLock={hasStageContext && isLockedByMe}
+      canJoinQueue={hasStageContext && !isLockedByMe && !isQueued && queueCooldownSeconds === 0}
+      canLeaveQueue={hasStageContext && isQueued}
+      isQueued={isQueued}
+      queuePosition={queuePosition}
+      waitingPlayerCount={waitingPlayerCount}
+      queueCooldownSeconds={queueCooldownSeconds}
       onSubmitQuestion={handleSubmitQuestion}
       onSubmitAnswer={handleSubmitAnswer}
       questionFeedbackMessage={questionFeedbackMessage}

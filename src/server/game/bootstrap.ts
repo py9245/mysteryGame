@@ -303,6 +303,10 @@ function buildInvestigationLockView(
     remainingSeconds: lock.expiresAt
       ? Math.max(0, Math.ceil((Date.parse(lock.expiresAt) - Date.now()) / 1000))
       : 0,
+    queuePosition: null,
+    waitingPlayerCount: 0,
+    queuedPlayerIds: [],
+    reentryCooldownEndsAt: null,
     questionCountRemaining: isOwner
       ? questionCountRemaining
       : redacted("other_player"),

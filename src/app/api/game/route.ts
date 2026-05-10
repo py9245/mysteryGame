@@ -6,7 +6,9 @@ import type {
   ApiResponse,
   EndPrivateChatRequest,
   GameCommandResponse,
+  JoinInvestigationQueueRequest,
   ListGameSnapshotsResponse,
+  LeaveInvestigationQueueRequest,
   ReleaseInvestigationLockRequest,
   RequestPrivateChatRequest,
   RespondPrivateChatRequest,
@@ -23,6 +25,8 @@ import {
   AssignTeamsError,
   endPrivateChatInStore,
   InvestigationLockError,
+  joinInvestigationQueueInStore,
+  leaveInvestigationQueueInStore,
   listGameSnapshotsFromStore,
   PrivateChatError,
   requestPrivateChatInStore,
@@ -111,6 +115,10 @@ function resolveInvestigationLockErrorStatus(error: InvestigationLockError): num
     case "LOCK_LIMIT_REACHED":
     case "TEAM_SLOT_MISMATCH":
     case "STAGE_NOT_ACTIVE":
+    case "QUEUE_ALREADY_JOINED":
+    case "QUEUE_NOT_JOINED":
+    case "QUEUE_COOLDOWN_ACTIVE":
+    case "LOCK_ALREADY_OWNED":
       return 409;
     default:
       return 400;
@@ -183,6 +191,8 @@ type ValidatedGameCommand =
   | { kind: "success"; command: AssignTeamsRequest }
   | { kind: "success"; command: StartStageRequest }
   | { kind: "success"; command: AdvanceStageRequest }
+  | { kind: "success"; command: JoinInvestigationQueueRequest }
+  | { kind: "success"; command: LeaveInvestigationQueueRequest }
   | { kind: "success"; command: AcquireInvestigationLockRequest }
   | { kind: "success"; command: ReleaseInvestigationLockRequest }
   | { kind: "success"; command: SubmitQuestionRequest }
@@ -453,6 +463,60 @@ function validateAcquireLockCommand(
     kind: "success",
     command: {
       type: "acquire_lock",
+      roomId,
+      stageId,
+      playerId,
+    },
+  };
+}
+
+function validateJoinLockQueueCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  const stageId = normalizeRequiredString(body.stageId);
+  const playerId = normalizeRequiredString(body.playerId);
+
+  if (!roomId || !stageId || !playerId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId, stageId, playerId are required.", {
+        type: "join_lock_queue",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "join_lock_queue",
+      roomId,
+      stageId,
+      playerId,
+    },
+  };
+}
+
+function validateLeaveLockQueueCommand(
+  body: Record<string, unknown>,
+): ValidatedGameCommand {
+  const roomId = normalizeRequiredString(body.roomId);
+  const stageId = normalizeRequiredString(body.stageId);
+  const playerId = normalizeRequiredString(body.playerId);
+
+  if (!roomId || !stageId || !playerId) {
+    return {
+      kind: "failure",
+      error: createValidationFailure("roomId, stageId, playerId are required.", {
+        type: "leave_lock_queue",
+      }),
+    };
+  }
+
+  return {
+    kind: "success",
+    command: {
+      type: "leave_lock_queue",
       roomId,
       stageId,
       playerId,
@@ -762,6 +826,10 @@ function validateGameCommandRequest(body: unknown): ValidatedGameCommand {
       return validateStartStageCommand(body);
     case "advance_stage":
       return validateAdvanceStageCommand(body);
+    case "join_lock_queue":
+      return validateJoinLockQueueCommand(body);
+    case "leave_lock_queue":
+      return validateLeaveLockQueueCommand(body);
     case "acquire_lock":
       return validateAcquireLockCommand(body);
     case "release_lock":
@@ -1014,6 +1082,90 @@ export async function POST(request: Request) {
               error: {
                 code: "ACQUIRE_LOCK_FAILED",
                 message: error instanceof Error ? error.message : "조사실 입장에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "join_lock_queue") {
+        try {
+          const response = await joinInvestigationQueueInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "JOIN_LOCK_QUEUE_FAILED",
+                message: error instanceof Error ? error.message : "질문방 대기열 참가에 실패했습니다.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+      }
+
+      if (isSupabaseEnabled() && validated.command.type === "leave_lock_queue") {
+        try {
+          const response = await leaveInvestigationQueueInStore(
+            validated.command.roomId,
+            validated.command.stageId,
+            validated.command.playerId,
+          );
+
+          return Response.json(
+            {
+              ok: true,
+              data: response,
+            } satisfies ApiResponse<GameCommandResponse>,
+            { status: 200 },
+          );
+        } catch (error) {
+          if (error instanceof InvestigationLockError) {
+            return Response.json(
+              {
+                ok: false,
+                error: {
+                  code: error.code,
+                  message: error.message,
+                },
+              },
+              { status: resolveInvestigationLockErrorStatus(error) },
+            );
+          }
+
+          return Response.json(
+            {
+              ok: false,
+              error: {
+                code: "LEAVE_LOCK_QUEUE_FAILED",
+                message: error instanceof Error ? error.message : "질문방 대기열 취소에 실패했습니다.",
               },
             },
             { status: 500 },
@@ -1282,7 +1434,9 @@ export async function POST(request: Request) {
 
       if (
         !isSupabaseEnabled() &&
-        (validated.command.type === "request_private_chat" ||
+        (validated.command.type === "join_lock_queue" ||
+          validated.command.type === "leave_lock_queue" ||
+          validated.command.type === "request_private_chat" ||
           validated.command.type === "respond_private_chat" ||
           validated.command.type === "end_private_chat")
       ) {
@@ -1305,6 +1459,9 @@ export async function POST(request: Request) {
             return buildSampleStartStageResponse(validated.command);
           case "advance_stage":
             return buildSampleAdvanceStageResponse(validated.command);
+          case "join_lock_queue":
+          case "leave_lock_queue":
+            return null;
           case "acquire_lock":
             return buildSampleAcquireLockResponse(validated.command);
           case "release_lock":

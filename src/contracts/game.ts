@@ -40,6 +40,7 @@ export type StageEndReason =
   | "admin_closed"
   | "cancelled";
 export type ChatChannel = "global" | "team" | "private" | "system";
+export type InvestigationQueueStatus = "idle" | "waiting";
 export type PrivateChatRequestStatus =
   | "pending"
   | "busy"
@@ -119,6 +120,9 @@ export interface PlayerStageState {
   playerId: EntityId;
   teamSlotId: EntityId | null;
   status: PlayerStageStatus;
+  queueStatus?: InvestigationQueueStatus;
+  queueJoinedAt?: IsoTimestamp | null;
+  queueCooldownEndsAt?: IsoTimestamp | null;
   questionCount: number;
   answerAttemptCount: number;
   hasReceivedInactivityPenalty: boolean;

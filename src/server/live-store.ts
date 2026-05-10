@@ -7,7 +7,9 @@ import type {
   EndPrivateChatResponse,
   GameRuntimeSnapshot,
   GameSnapshotSummary,
+  JoinInvestigationQueueResponse,
   JoinRoomResponse,
+  LeaveInvestigationQueueResponse,
   ListChatMessagesResponse,
   ListRoomDirectoryResponse,
   PlayerScoreSnapshot,
@@ -158,6 +160,8 @@ type DbPlayerStageStateRow = {
   player_id: string;
   team_slot_id: string | null;
   status: PlayerStageState["status"];
+  queue_joined_at: string | null;
+  queue_cooldown_ends_at: string | null;
   question_count: number;
   answer_attempt_count: number;
   has_received_inactivity_penalty: boolean;
@@ -310,6 +314,7 @@ const REDACTED_STAGE_SECRET: RedactedValue = { hidden: true, reason: "stage_secr
 const REDACTED_PRIVATE_CHAT: RedactedValue = { hidden: true, reason: "private_chat" };
 const REDACTED_AI_INTERNAL: RedactedValue = { hidden: true, reason: "ai_internal" };
 const INVESTIGATION_LOCK_SECONDS = 60;
+const INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS = 5;
 const DEFAULT_STAGE_DURATION_SECONDS = 15 * 60;
 const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
 const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
@@ -435,7 +440,11 @@ export class InvestigationLockError extends Error {
       | "LOCK_NOT_OWNED"
       | "LOCK_LIMIT_REACHED"
       | "TEAM_SLOT_MISMATCH"
-      | "STAGE_NOT_ACTIVE",
+      | "STAGE_NOT_ACTIVE"
+      | "QUEUE_ALREADY_JOINED"
+      | "QUEUE_NOT_JOINED"
+      | "QUEUE_COOLDOWN_ACTIVE"
+      | "LOCK_ALREADY_OWNED",
     message: string,
   ) {
     super(message);
@@ -629,6 +638,9 @@ function toPlayerStageState(row: DbPlayerStageStateRow): PlayerStageState {
     playerId: row.player_id,
     teamSlotId: row.team_slot_id,
     status: row.status,
+    queueStatus: row.queue_joined_at ? "waiting" : "idle",
+    queueJoinedAt: row.queue_joined_at,
+    queueCooldownEndsAt: row.queue_cooldown_ends_at,
     questionCount: row.question_count,
     answerAttemptCount: row.answer_attempt_count,
     hasReceivedInactivityPenalty: row.has_received_inactivity_penalty,
@@ -978,6 +990,42 @@ function resolvePrivateChatCooldownEndsAt(
   return cooldownEndsAt;
 }
 
+function resolveQueuedInvestigationPlayerStates(
+  playerStates: DbPlayerStageStateRow[],
+): DbPlayerStageStateRow[] {
+  return [...playerStates]
+    .filter((playerState) => typeof playerState.queue_joined_at === "string" && playerState.queue_joined_at.length > 0)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.queue_joined_at ?? "");
+      const rightTime = Date.parse(right.queue_joined_at ?? "");
+
+      if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+        return leftTime - rightTime;
+      }
+
+      return left.player_id.localeCompare(right.player_id);
+    });
+}
+
+function resolveInvestigationQueuePosition(
+  queuedPlayerStates: DbPlayerStageStateRow[],
+  playerId: string,
+): number | null {
+  const index = queuedPlayerStates.findIndex((playerState) => playerState.player_id === playerId);
+  return index >= 0 ? index + 1 : null;
+}
+
+function resolveQueueCooldownEndsAt(
+  playerState: DbPlayerStageStateRow | null,
+  nowIso: string,
+): string | null {
+  if (!playerState?.queue_cooldown_ends_at) {
+    return null;
+  }
+
+  return hasExpired(playerState.queue_cooldown_ends_at, nowIso) ? null : playerState.queue_cooldown_ends_at;
+}
+
 function resolveViewMode(
   viewer: DbPlayerRow,
   room: DbRoomRow,
@@ -1110,23 +1158,35 @@ function buildRoomSnapshot({
     playerStates.map((playerState) => [playerState.player_id, playerState]),
   );
   const viewerState = playerStateByPlayerId.get(viewer.id) ?? null;
+  const nowIso = nowUtcIso();
+  const queuedPlayerStates = resolveQueuedInvestigationPlayerStates(playerStates);
+  const viewerQueuePosition = resolveInvestigationQueuePosition(queuedPlayerStates, viewer.id);
+  const viewerQueueCooldownEndsAt = resolveQueueCooldownEndsAt(viewerState, nowIso);
   const investigationView =
-    activeStage && activeLock
+    activeStage
       ? {
-          stageId: activeLock.stage_id,
-          roomId: activeLock.room_id,
-          lockedByPlayerId: activeLock.locked_by_player_id,
-          lockedAt: activeLock.locked_at,
-          expiresAt: activeLock.expires_at,
-          remainingSeconds: remainingSeconds(activeLock.expires_at, nowUtcIso()),
+          stageId: activeLock?.stage_id ?? activeStage.id,
+          roomId: activeLock?.room_id ?? room.id,
+          lockedByPlayerId: activeLock?.locked_by_player_id ?? null,
+          lockedAt: activeLock?.locked_at ?? null,
+          expiresAt: activeLock?.expires_at ?? null,
+          remainingSeconds: remainingSeconds(activeLock?.expires_at ?? null, nowIso),
+          queuePosition: viewerQueuePosition,
+          waitingPlayerCount: queuedPlayerStates.length,
+          queuedPlayerIds: queuedPlayerStates.map((playerState) => playerState.player_id),
+          reentryCooldownEndsAt: viewerQueueCooldownEndsAt,
           questionCountRemaining:
-            activeLock.locked_by_player_id === viewer.id
+            activeLock?.locked_by_player_id === viewer.id
               ? Math.max(0, 3 - activeLock.question_count)
-              : REDACTED_OTHER_PLAYER,
+              : activeLock?.locked_by_player_id
+                ? REDACTED_OTHER_PLAYER
+                : 3,
           answerAttemptCountRemaining:
-            activeLock.locked_by_player_id === viewer.id
+            activeLock?.locked_by_player_id === viewer.id
               ? Math.max(0, 1 - activeLock.answer_attempt_count)
-              : REDACTED_OTHER_PLAYER,
+              : activeLock?.locked_by_player_id
+                ? REDACTED_OTHER_PLAYER
+                : 1,
           visibility: "public" as const,
         }
       : null;
@@ -1160,7 +1220,6 @@ function buildRoomSnapshot({
           },
         }
       : null;
-  const nowIso = nowUtcIso();
   const activePrivateChatSession =
     privateChatSessions.find(
       (session) =>
@@ -1492,8 +1551,10 @@ async function loadSyncedLobbyState(roomId: string) {
   return loadLobbyState(roomId);
 }
 
+type SyncedLobbyState = Awaited<ReturnType<typeof loadLobbyState>>;
+
 function buildSnapshotFromState(
-  state: Awaited<ReturnType<typeof loadLobbyState>>,
+  state: SyncedLobbyState,
   caseSummary: CaseSummary | null,
   viewerPlayerId?: string,
 ): RoomSnapshot {
@@ -1531,6 +1592,145 @@ function resolvePlayerTeamSlotId(
     state.currentAssignments.find((assignment) => assignment.player_id === playerId)?.team_slot_id ??
     null
   );
+}
+
+function resolveInvestigationQueueCooldownEndsAt(
+  playerState: DbPlayerStageStateRow | null,
+  nowIso: string,
+): string | null {
+  if (!playerState?.queue_cooldown_ends_at) {
+    return null;
+  }
+
+  return hasExpired(playerState.queue_cooldown_ends_at, nowIso)
+    ? null
+    : playerState.queue_cooldown_ends_at;
+}
+
+async function applyInvestigationQueueCooldown(
+  stageId: string,
+  playerId: string,
+  nowIso: string,
+): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from("player_stage_states")
+    .update({
+      queue_joined_at: null,
+      queue_cooldown_ends_at: addSeconds(nowIso, INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS),
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("player_id", playerId);
+
+  if (error) {
+    throw new Error(`Failed to apply investigation queue cooldown: ${error.message}`);
+  }
+}
+
+async function admitNextInvestigationQueuePlayer(
+  roomId: string,
+  stageId: string,
+  nowIso: string,
+): Promise<DbInvestigationLockRow | null> {
+  const state = await loadLobbyState(roomId);
+  const stage = state.currentStage;
+
+  if (!stage || stage.id !== stageId) {
+    return state.activeLock;
+  }
+
+  if (stage.status !== "briefing" && stage.status !== "in_progress") {
+    return state.activeLock;
+  }
+
+  const activeLock = state.activeLock;
+  if (
+    activeLock?.locked_by_player_id &&
+    (!activeLock.expires_at || !hasExpired(activeLock.expires_at, nowIso))
+  ) {
+    return activeLock;
+  }
+
+  const queuedPlayerState = resolveQueuedInvestigationPlayerStates(state.playerStates).find(
+    (playerState) => playerState.status === "active",
+  );
+
+  if (!queuedPlayerState) {
+    return activeLock;
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  if (stage.status === "briefing") {
+    const { error: stageProgressError } = await supabase
+      .from("stages")
+      .update({
+        status: "in_progress",
+        started_at: stage.started_at ?? nowIso,
+        updated_at: nowIso,
+      })
+      .eq("id", stageId);
+
+    if (stageProgressError) {
+      throw new Error(`Failed to move stage into progress from queue admission: ${stageProgressError.message}`);
+    }
+
+    if (state.game) {
+      const { error: gameProgressError } = await supabase
+        .from("games")
+        .update({
+          status: "in_progress",
+          started_at: state.game.started_at ?? nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", state.game.id);
+
+      if (gameProgressError) {
+        throw new Error(`Failed to move game into progress from queue admission: ${gameProgressError.message}`);
+      }
+    }
+  }
+
+  const { data: nextLockRow, error: nextLockError } = await supabase
+    .from("investigation_locks")
+    .upsert({
+      stage_id: stageId,
+      room_id: roomId,
+      locked_by_player_id: queuedPlayerState.player_id,
+      locked_at: nowIso,
+      expires_at: addSeconds(nowIso, INVESTIGATION_LOCK_SECONDS),
+      question_count: 0,
+      answer_attempt_count: 0,
+      last_released_by_player_id: activeLock?.last_released_by_player_id ?? null,
+      last_released_at: activeLock?.last_released_at ?? null,
+      version: (activeLock?.version ?? 0) + 1,
+      created_at: activeLock?.created_at ?? nowIso,
+      updated_at: nowIso,
+    })
+    .select("*")
+    .single<DbInvestigationLockRow>();
+
+  if (nextLockError || !nextLockRow) {
+    throw new Error(`Failed to admit next queued investigation player: ${nextLockError?.message ?? "unknown error"}`);
+  }
+
+  const { error: queueClearError } = await supabase
+    .from("player_stage_states")
+    .update({
+      queue_joined_at: null,
+      queue_cooldown_ends_at: null,
+      locked_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("player_id", queuedPlayerState.player_id);
+
+  if (queueClearError) {
+    throw new Error(`Failed to clear investigation queue entry after admission: ${queueClearError.message}`);
+  }
+
+  return nextLockRow;
 }
 
 function assertPrivateChatStageActive(
@@ -2589,6 +2789,123 @@ function assertLockableStageState(input: {
   }
 }
 
+export async function joinInvestigationQueueInStore(
+  roomId: string,
+  stageId: string,
+  playerId: string,
+): Promise<JoinInvestigationQueueResponse> {
+  const room = await findRoomByRef(roomId);
+
+  if (!room) {
+    throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
+  }
+
+  const stateBeforeJoin = await loadSyncedLobbyState(room.id);
+  assertLockableStageState({
+    currentStage: stateBeforeJoin.currentStage,
+    playerStates: stateBeforeJoin.playerStates,
+    roomId: room.id,
+    stageId,
+    playerId,
+  });
+
+  if (
+    stateBeforeJoin.currentStage?.status !== "briefing" &&
+    stateBeforeJoin.currentStage?.status !== "in_progress"
+  ) {
+    throw new InvestigationLockError("STAGE_NOT_ACTIVE", "질문방 대기열은 브리핑 또는 플레이 중에만 사용할 수 있습니다.");
+  }
+
+  const playerState = stateBeforeJoin.playerStates.find((state) => state.player_id === playerId) ?? null;
+  const nowIso = nowUtcIso();
+  const cooldownEndsAt = resolveInvestigationQueueCooldownEndsAt(playerState, nowIso);
+
+  if (cooldownEndsAt) {
+    throw new InvestigationLockError("QUEUE_COOLDOWN_ACTIVE", `질문방은 ${cooldownEndsAt} 이후에 다시 대기열에 들어갈 수 있습니다.`);
+  }
+
+  if (stateBeforeJoin.activeLock?.locked_by_player_id === playerId) {
+    throw new InvestigationLockError("LOCK_ALREADY_OWNED", "이미 내가 조사실을 점유하고 있습니다.");
+  }
+
+  if (playerState?.queue_joined_at) {
+    throw new InvestigationLockError("QUEUE_ALREADY_JOINED", "이미 질문방 대기열에 들어가 있습니다.");
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error: queueJoinError } = await supabase
+    .from("player_stage_states")
+    .update({
+      queue_joined_at: nowIso,
+      queue_cooldown_ends_at: null,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("player_id", playerId);
+
+  if (queueJoinError) {
+    throw new Error(`Failed to join investigation queue: ${queueJoinError.message}`);
+  }
+
+  const admittedLock = await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
+  const refreshed = await loadSyncedLobbyState(room.id);
+  const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
+
+  return {
+    lock: admittedLock ? toInvestigationLock(admittedLock) : null,
+    autoAdmitted: refreshed.activeLock?.locked_by_player_id === playerId,
+    snapshot: buildSnapshotFromState(refreshed, caseSummary, playerId),
+  };
+}
+
+export async function leaveInvestigationQueueInStore(
+  roomId: string,
+  stageId: string,
+  playerId: string,
+): Promise<LeaveInvestigationQueueResponse> {
+  const room = await findRoomByRef(roomId);
+
+  if (!room) {
+    throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
+  }
+
+  const stateBeforeLeave = await loadSyncedLobbyState(room.id);
+  assertLockableStageState({
+    currentStage: stateBeforeLeave.currentStage,
+    playerStates: stateBeforeLeave.playerStates,
+    roomId: room.id,
+    stageId,
+    playerId,
+  });
+
+  const playerState = stateBeforeLeave.playerStates.find((state) => state.player_id === playerId) ?? null;
+  if (!playerState?.queue_joined_at) {
+    throw new InvestigationLockError("QUEUE_NOT_JOINED", "질문방 대기열에 들어가 있지 않습니다.");
+  }
+
+  const nowIso = nowUtcIso();
+  const supabase = getSupabaseAdminClient();
+  const { error: queueLeaveError } = await supabase
+    .from("player_stage_states")
+    .update({
+      queue_joined_at: null,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("player_id", playerId);
+
+  if (queueLeaveError) {
+    throw new Error(`Failed to leave investigation queue: ${queueLeaveError.message}`);
+  }
+
+  const refreshed = await loadSyncedLobbyState(room.id);
+  const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
+
+  return {
+    snapshot: buildSnapshotFromState(refreshed, caseSummary, playerId),
+  };
+}
+
 export async function acquireInvestigationLockInStore(
   roomId: string,
   stageId: string,
@@ -2613,6 +2930,8 @@ export async function acquireInvestigationLockInStore(
   const supabase = getSupabaseAdminClient();
   const currentLock = stateBeforeAcquire.activeLock;
   const lockExpired = currentLock ? hasExpired(currentLock.expires_at, nowIso) : false;
+  const queuedPlayerStates = resolveQueuedInvestigationPlayerStates(stateBeforeAcquire.playerStates);
+  const nextQueuedPlayerId = queuedPlayerStates[0]?.player_id ?? null;
 
   if (
     currentLock &&
@@ -2621,6 +2940,10 @@ export async function acquireInvestigationLockInStore(
     !lockExpired
   ) {
     throw new InvestigationLockError("LOCK_CONFLICT", "다른 플레이어가 조사실을 사용 중입니다.");
+  }
+
+  if (nextQueuedPlayerId && nextQueuedPlayerId !== playerId) {
+    throw new InvestigationLockError("LOCK_CONFLICT", "질문방 대기열의 앞순위 플레이어가 먼저 입장해야 합니다.");
   }
 
   if (stateBeforeAcquire.currentStage?.status === "briefing") {
@@ -2683,6 +3006,8 @@ export async function acquireInvestigationLockInStore(
   const { error: playerStateError } = await supabase
     .from("player_stage_states")
     .update({
+      queue_joined_at: null,
+      queue_cooldown_ends_at: null,
       locked_at: nowIso,
       updated_at: nowIso,
     })
@@ -2746,6 +3071,9 @@ export async function releaseInvestigationLockInStore(
   if (releaseError || !lockRow) {
     throw new Error(`Failed to release investigation lock: ${releaseError?.message ?? "unknown error"}`);
   }
+
+  await applyInvestigationQueueCooldown(stageId, playerId, nowIso);
+  await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
 
   const state = await loadSyncedLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
@@ -3525,6 +3853,10 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
   }
 
   const nowIso = nowUtcIso();
+  const willStageExpireNow =
+    Boolean(stage.ends_at) &&
+    hasExpired(stage.ends_at, nowIso) &&
+    (stage.status === "briefing" || stage.status === "in_progress");
   const stageTimerStart = resolveStageTimerStart(stage);
   const timeTickEvents: ScoreEvent[] = [];
 
@@ -3609,6 +3941,11 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
     if (lockResetError) {
       throw new Error(`Failed to reset expired investigation lock: ${lockResetError.message}`);
     }
+
+    await applyInvestigationQueueCooldown(stage.id, lock.locked_by_player_id, nowIso);
+    if (!willStageExpireNow) {
+      await admitNextInvestigationQueuePlayer(roomId, stage.id, nowIso);
+    }
   }
 
   if (
@@ -3683,6 +4020,19 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
     if (lockResetError) {
       throw new Error(`Failed to clear lock on timer expiry: ${lockResetError.message}`);
     }
+  }
+
+  const { error: queueResetError } = await supabase
+    .from("player_stage_states")
+    .update({
+      queue_joined_at: null,
+      queue_cooldown_ends_at: null,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stage.id);
+
+  if (queueResetError) {
+    throw new Error(`Failed to clear investigation queue on timer expiry: ${queueResetError.message}`);
   }
 
   const stageEndPenaltyEvents = buildStageEndPenaltyEvents({
@@ -4014,6 +4364,10 @@ export async function submitAnswerInStore(
     if (lockResetError) {
       throw new Error(`Failed to reset investigation lock after solve: ${lockResetError.message}`);
     }
+
+    if (!shouldEndStage) {
+      await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
+    }
   } else {
     const { error: lockUpdateError } = await supabase
       .from("investigation_locks")
@@ -4041,6 +4395,21 @@ export async function submitAnswerInStore(
 
     if (gameUpdateError) {
       throw new Error(`Failed to update game status after solve: ${gameUpdateError.message}`);
+    }
+  }
+
+  if (shouldEndStage) {
+    const { error: queueResetError } = await supabase
+      .from("player_stage_states")
+      .update({
+        queue_joined_at: null,
+        queue_cooldown_ends_at: null,
+        updated_at: nowIso,
+      })
+      .eq("stage_id", stageId);
+
+    if (queueResetError) {
+      throw new Error(`Failed to clear investigation queue after stage resolution: ${queueResetError.message}`);
     }
   }
 

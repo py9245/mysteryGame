@@ -251,6 +251,30 @@ export interface ReleaseInvestigationLockResponse {
   snapshot: RoomSnapshot;
 }
 
+export interface JoinInvestigationQueueRequest {
+  type: "join_lock_queue";
+  roomId: EntityId;
+  stageId: EntityId;
+  playerId: EntityId;
+}
+
+export interface JoinInvestigationQueueResponse {
+  lock: InvestigationLock | null;
+  autoAdmitted: boolean;
+  snapshot: RoomSnapshot;
+}
+
+export interface LeaveInvestigationQueueRequest {
+  type: "leave_lock_queue";
+  roomId: EntityId;
+  stageId: EntityId;
+  playerId: EntityId;
+}
+
+export interface LeaveInvestigationQueueResponse {
+  snapshot: RoomSnapshot;
+}
+
 export interface SubmitQuestionRequest {
   type: "submit_question";
   roomId: EntityId;
@@ -385,6 +409,8 @@ export type GameCommandRequest =
   | AssignTeamsRequest
   | StartStageRequest
   | AdvanceStageRequest
+  | JoinInvestigationQueueRequest
+  | LeaveInvestigationQueueRequest
   | AcquireInvestigationLockRequest
   | ReleaseInvestigationLockRequest
   | SubmitQuestionRequest
@@ -402,6 +428,8 @@ export type GameCommandResponse =
   | AssignTeamsResponse
   | StartStageResponse
   | AdvanceStageResponse
+  | JoinInvestigationQueueResponse
+  | LeaveInvestigationQueueResponse
   | AcquireInvestigationLockResponse
   | ReleaseInvestigationLockResponse
   | SubmitQuestionResponse

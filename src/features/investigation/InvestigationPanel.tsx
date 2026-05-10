@@ -37,8 +37,16 @@ export function InvestigationPanel({
   statusMessage = null,
   onAcquireLock,
   onReleaseLock,
+  onJoinQueue,
+  onLeaveQueue,
   canAcquireLock = false,
   canReleaseLock = false,
+  canJoinQueue = false,
+  canLeaveQueue = false,
+  isQueued = false,
+  queuePosition = null,
+  waitingPlayerCount = 0,
+  queueCooldownSeconds = 0,
   onSubmitQuestion,
   onSubmitAnswer,
   questionFeedbackMessage = null,
@@ -59,8 +67,16 @@ export function InvestigationPanel({
   statusMessage?: string | null;
   onAcquireLock?: () => void;
   onReleaseLock?: () => void;
+  onJoinQueue?: () => void;
+  onLeaveQueue?: () => void;
   canAcquireLock?: boolean;
   canReleaseLock?: boolean;
+  canJoinQueue?: boolean;
+  canLeaveQueue?: boolean;
+  isQueued?: boolean;
+  queuePosition?: number | null;
+  waitingPlayerCount?: number;
+  queueCooldownSeconds?: number;
   onSubmitQuestion?: () => void;
   onSubmitAnswer?: () => void;
   questionFeedbackMessage?: string | null;
@@ -112,8 +128,16 @@ export function InvestigationPanel({
             lockOwnerNickname={lockOwnerNickname}
             canAcquireLock={canAcquireLock}
             canReleaseLock={canReleaseLock}
+            canJoinQueue={canJoinQueue}
+            canLeaveQueue={canLeaveQueue}
+            isQueued={isQueued}
+            queuePosition={queuePosition}
+            waitingPlayerCount={waitingPlayerCount}
+            queueCooldownSeconds={queueCooldownSeconds}
             onAcquireLock={onAcquireLock}
             onReleaseLock={onReleaseLock}
+            onJoinQueue={onJoinQueue}
+            onLeaveQueue={onLeaveQueue}
             statusMessage={statusMessage}
             errorMessage={errorMessage}
           />

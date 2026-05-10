@@ -24,12 +24,19 @@ export function InvestigationQueueBanner({
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLocked = Boolean(lockOwnerId);
   const isLockedByMe = lockOwnerId === snapshot.me.playerId;
+  const queuePosition = investigation?.queuePosition ?? null;
+  const waitingPlayerCount = investigation?.waitingPlayerCount ?? 0;
   const lockOwnerNickname =
     players.find((player) => player.playerId === lockOwnerId)?.nickname ??
     (isLockedByMe ? snapshot.me.nickname : "다른 플레이어");
   const remainingSeconds = resolveRemainingSeconds(
     investigation?.expiresAt ?? null,
     investigation?.remainingSeconds,
+    nowMs,
+  );
+  const queueCooldownSeconds = resolveRemainingSeconds(
+    investigation?.reentryCooldownEndsAt ?? null,
+    undefined,
     nowMs,
   );
 
@@ -47,14 +54,21 @@ export function InvestigationQueueBanner({
       <div className="utility-chip-row">
         <span className="status-badge">질문 {investigation?.questionCountRemaining ?? 0}회 남음</span>
         <span className="status-badge">정답 {investigation?.answerAttemptCountRemaining ?? 0}회 남음</span>
+        <span className="status-badge">대기열 {waitingPlayerCount}명</span>
+        {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
+        {queueCooldownSeconds > 0 ? <span className="status-badge">재진입 {queueCooldownSeconds}초</span> : null}
         {isLocked ? <span className="status-badge">남은 시간 {remainingSeconds}초</span> : null}
       </div>
       <p className="message-note">
         {isLockedByMe
           ? "지금은 내가 질문방을 점유하고 있습니다."
+          : queuePosition
+            ? `현재 질문방 대기열 ${queuePosition}번입니다. 차례가 오면 자동으로 입장합니다.`
           : isLocked
             ? `${lockOwnerNickname}님이 질문방을 사용 중입니다. 끝나면 다음 플레이어가 자동으로 입장합니다.`
-            : "지금 들어가 질문이나 정답 시도를 바로 진행할 수 있습니다."}
+            : queueCooldownSeconds > 0
+              ? "방금 질문방에서 나왔습니다. 5초 뒤 다시 대기열에 들어갈 수 있습니다."
+              : "지금 대기열에 참가하면 바로 질문방으로 넘어갈 수 있습니다."}
       </p>
     </section>
   );
