@@ -76,6 +76,7 @@ function formatDateTime(value: string | null): string {
   return new Intl.DateTimeFormat("ko-KR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "Asia/Seoul",
   }).format(new Date(value));
 }
 
@@ -139,7 +140,7 @@ type HomeEntrySurfaceProps = {
 
 export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
   const [viewer, setViewer] = useState<CurrentViewer | null>(initialViewer);
-  const [guestPreviewNickname] = useState(() => initialViewer?.nickname ?? makeGuestNickname());
+  const [guestPreviewNickname, setGuestPreviewNickname] = useState(initialViewer?.nickname ?? "");
   const [registerNickname, setRegisterNickname] = useState(initialViewer?.nickname ?? "");
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinRoomPassword, setJoinRoomPassword] = useState("");
@@ -173,7 +174,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
   const [launchResultMessage, setLaunchResultMessage] = useState<string | null>(null);
 
   const accountViewer = isAccountViewer(viewer) ? viewer.account : null;
-  const displayNickname = viewer?.nickname ?? guestPreviewNickname;
+  const displayNickname = (viewer?.nickname ?? guestPreviewNickname) || "게스트 준비 중";
   const hasPlayableIdentity = Boolean(viewer?.nickname && viewer.nickname.trim().length >= 2);
   const roomModeSummary = useMemo(() => getRoomModeSummary(roomLaunchMode), [roomLaunchMode]);
   const trimmedRoomTitle = roomTitleDraft.trim();
@@ -216,8 +217,11 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
     let mounted = true;
 
     async function seedGuestNickname() {
+      const nextGuestNickname = makeGuestNickname();
+      setGuestPreviewNickname(nextGuestNickname);
+
       const result = await saveViewerNickname({
-        nickname: guestPreviewNickname,
+        nickname: nextGuestNickname,
       });
 
       if (!mounted) {
@@ -226,12 +230,13 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
 
       if (result.ok && result.viewer) {
         setViewer(result.viewer);
+        setGuestPreviewNickname(result.viewer.nickname);
       } else {
         setViewer({
           kind: "guest",
-          nickname: guestPreviewNickname,
+          nickname: nextGuestNickname,
           guest: {
-            nickname: guestPreviewNickname,
+            nickname: nextGuestNickname,
             updatedAt: null,
           },
         });
@@ -245,7 +250,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
     return () => {
       mounted = false;
     };
-  }, [guestPreviewNickname, initialViewer, isGuestIdentityBooting]);
+  }, [initialViewer, isGuestIdentityBooting]);
 
   useEffect(() => {
     if (!registerNickname.trim() && viewer?.nickname) {
