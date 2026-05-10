@@ -29,6 +29,14 @@ function resolvePlayerNickname(snapshot: RoomSnapshot, playerId: string | null |
   );
 }
 
+function resolveTeamLabel(snapshot: RoomSnapshot, teamSlotId: string | null | undefined) {
+  if (!teamSlotId) {
+    return "팀 미정";
+  }
+
+  return snapshot.teamSlots.find((teamSlot) => teamSlot.id === teamSlotId)?.label ?? teamSlotId;
+}
+
 function resolveSessionPartner(snapshot: RoomSnapshot, session: PrivateChatSession) {
   const partnerId =
     session.playerAId === snapshot.me.playerId ? session.playerBId : session.playerAId;
@@ -257,9 +265,9 @@ export function PrivateChatBanner({
                 <div>
                   <strong>{player.nickname}</strong>
                   <div className="utility-meta">
-                    {player.teamSlotId ? `팀 ${player.teamSlotId}` : "팀 미정"} · {player.connectionStatus === "connected" ? "접속 중" : "이탈"}
+                    {resolveTeamLabel(snapshot, player.teamSlotId)} · {player.connectionStatus === "connected" ? "접속 중" : "이탈"}
                   </div>
-                </div>
+                  </div>
                 <button
                   className="button-secondary button-compact"
                   type="button"
