@@ -151,9 +151,17 @@ function resolveRoomDirectory(value: unknown): DirectoryRoom[] | null {
 
 type HomeEntrySurfaceProps = {
   initialViewer: CurrentViewer | null;
+  pageTitle?: string;
+  pageKicker?: string;
+  showAccountHistory?: boolean;
 };
 
-export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
+export function HomeEntrySurface({
+  initialViewer,
+  pageTitle = "방 입장 / 만들기",
+  pageKicker = "공개방을 고르거나, 입장 코드를 넣거나, 새 방을 만들어 바로 대기방으로 이동합니다.",
+  showAccountHistory = true,
+}: HomeEntrySurfaceProps) {
   const router = useRouter();
   const [viewer, setViewer] = useState<CurrentViewer | null>(initialViewer);
   const [guestPreviewNickname, setGuestPreviewNickname] = useState(initialViewer?.nickname ?? "");
@@ -545,18 +553,21 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
       <section className="page-header">
         <div className="header-top-row">
           <div>
-            <p className="eyebrow">심리 추리전</p>
-            <h1 className="page-title">Mystery Time</h1>
-            <p className="page-kicker">
-              초대 코드를 받았다면 바로 합류하고, 아니면 열려 있는 방을 고르거나 직접 시작하세요.
-            </p>
+            <p className="eyebrow">방 페이지</p>
+            <h1 className="page-title">{pageTitle}</h1>
+            <p className="page-kicker">{pageKicker}</p>
           </div>
           <div className="header-actions">
+            <Link className="button-secondary button-compact" href="/">
+              메인
+            </Link>
             {accountViewer ? (
               <>
-                <a className="button-secondary button-compact" href="#my-records">
-                  내 전적
-                </a>
+                {showAccountHistory ? (
+                  <a className="button-secondary button-compact" href="#my-records">
+                    내 전적
+                  </a>
+                ) : null}
                 <button
                   className="button-secondary button-compact"
                   type="button"
@@ -843,7 +854,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
         />
       </section>
 
-      {accountViewer ? (
+      {accountViewer && showAccountHistory ? (
         <section className="panel panel-muted" id="my-records">
           <div className="composer-header">
             <div>

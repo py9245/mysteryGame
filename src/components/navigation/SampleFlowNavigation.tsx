@@ -33,19 +33,31 @@ export function SampleFlowNavigation({
     <nav aria-label="Game flow navigation" className="nav-strip">
       <ul className="nav-links">
         <li>
-          <Link className="nav-link" href={lobbyHref}>대기실</Link>
+          <Link className="nav-link" href="/">메인</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href="/rooms">방 페이지</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href={roomHref}>방 현황</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href={lobbyHref}>대기방</Link>
         </li>
         <li>
           <Link className="nav-link" href={briefingHref}>브리핑</Link>
         </li>
         <li>
-          <Link className="nav-link" href={gameplayHref}>추리 진행</Link>
+          <Link className="nav-link" href={gameplayHref}>게임중</Link>
         </li>
         <li>
           <Link className="nav-link" href={investigationHref}>조사실</Link>
         </li>
         <li>
           <Link className="nav-link" href={stageResultsHref}>스테이지 결과</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href={gameResultsHref}>최종 결과</Link>
         </li>
       </ul>
     </nav>
