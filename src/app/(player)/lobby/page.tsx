@@ -16,7 +16,7 @@ export default async function LobbyPage({
   const roomRef = roomId ?? roomCode;
   const snapshot =
     isSupabaseEnabled() && roomRef
-      ? await getRoomSnapshotFromStore(roomRef, playerId)
+      ? await getRoomSnapshotFromStore(roomRef, playerId, { lightweight: true })
       : await loadRoomSnapshot({
           roomId,
           roomCode: roomId ? undefined : roomCode,

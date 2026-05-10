@@ -14,7 +14,7 @@ export default async function GameResultsPage({
   const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
   const snapshot =
     isSupabaseEnabled() && (roomId ?? roomCode)
-      ? await getRoomSnapshotFromStore(roomId ?? roomCode ?? "", playerId)
+      ? await getRoomSnapshotFromStore(roomId ?? roomCode ?? "", playerId, { lightweight: true })
       : await loadRoomSnapshot({
           roomId,
           roomCode: roomId ? undefined : roomCode,

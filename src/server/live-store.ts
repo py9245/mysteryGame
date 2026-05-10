@@ -2414,7 +2414,7 @@ export async function createRoomInStore(
     }
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
   return {
@@ -2481,7 +2481,7 @@ export async function joinRoomInStore(
     throw new RoomJoinError("ROOM_NOT_FOUND", "입장 코드를 찾을 수 없습니다.");
   }
 
-  const stateBeforeJoin = await loadSyncedLobbyState(room.id);
+  const stateBeforeJoin = await loadLobbyState(room.id);
 
   if (accountId) {
     const existingPlayer = stateBeforeJoin.players.find(
@@ -2539,7 +2539,7 @@ export async function joinRoomInStore(
     throw new Error(`Failed to create joined player: ${playerError?.message ?? "unknown error"}`);
   }
 
-  const joinedState = await loadSyncedLobbyState(room.id);
+  const joinedState = await loadLobbyState(room.id);
   const nextRoomStatus = resolveLobbyStatus(joinedState.room, joinedState.players);
 
   if (joinedState.room.status !== nextRoomStatus) {
@@ -2556,7 +2556,7 @@ export async function joinRoomInStore(
     }
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
   return {
@@ -2596,7 +2596,7 @@ export async function updateRoomSettingsInStore(input: {
     throw new RoomSettingsError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   assertRoomSettingsChangeAllowed({
     room: state.room,
     players: state.players,
@@ -2650,7 +2650,7 @@ export async function updateRoomSettingsInStore(input: {
     throw new Error(`Failed to update room settings: ${roomError?.message ?? "unknown error"}`);
   }
 
-  const refreshed = await loadSyncedLobbyState(room.id);
+  const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
   return {
@@ -2663,25 +2663,31 @@ export async function updateRoomSettingsInStore(input: {
 export async function getRoomSnapshotFromStore(
   roomRef: string,
   viewerPlayerId?: string,
+  options: {
+    lightweight?: boolean;
+    touchPresence?: boolean;
+    cleanupPresence?: boolean;
+  } = {},
 ): Promise<RoomSnapshot | null> {
   const room = await findRoomByRef(roomRef);
   if (!room) {
     return null;
   }
 
-  if (viewerPlayerId) {
+  if (viewerPlayerId && options.touchPresence !== false) {
     await touchPlayerPresence(room.id, viewerPlayerId);
+  }
+
+  if (options.cleanupPresence === true) {
     await cleanupStalePlayersInRoom(room, viewerPlayerId);
   }
 
-  const refreshedRoom = await findRoomByRef(room.id);
-  if (!refreshedRoom) {
-    return null;
-  }
-
-  const state = await loadSyncedLobbyState(room.id, {
-    cleanupPresence: !viewerPlayerId,
-  });
+  const state =
+    options.lightweight === true
+      ? await loadLobbyState(room.id)
+      : await loadSyncedLobbyState(room.id, {
+          cleanupPresence: options.cleanupPresence ?? !viewerPlayerId,
+        });
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
   return buildSnapshotFromState(state, caseSummary, viewerPlayerId);
 }
@@ -2963,7 +2969,7 @@ export async function setReadyInStore(
     return null;
   }
 
-  const stateBeforeRoomUpdate = await loadSyncedLobbyState(roomId);
+  const stateBeforeRoomUpdate = await loadLobbyState(roomId);
   const nextRoomStatus = resolveLobbyStatus(stateBeforeRoomUpdate.room, stateBeforeRoomUpdate.players);
   const { data: room, error: roomError } = await supabase
     .from("rooms")
@@ -2979,7 +2985,7 @@ export async function setReadyInStore(
     throw new Error(`Failed to update room ready status: ${roomError?.message ?? "unknown error"}`);
   }
 
-  const state = await loadSyncedLobbyState(roomId);
+  const state = await loadLobbyState(roomId);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
   return {
     room: toRoom(room),
@@ -3082,7 +3088,7 @@ export async function assignTeamsInStore(
     throw new AssignTeamsError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeAssign = await loadSyncedLobbyState(room.id);
+  const stateBeforeAssign = await loadLobbyState(room.id);
   assertAssignableRoomState({
     room: stateBeforeAssign.room,
     game: stateBeforeAssign.game,
@@ -3162,7 +3168,7 @@ export async function assignTeamsInStore(
     throw new Error(`Failed to update game after team assignment: ${gameUpdateError.message}`);
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
   return {
@@ -3219,7 +3225,7 @@ export async function startStageInStore(
     throw new StartStageError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeStart = await loadSyncedLobbyState(room.id);
+  const stateBeforeStart = await loadLobbyState(room.id);
   assertStartableStageState({
     room: stateBeforeStart.room,
     game: stateBeforeStart.game,
@@ -3334,7 +3340,7 @@ export async function startStageInStore(
     throw new Error(`Failed to initialize investigation lock: ${upsertLockError.message}`);
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   const caseSummary = await loadCaseSummary(caseKey);
 
   return {
@@ -3387,7 +3393,7 @@ export async function advanceStageInStore(
     throw new AdvanceStageError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   assertAdvanceStageState({
     room: state.room,
     game: state.game,
@@ -3430,7 +3436,7 @@ export async function advanceStageInStore(
     throw new Error(`Failed to prepare room for next stage: ${roomUpdateError?.message ?? "unknown error"}`);
   }
 
-  const refreshed = await loadSyncedLobbyState(room.id);
+  const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
   return {
@@ -5651,7 +5657,7 @@ export async function getGameRuntimeSnapshotFromStore(roomId: string): Promise<G
     return null;
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   if (!state.game) {
     return null;
   }

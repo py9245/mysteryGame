@@ -113,7 +113,9 @@ export async function GET(
     try {
       const searchParams = new URL(request.url).searchParams;
       const playerId = searchParams.get("playerId")?.trim() || undefined;
-      const snapshot = await getRoomSnapshotFromStore(roomRef, playerId);
+      const snapshot = await getRoomSnapshotFromStore(roomRef, playerId, {
+        lightweight: true,
+      });
 
       if (!snapshot) {
         return Response.json(
