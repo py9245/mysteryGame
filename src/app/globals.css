@@ -1393,7 +1393,7 @@ pre {
   --radius-lg: 30px;
   --radius-md: 22px;
   --radius-sm: 14px;
-  --page-width: 1240px;
+  --page-width: 1380px;
   --font-display: ui-serif, "Georgia", "Times New Roman", serif;
   --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 }
@@ -2025,8 +2025,9 @@ select {
 
 .lobby-summary-strip,
 .mt-lobby-summary {
-  grid-template-columns: minmax(0, 1.35fr) minmax(270px, 0.9fr) auto;
-  padding: 20px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr) auto;
+  gap: 18px;
+  padding: 22px;
 }
 
 .lobby-room-title {
@@ -2039,8 +2040,23 @@ select {
 
 .lobby-main-grid,
 .mt-lobby-grid {
-  grid-template-columns: minmax(250px, 0.9fr) minmax(380px, 1.35fr) minmax(270px, 0.95fr);
-  gap: 16px;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(520px, 1.7fr) minmax(300px, 1.05fr);
+  gap: 18px;
+  min-height: min(76vh, 900px);
+}
+
+.lobby-main-column,
+.lobby-chat-column,
+.lobby-sidebar-column {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+}
+
+.lobby-chat-column .chat-shell,
+.lobby-chat-column .chat-rail {
+  min-height: 0;
+  height: 100%;
 }
 
 .chat-main-panel,
@@ -2069,12 +2085,25 @@ select {
 
 .mt-gameplay-layout,
 .gameplay-layout {
-  grid-template-columns: minmax(0, 1.1fr) minmax(330px, 0.95fr) minmax(250px, 0.72fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 18px;
+  align-items: stretch;
 }
 
 .gameplay-left-layout {
-  min-height: min(76vh, 860px);
+  grid-template-rows: minmax(0, 7fr) minmax(0, 3fr);
+  min-height: min(78vh, 900px);
+}
+
+.gameplay-column-center,
+.gameplay-column-right {
+  min-height: 0;
+}
+
+.gameplay-column-center .chat-shell,
+.gameplay-column-center .chat-rail {
+  min-height: 0;
+  height: 100%;
 }
 
 .image-frame {
