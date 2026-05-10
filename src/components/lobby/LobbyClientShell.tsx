@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
+import type { ChatMessage } from "@/contracts/game";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
+import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import {
   submitAssignTeams,
   submitStartStage,
@@ -11,7 +13,17 @@ import {
 import { submitSetReady } from "@/features/lobby/set-ready-command";
 import { LobbyShell } from "./LobbyShell";
 
-export function LobbyClientShell({ initialSnapshot }: { initialSnapshot: RoomSnapshot }) {
+export function LobbyClientShell({
+  initialSnapshot,
+  initialChatMessages,
+  initialChatSource,
+  chatEndpoint,
+}: {
+  initialSnapshot: RoomSnapshot;
+  initialChatMessages: ChatMessage[];
+  initialChatSource: LoadedChatMessages["source"];
+  chatEndpoint: string;
+}) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -114,6 +126,9 @@ export function LobbyClientShell({ initialSnapshot }: { initialSnapshot: RoomSna
   return (
     <LobbyShell
       snapshot={snapshot}
+      initialChatMessages={initialChatMessages}
+      initialChatSource={initialChatSource}
+      chatEndpoint={chatEndpoint}
       isSubmitting={isSubmitting}
       isHostActionSubmitting={isHostActionSubmitting}
       errorMessage={errorMessage}

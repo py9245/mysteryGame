@@ -81,6 +81,7 @@ import { getSupabaseAdminClient } from "@/server/supabase-admin";
 import { upsertAccountGameResults } from "@/server/account-store";
 import { hashPassword, verifyPassword } from "@/server/auth-password";
 import { addSeconds, diffSeconds, hasExpired, nowUtcIso, remainingSeconds } from "@/server/time";
+import { createTextCompletion } from "@/lib/ai";
 
 type DbRoomRow = {
   id: string;
@@ -796,7 +797,63 @@ function mapQuestionJudgementToStoredJudgement(judgement: QuestionJudgement): Qu
   }
 }
 
-function classifyQuestionJudgement(caseFile: CaseFile, content: string): {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function extractJsonObject(text: string | null): Record<string, unknown> | null {
+  if (!text) {
+    return null;
+  }
+
+  const trimmed = text.trim();
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch?.[1]?.trim() ?? trimmed;
+  const startIndex = candidate.indexOf("{");
+  const endIndex = candidate.lastIndexOf("}");
+
+  if (startIndex < 0 || endIndex <= startIndex) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(candidate.slice(startIndex, endIndex + 1)) as unknown;
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function resolveKeywordSubset(sourceKeywords: string[], rawMatches: string[]): string[] {
+  const normalizedMatches = rawMatches.map((value) => normalizeKeywordText(value)).filter((value) => value.length > 0);
+  const resolved = sourceKeywords.filter((keyword) => {
+    const normalizedKeyword = normalizeKeywordText(keyword);
+    return normalizedMatches.some(
+      (candidate) =>
+        candidate === normalizedKeyword ||
+        candidate.includes(normalizedKeyword) ||
+        normalizedKeyword.includes(candidate),
+    );
+  });
+
+  return Array.from(new Set(resolved));
+}
+
+function buildVisibleHintTexts(caseFile: CaseFile, visibleHints: DbHintRevealRow[]): string[] {
+  return visibleHints
+    .map((hint) => caseFile.hints.find((candidate) => candidate.order === hint.hint_index)?.publicText ?? null)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+function classifyQuestionJudgementFallback(caseFile: CaseFile, content: string): {
   judgement: QuestionJudgement;
   reasonCode: string;
   publicReply: string;
@@ -835,7 +892,7 @@ function classifyQuestionJudgement(caseFile: CaseFile, content: string): {
   };
 }
 
-function classifyAnswerAttempt(caseFile: CaseFile, content: string): {
+function classifyAnswerAttemptFallback(caseFile: CaseFile, content: string): {
   result: AnswerResult;
   matchedRequiredKeywords: string[];
   publicOutcome: "correct" | "wrong" | "needs_review";
@@ -889,6 +946,250 @@ function classifyAnswerAttempt(caseFile: CaseFile, content: string): {
     needsManualReview: false,
     shouldLockPlayer: false,
   };
+}
+
+async function resolveQuestionJudgement(input: {
+  caseFile: CaseFile;
+  content: string;
+  visibleHintTexts: string[];
+}): Promise<{
+  judgement: QuestionJudgement;
+  reasonCode: string;
+  publicReply: string;
+  manualReviewRequired: boolean;
+  safetyFlags: string[];
+  logSummary: string;
+}> {
+  const fallback = classifyQuestionJudgementFallback(input.caseFile, input.content);
+
+  try {
+    const completion = await createTextCompletion({
+      messages: [
+        {
+          role: "developer",
+          content:
+            "너는 미스터리 추리 게임의 질문 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. judgement는 YES, NO, MAYBE, IRRELEVANT 중 하나만 허용한다. publicReply는 정확히 '네, 그렇습니다.', '아니오, 그렇지 않습니다.', '그럴 수도 있습니다.', '중요하지 않습니다.' 중 하나만 허용한다. reasonCode는 짧은 snake_case 문자열로 작성한다. manualReviewRequired는 boolean, safetyFlags는 문자열 배열, logSummary는 짧은 한국어 한 줄이다.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              case: {
+                title: input.caseFile.title,
+                publicDescription: input.caseFile.publicDescription,
+                question: input.caseFile.question,
+                truth: input.caseFile.truth,
+                requiredKeywords: input.caseFile.requiredKeywords,
+                bonusKeywords: input.caseFile.bonusKeywords,
+                visibleHints: input.visibleHintTexts,
+              },
+              playerQuestion: input.content,
+              outputSchema: {
+                judgement: "YES | NO | MAYBE | IRRELEVANT",
+                publicReply:
+                  "네, 그렇습니다. | 아니오, 그렇지 않습니다. | 그럴 수도 있습니다. | 중요하지 않습니다.",
+                reasonCode: "snake_case",
+                manualReviewRequired: false,
+                safetyFlags: ["string"],
+                logSummary: "short korean sentence",
+              },
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    });
+
+    const parsed = extractJsonObject(completion.text);
+    const judgement =
+      parsed?.judgement === "YES" ||
+      parsed?.judgement === "NO" ||
+      parsed?.judgement === "MAYBE" ||
+      parsed?.judgement === "IRRELEVANT"
+        ? parsed.judgement
+        : null;
+
+    if (!judgement) {
+      throw new Error("AI question judgement missing valid judgement.");
+    }
+
+    const publicReply =
+      parsed?.publicReply === "네, 그렇습니다." ||
+      parsed?.publicReply === "아니오, 그렇지 않습니다." ||
+      parsed?.publicReply === "그럴 수도 있습니다." ||
+      parsed?.publicReply === "중요하지 않습니다."
+        ? parsed.publicReply
+        : mapQuestionJudgementToPublicReply(judgement);
+
+    const reasonCode =
+      typeof parsed?.reasonCode === "string" && parsed.reasonCode.trim().length > 0
+        ? parsed.reasonCode.trim()
+        : `question.ai.${judgement.toLowerCase()}`;
+
+    return {
+      judgement,
+      reasonCode,
+      publicReply,
+      manualReviewRequired: parsed?.manualReviewRequired === true,
+      safetyFlags: asStringArray(parsed?.safetyFlags),
+      logSummary:
+        typeof parsed?.logSummary === "string" && parsed.logSummary.trim().length > 0
+          ? parsed.logSummary.trim()
+          : `question:${reasonCode}`,
+    };
+  } catch {
+    return {
+      ...fallback,
+      manualReviewRequired: false,
+      safetyFlags: ["ai_fallback"],
+      logSummary: `fallback:${fallback.reasonCode}`,
+    };
+  }
+}
+
+async function resolveAnswerJudgement(input: {
+  caseFile: CaseFile;
+  content: string;
+  visibleHintTexts: string[];
+}): Promise<{
+  result: AnswerResult;
+  matchedRequiredKeywords: string[];
+  publicOutcome: "correct" | "wrong" | "needs_review";
+  publicSummary: string;
+  matchedBonusKeywords: string[];
+  missingRequiredKeywords: string[];
+  reasonCode: string;
+  needsManualReview: boolean;
+  shouldLockPlayer: boolean;
+  needsOperatorOverride: boolean;
+  logSummary: string;
+}> {
+  const fallback = classifyAnswerAttemptFallback(input.caseFile, input.content);
+
+  try {
+    const completion = await createTextCompletion({
+      messages: [
+        {
+          role: "developer",
+          content:
+            "너는 미스터리 추리 게임의 정답 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. result는 correct, incorrect, ambiguous 중 하나만 허용한다. publicOutcome은 correct, wrong, needs_review 중 하나만 허용한다. matchedRequiredKeywords, missingRequiredKeywords, matchedBonusKeywords에는 제공된 키워드 목록 안의 항목만 넣는다. reasonCode는 짧은 snake_case 문자열, publicSummary는 40자 이내 한국어 문장, needsOperatorOverride는 boolean, logSummary는 짧은 한국어 한 줄이다.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              case: {
+                title: input.caseFile.title,
+                publicDescription: input.caseFile.publicDescription,
+                question: input.caseFile.question,
+                truth: input.caseFile.truth,
+                acceptedAnswerSummary: input.caseFile.acceptedAnswerSummary,
+                requiredKeywords: input.caseFile.requiredKeywords,
+                bonusKeywords: input.caseFile.bonusKeywords,
+                visibleHints: input.visibleHintTexts,
+              },
+              playerAnswer: input.content,
+              outputSchema: {
+                result: "correct | incorrect | ambiguous",
+                publicOutcome: "correct | wrong | needs_review",
+                matchedRequiredKeywords: ["keyword"],
+                missingRequiredKeywords: ["keyword"],
+                matchedBonusKeywords: ["keyword"],
+                reasonCode: "snake_case",
+                publicSummary: "40자 이내 한국어",
+                needsOperatorOverride: false,
+                logSummary: "short korean sentence",
+              },
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    });
+
+    const parsed = extractJsonObject(completion.text);
+    const result =
+      parsed?.result === "correct" || parsed?.result === "incorrect" || parsed?.result === "ambiguous"
+        ? parsed.result
+        : null;
+
+    if (!result) {
+      throw new Error("AI answer judgement missing valid result.");
+    }
+
+    const matchedRequiredKeywords = resolveKeywordSubset(
+      input.caseFile.requiredKeywords,
+      asStringArray(parsed?.matchedRequiredKeywords),
+    );
+    const missingRequiredKeywords = resolveKeywordSubset(
+      input.caseFile.requiredKeywords,
+      asStringArray(parsed?.missingRequiredKeywords),
+    );
+    const matchedBonusKeywords = resolveKeywordSubset(
+      input.caseFile.bonusKeywords,
+      asStringArray(parsed?.matchedBonusKeywords),
+    );
+
+    const resolvedMissingRequiredKeywords =
+      result === "correct"
+        ? input.caseFile.requiredKeywords.filter((keyword) => !matchedRequiredKeywords.includes(keyword))
+        : Array.from(new Set(missingRequiredKeywords));
+    const resolvedMatchedRequiredKeywords =
+      result === "correct" && matchedRequiredKeywords.length === input.caseFile.requiredKeywords.length
+        ? matchedRequiredKeywords
+        : input.caseFile.requiredKeywords.filter((keyword) => !resolvedMissingRequiredKeywords.includes(keyword));
+
+    const isConsistentCorrect = result !== "correct" || resolvedMissingRequiredKeywords.length === 0;
+    const normalizedResult = isConsistentCorrect ? result : "ambiguous";
+    const needsManualReview = normalizedResult === "ambiguous";
+    const publicOutcome =
+      normalizedResult === "correct"
+        ? "correct"
+        : normalizedResult === "incorrect"
+          ? "wrong"
+          : "needs_review";
+    const publicSummary =
+      normalizedResult === "correct"
+        ? input.caseFile.acceptedAnswerSummary
+        : typeof parsed?.publicSummary === "string" && parsed.publicSummary.trim().length > 0
+          ? parsed.publicSummary.trim()
+          : normalizedResult === "incorrect"
+            ? "핵심 단서가 맞지 않아 오답으로 처리되었습니다."
+            : "정답 여부를 바로 확정할 수 없어 검토 대기 상태로 보냅니다.";
+    const reasonCode =
+      typeof parsed?.reasonCode === "string" && parsed.reasonCode.trim().length > 0
+        ? parsed.reasonCode.trim()
+        : normalizedResult === "correct"
+          ? "answer.ai.accepted"
+          : normalizedResult === "incorrect"
+            ? "answer.ai.rejected"
+            : "answer.ai.ambiguous";
+
+    return {
+      result: normalizedResult,
+      matchedRequiredKeywords: Array.from(new Set(resolvedMatchedRequiredKeywords)),
+      publicOutcome,
+      publicSummary,
+      matchedBonusKeywords,
+      missingRequiredKeywords: Array.from(new Set(resolvedMissingRequiredKeywords)),
+      reasonCode,
+      needsManualReview,
+      shouldLockPlayer: normalizedResult === "correct",
+      needsOperatorOverride: parsed?.needsOperatorOverride === true || needsManualReview,
+      logSummary:
+        typeof parsed?.logSummary === "string" && parsed.logSummary.trim().length > 0
+          ? parsed.logSummary.trim()
+          : `answer:${reasonCode}`,
+    };
+  } catch {
+    return {
+      ...fallback,
+      needsOperatorOverride: fallback.needsManualReview,
+      logSummary: `fallback:${fallback.reasonCode}`,
+    };
+  }
 }
 
 function cloneSnapshotWithQuestionJudgement(
@@ -3125,7 +3426,11 @@ export async function submitQuestionInStore(
 
   const caseFile = await getCaseFileOrThrow(currentStage.case_key);
   const nowIso = nowUtcIso();
-  const judged = classifyQuestionJudgement(caseFile, content);
+  const judged = await resolveQuestionJudgement({
+    caseFile,
+    content,
+    visibleHintTexts: buildVisibleHintTexts(caseFile, state.visibleHints),
+  });
   const nextQuestionCount = activeLock.question_count + 1;
   const supabase = getSupabaseAdminClient();
   const previousJudgementIds = await loadJudgementHistory(stageId);
@@ -3181,6 +3486,9 @@ export async function submitQuestionInStore(
     judgement: judged.judgement,
     reasonCode: judged.reasonCode,
     publicReply: judged.publicReply,
+    manualReviewRequired: judged.manualReviewRequired,
+    safetyFlags: judged.safetyFlags,
+    logSummary: judged.logSummary,
   });
 
   await persistJudgementRecord({
@@ -3216,7 +3524,7 @@ export async function submitQuestionInStore(
       reasonCode: judged.reasonCode,
       judgement: judged.judgement,
       safetyFlags: questionResponse.safetyFlags,
-      logSummary: questionResponse.logSummary,
+      logSummary: judged.logSummary,
     },
     manualReviewRequired: questionResponse.manualReviewRequired,
     needsOperatorOverride: false,
@@ -3500,14 +3808,17 @@ function createQuestionJudgementResponse(input: {
   judgement: QuestionJudgement;
   reasonCode: string;
   publicReply: string;
+  manualReviewRequired?: boolean;
+  safetyFlags?: string[];
+  logSummary?: string;
 }): QuestionJudgementResponse {
   return {
     judgement: mapQuestionJudgementToStoredJudgement(input.judgement),
     reasonCode: input.reasonCode,
     publicReply: input.publicReply as QuestionJudgementResponse["publicReply"],
-    manualReviewRequired: false,
-    safetyFlags: [],
-    logSummary: `question:${input.reasonCode}`,
+    manualReviewRequired: input.manualReviewRequired === true,
+    safetyFlags: input.safetyFlags ?? [],
+    logSummary: input.logSummary?.trim() || `question:${input.reasonCode}`,
   };
 }
 
@@ -3520,6 +3831,7 @@ function createAnswerJudgementResponse(input: {
   matchedBonusKeywords: string[];
   reasonCode: string;
   needsManualReview: boolean;
+  needsOperatorOverride?: boolean;
 }): AnswerJudgementResponse {
   const storedResult =
     input.result === "correct"
@@ -3538,7 +3850,7 @@ function createAnswerJudgementResponse(input: {
     matchedBonusKeywords: input.matchedBonusKeywords,
     reasonCode: input.reasonCode,
     publicSummary: input.publicSummary,
-    needsOperatorOverride: input.needsManualReview,
+    needsOperatorOverride: input.needsOperatorOverride ?? input.needsManualReview,
   };
 }
 
@@ -4215,7 +4527,11 @@ export async function submitAnswerInStore(
 
   const caseFile = await getCaseFileOrThrow(currentStage.case_key);
   const nowIso = nowUtcIso();
-  const resolution = classifyAnswerAttempt(caseFile, content);
+  const resolution = await resolveAnswerJudgement({
+    caseFile,
+    content,
+    visibleHintTexts: buildVisibleHintTexts(caseFile, state.visibleHints),
+  });
   const nextAnswerAttemptCount = activeLock.answer_attempt_count + 1;
   const supabase = getSupabaseAdminClient();
   const previousJudgementIds = await loadJudgementHistory(stageId);
@@ -4287,6 +4603,7 @@ export async function submitAnswerInStore(
     matchedBonusKeywords: resolution.matchedBonusKeywords,
     reasonCode: resolution.reasonCode,
     needsManualReview: resolution.needsManualReview,
+    needsOperatorOverride: resolution.needsOperatorOverride,
   });
 
   const manualReviewRequired = resolution.needsManualReview;
@@ -4325,7 +4642,7 @@ export async function submitAnswerInStore(
       matchedRequiredKeywords: answerResponse.matchedRequiredKeywords,
       missingRequiredKeywords: answerResponse.missingRequiredKeywords,
       matchedBonusKeywords: answerResponse.matchedBonusKeywords,
-      logSummary: answerResponse.publicSummary,
+      logSummary: resolution.logSummary,
     },
     manualReviewRequired,
     needsOperatorOverride: answerResponse.needsOperatorOverride,

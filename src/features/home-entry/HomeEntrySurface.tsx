@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { CurrentViewer } from "@/contracts/account";
 import type {
   ApiResponse,
@@ -27,6 +28,7 @@ import {
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { RoomModePicker } from "@/components/room/RoomModePicker";
 import { OnboardingGuide } from "@/components/onboarding/OnboardingGuide";
+import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
 type RoomLaunchMode = "public" | "secret" | "practice";
 
@@ -152,6 +154,7 @@ type HomeEntrySurfaceProps = {
 };
 
 export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
+  const router = useRouter();
   const [viewer, setViewer] = useState<CurrentViewer | null>(initialViewer);
   const [guestPreviewNickname, setGuestPreviewNickname] = useState(initialViewer?.nickname ?? "");
   const [registerNickname, setRegisterNickname] = useState(initialViewer?.nickname ?? "");
@@ -187,7 +190,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
   const [launchResultMessage, setLaunchResultMessage] = useState<string | null>(null);
 
   const accountViewer = isAccountViewer(viewer) ? viewer.account : null;
-  const displayNickname = (viewer?.nickname ?? guestPreviewNickname) || "게스트 준비 중";
+  const displayNickname = (viewer?.nickname ?? guestPreviewNickname) || "이름 준비 중";
   const hasPlayableIdentity = Boolean(viewer?.nickname && viewer.nickname.trim().length >= 2);
   const roomModeSummary = useMemo(() => getRoomModeSummary(roomLaunchMode), [roomLaunchMode]);
   const trimmedRoomTitle = roomTitleDraft.trim();
@@ -364,7 +367,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
 
   async function handleCreateRoom() {
     if (!hasPlayableIdentity) {
-      setIdentityError("게스트 이름이 준비되면 방을 열 수 있습니다.");
+      setIdentityError("플레이 이름을 준비하는 중입니다. 잠시 뒤 다시 시도해 주세요.");
       return;
     }
 
@@ -388,16 +391,20 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
       maxPlayers: resolvedMaxPlayers,
     });
 
-    setCreateResult(nextResult);
     setJoinResult(null);
 
-    if (nextResult.ok) {
+    if (nextResult.ok && nextResult.response) {
+      setCreateResult(null);
       setLaunchResultMessage(
         `${roomModeSummary.label} · ${trimmedRoomTitle} · ${trimmedHostNote || roomModeSummary.entryPolicy}`,
       );
       await refreshRoomDirectory();
+      router.push(appendRoomContextToHref("/lobby", nextResult.response.snapshot));
+      setIsSubmitting(false);
+      return;
     }
 
+    setCreateResult(nextResult);
     setIsSubmitting(false);
   }
 
@@ -414,6 +421,15 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
       nickname: displayNickname,
       roomPassword: joinRoomPassword.trim() || null,
     });
+
+    if (nextResult.ok && nextResult.response) {
+      setCreateResult(null);
+      setJoinResult(null);
+      setIsJoining(false);
+      router.push(appendRoomContextToHref("/lobby", nextResult.response.snapshot, nextResult.request.roomCode));
+      return;
+    }
+
     setJoinResult(nextResult);
     setCreateResult(null);
     setIsJoining(false);
@@ -421,7 +437,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
 
   async function handleDirectoryJoin(roomCode: string, roomPassword?: string) {
     if (!hasPlayableIdentity) {
-      throw new Error("게스트 이름이 준비되면 방에 합류할 수 있습니다.");
+      throw new Error("플레이 이름을 준비하는 중입니다. 잠시 뒤 다시 시도해 주세요.");
     }
 
     const nextResult = await submitJoinRoom({
@@ -430,11 +446,16 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
       roomPassword: roomPassword ?? null,
     });
 
-    setJoinResult(nextResult);
-    setCreateResult(null);
-
     if (!nextResult.ok) {
+      setJoinResult(nextResult);
+      setCreateResult(null);
       throw new Error(nextResult.errorMessage ?? "방 입장에 실패했습니다.");
+    }
+
+    if (nextResult.response) {
+      setCreateResult(null);
+      setJoinResult(null);
+      router.push(appendRoomContextToHref("/lobby", nextResult.response.snapshot, roomCode));
     }
   }
 
@@ -511,7 +532,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
 
     if (result.ok) {
       setViewer(result.viewer);
-      setAuthSuccessMessage("로그아웃되었습니다. 현재 브라우저에서는 게스트 이름으로 계속 들어갈 수 있습니다.");
+      setAuthSuccessMessage("로그아웃되었습니다. 원하면 지금 바로 임시 이름으로 계속 플레이할 수 있습니다.");
     } else {
       setAuthError(result.errorMessage ?? "로그아웃에 실패했습니다.");
     }
@@ -527,7 +548,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
             <p className="eyebrow">심리 추리전</p>
             <h1 className="page-title">Mystery Time</h1>
             <p className="page-kicker">
-              초대받았다면 코드로 바로 들어오고, 방이 없다면 공개방에 합류하거나 새 방을 여세요.
+              초대 코드를 받았다면 바로 합류하고, 아니면 열려 있는 방을 고르거나 직접 시작하세요.
             </p>
           </div>
           <div className="header-actions">
@@ -575,40 +596,40 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
         <article className="panel panel-accent home-hero-main">
           <div className="composer-header">
             <div>
-              <h2 className="panel-title">먼저 해야 할 일은 세 가지뿐입니다</h2>
+              <h2 className="panel-title">지금 바로 게임에 들어갈 수 있습니다</h2>
               <p className="panel-copy">
-                입장 코드로 바로 들어가거나, 열려 있는 공개방을 고르거나, 새 방을 만드는 흐름만 먼저 보이게 정리했습니다.
+                코드로 합류하거나, 열린 방을 고르거나, 직접 방을 열면 됩니다.
               </p>
             </div>
             <span className="status-badge" data-tone={accountViewer ? "live" : isGuestIdentityBooting ? "alert" : "live"}>
-              {accountViewer ? "계정 로그인" : isGuestIdentityBooting ? "준비 중" : "게스트 입장"}
+              {accountViewer ? "계정 사용 중" : isGuestIdentityBooting ? "불러오는 중" : "바로 플레이 가능"}
             </span>
           </div>
 
           <div className="metric-grid home-identity-summary">
             <article className="metric-card metric-card-emphasis">
-              <span className="metric-label">현재 이름</span>
+              <span className="metric-label">플레이 이름</span>
               <strong className="metric-value">{displayNickname}</strong>
               <span className="metric-detail">
                 {accountViewer
-                  ? "로그인한 계정 닉네임으로 모든 방에 같은 이름이 적용됩니다."
-                  : "게스트는 랜덤 닉네임으로 바로 플레이하며 직접 수정하지 않습니다."}
+                  ? "이 계정 이름으로 방 입장과 전적 저장이 함께 이어집니다."
+                  : "이 브라우저에서 바로 사용할 임시 이름입니다."}
               </span>
             </article>
             <article className="metric-card">
-              <span className="metric-label">빠른 입장</span>
-              <strong className="metric-value">코드 / 공개방 / 방 만들기</strong>
-              <span className="metric-detail">첫 화면은 세 가지 행동만 남기고 나머지 설명은 아래로 접었습니다.</span>
+              <span className="metric-label">시작 방법</span>
+              <strong className="metric-value">코드 합류 · 공개방 · 새 방</strong>
+              <span className="metric-detail">지금 필요한 선택지만 먼저 보여줍니다.</span>
             </article>
             <article className="metric-card">
-              <span className="metric-label">{accountViewer ? "내 전적" : "계정 옵션"}</span>
+              <span className="metric-label">{accountViewer ? "내 전적" : "계정"}</span>
               <strong className="metric-value">
-                {accountViewer ? `${accountViewer.stats.wins}승 ${accountViewer.stats.losses}패` : "로그인 선택"}
+                {accountViewer ? `${accountViewer.stats.wins}승 ${accountViewer.stats.losses}패` : "로그인 / 회원가입"}
               </strong>
               <span className="metric-detail">
                 {accountViewer
                   ? `평균 ${formatRank(accountViewer.stats.averageRank)} · 승률 ${formatPercentage(accountViewer.stats.winRate)}`
-                  : "로그인하면 승패, 순위, 최근 기록이 같은 계정에 누적됩니다."}
+                  : "로그인하면 승패와 최근 기록이 같은 계정에 누적됩니다."}
               </span>
             </article>
           </div>
@@ -630,17 +651,17 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
           <article className="panel home-action-card" id="quick-join">
             <div className="composer-header">
               <div>
-                <h2 className="panel-title">입장 코드로 바로 들어가기</h2>
-                <p className="panel-copy">코드가 있다면 여기서 바로 대기실로 합류하세요.</p>
+                <h2 className="panel-title">입장 코드로 합류</h2>
+                <p className="panel-copy">초대 코드를 알고 있다면 바로 대기실로 들어갑니다.</p>
               </div>
               <span className="status-badge" data-tone={hasPlayableIdentity ? "live" : "alert"}>
-                {hasPlayableIdentity ? "입장 가능" : "이름 준비 중"}
+                {hasPlayableIdentity ? "준비 완료" : "불러오는 중"}
               </span>
             </div>
 
             <p className="message-note">
-              현재 이름 <strong>{displayNickname}</strong>
-              {isGuestIdentityBooting ? " · 곧 적용됩니다." : ""}
+              현재 사용할 이름 <strong>{displayNickname}</strong>
+              {isGuestIdentityBooting ? " · 잠시만 기다려 주세요." : ""}
             </p>
 
             <form onSubmit={handleJoinSubmit} className="field-group">
@@ -674,7 +695,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
 
             {!accountViewer ? (
               <div className="home-auth-shortcut">
-                <p className="panel-copy">전적을 남기고 싶다면 로그인하거나 새 계정을 만들 수 있습니다.</p>
+                <p className="panel-copy">전적을 남기고 계속 이어서 플레이하려면 계정으로 들어오세요.</p>
                 <div className="action-row">
                   <button className="button-secondary" type="button" onClick={() => openAuthModal("login")}>
                     로그인
@@ -691,7 +712,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
             <div className="composer-header">
               <div>
                 <h2 className="panel-title">새 방 만들기</h2>
-                <p className="panel-copy">방 종류를 고른 뒤 제목과 입장 규칙만 확인하고 바로 열 수 있습니다.</p>
+                <p className="panel-copy">방 종류와 제목만 정하면 바로 대기실을 열 수 있습니다.</p>
               </div>
               <span className="status-badge" data-tone="live">
                 {roomModeSummary.label}
@@ -916,7 +937,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
             <div className="composer-header">
               <div>
                 <h3 className="panel-title">로그인 / 회원가입</h3>
-                <p className="panel-copy">게스트로 바로 플레이할 수 있고, 로그인하면 전적이 같은 계정에 저장됩니다.</p>
+                <p className="panel-copy">지금 바로 계정으로 들어오면 전적과 최근 기록이 함께 저장됩니다.</p>
               </div>
               <button className="button-secondary" type="button" onClick={() => setIsAuthModalOpen(false)}>
                 닫기
@@ -1046,7 +1067,7 @@ export function HomeEntrySurface({ initialViewer }: HomeEntrySurfaceProps) {
             <div className="composer-header">
               <div>
                 <h3 className="panel-title">방장 설정</h3>
-                <p className="panel-copy">첫 화면에서는 최소 정보만 보여주고, 세부 설정은 여기서 정리합니다.</p>
+                <p className="panel-copy">방 제목, 비밀번호, 스테이지 수를 여기서 한 번에 정리합니다.</p>
               </div>
               <button className="button-secondary" type="button" onClick={() => setIsRoomSettingsOpen(false)}>
                 닫기

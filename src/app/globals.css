@@ -901,6 +901,7 @@ pre {
 .briefing-aside,
 .ready-panel,
 .lobby-host-panel,
+.lobby-sidebar-stack,
 .investigation-launch,
 .investigation-summary {
   display: grid;
@@ -1000,6 +1001,14 @@ pre {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.assignment-member-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
 }
 
 .score-card {

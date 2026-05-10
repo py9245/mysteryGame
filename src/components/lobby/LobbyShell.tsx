@@ -1,11 +1,32 @@
+import type { ChatMessage } from "@/contracts/game";
 import type { RoomSnapshot } from "@/contracts/api";
+import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
+import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
-import { PrivacyMask } from "@/components/privacy/PrivacyMask";
-import { RoomStatusBadge } from "@/components/lobby/RoomStatusBadge";
 import { ReadyPanel } from "@/components/lobby/ReadyPanel";
+import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
+import { PlayerRoster } from "@/components/room/PlayerRoster";
+
+function getRoomStatusLabel(status: string) {
+  switch (status) {
+    case "ready":
+      return "시작 가능";
+    case "assigning":
+      return "팀 배정 완료";
+    case "in_game":
+      return "게임 진행 중";
+    case "closed":
+      return "종료";
+    default:
+      return "참가자 대기";
+  }
+}
 
 export function LobbyShell({
   snapshot,
+  initialChatMessages,
+  initialChatSource,
+  chatEndpoint,
   isSubmitting = false,
   isHostActionSubmitting = false,
   errorMessage = null,
@@ -15,6 +36,9 @@ export function LobbyShell({
   onStartStage,
 }: {
   snapshot: RoomSnapshot;
+  initialChatMessages: ChatMessage[];
+  initialChatSource: LoadedChatMessages["source"];
+  chatEndpoint: string;
   isSubmitting?: boolean;
   isHostActionSubmitting?: boolean;
   errorMessage?: string | null;
@@ -42,25 +66,54 @@ export function LobbyShell({
       <header className="page-header">
         <div className="header-top-row">
           <div>
-            <p className="eyebrow">현재 상태</p>
-            <h2 className="page-title">대기실</h2>
-            <div className="header-flow">
-              <p className="header-flow-line">
-                <strong>핵심 설명</strong> · 준비 상태와 방장 진행만 먼저 확인합니다.
-              </p>
-              <p className="header-flow-line" data-tone="action">
-                <strong>다음 행동</strong> · 준비 완료 후 방장이 팀 배정과 브리핑을 엽니다.
-              </p>
-            </div>
+            <p className="eyebrow">대기실</p>
+            <h2 className="page-title">방 코드 {snapshot.room.code}</h2>
+            <p className="page-kicker">참가자 확인, 채팅, 준비 완료, 팀 배정, 시작만 여기서 처리합니다.</p>
           </div>
           <div className="header-actions">
+            <span className="status-badge" data-tone="live">
+              {getRoomStatusLabel(snapshot.room.status)}
+            </span>
             <RulebookLauncher label="룰북" compact scope="lobby" />
           </div>
         </div>
       </header>
+
       <div className="panel-grid">
-        <section className="panel panel-accent span-7">
-          <RoomStatusBadge viewMode={snapshot.viewMode} />
+        <section className="span-7">
+          <ChatRailClientShell
+            snapshot={snapshot}
+            initialMessages={initialChatMessages}
+            source={initialChatSource}
+            endpoint={chatEndpoint}
+          />
+        </section>
+
+        <section className="span-5 lobby-sidebar-stack">
+          <section className="panel panel-accent">
+            <div className="composer-header">
+              <div>
+                <h3 className="panel-title">방 상태</h3>
+                <p className="panel-copy">지금 몇 명이 들어왔고, 시작 준비가 어디까지 됐는지 봅니다.</p>
+              </div>
+              <span className="status-badge">{snapshot.room.code}</span>
+            </div>
+            <div className="metric-grid">
+              <article className="metric-card">
+                <span className="metric-label">참가 인원</span>
+                <strong className="metric-value">
+                  {playerCount}/{snapshot.room.maxPlayers}
+                </strong>
+              </article>
+              <article className="metric-card">
+                <span className="metric-label">준비 완료</span>
+                <strong className="metric-value">
+                  {readyCount}/{snapshot.room.maxPlayers}
+                </strong>
+              </article>
+            </div>
+          </section>
+
           <ReadyPanel
             me={snapshot.me}
             viewMode={snapshot.viewMode}
@@ -69,30 +122,15 @@ export function LobbyShell({
             statusMessage={statusMessage}
             onToggleReady={onToggleReady}
           />
+
           {isHost ? (
             <section className="panel panel-muted lobby-host-panel">
               <div className="composer-header">
                 <div>
-                  <h3 className="panel-title">방장 진행 제어</h3>
-                  <p className="panel-copy">전원 준비 후 팀을 나누고 바로 브리핑으로 넘어갑니다.</p>
+                  <h3 className="panel-title">방장 진행</h3>
+                  <p className="panel-copy">전원이 준비되면 랜덤 팀 배정 후 바로 시작합니다.</p>
                 </div>
                 <span className="status-badge">방장</span>
-              </div>
-              <div className="metric-grid">
-                <article className="metric-card">
-                  <span className="metric-label">참가 인원</span>
-                  <strong className="metric-value">
-                    {playerCount}/{snapshot.room.maxPlayers}
-                  </strong>
-                  <span className="metric-detail">정원이 모두 차야 팀 배정을 시작할 수 있습니다.</span>
-                </article>
-                <article className="metric-card">
-                  <span className="metric-label">준비 완료</span>
-                  <strong className="metric-value">
-                    {readyCount}/{snapshot.room.maxPlayers}
-                  </strong>
-                  <span className="metric-detail">전원이 준비되어야 다음 단계로 넘어갑니다.</span>
-                </article>
               </div>
               <div className="action-row">
                 <button
@@ -101,7 +139,7 @@ export function LobbyShell({
                   onClick={onAssignTeams}
                   disabled={!canAssignTeams || isHostActionSubmitting}
                 >
-                  {isHostActionSubmitting && canAssignTeams ? "팀 배정 중..." : "팀 배정 시작"}
+                  {isHostActionSubmitting && canAssignTeams ? "팀 배정 중..." : "팀 랜덤 배정"}
                 </button>
                 <button
                   className="button-secondary"
@@ -109,14 +147,19 @@ export function LobbyShell({
                   onClick={onStartStage}
                   disabled={!canStartStage || isHostActionSubmitting}
                 >
-                  {isHostActionSubmitting && canStartStage ? "브리핑 준비 중..." : "브리핑 시작"}
+                  {isHostActionSubmitting && canStartStage ? "시작 준비 중..." : "시작하기"}
                 </button>
               </div>
             </section>
           ) : null}
-        </section>
-        <section className="span-5">
-          <PrivacyMask snapshot={snapshot} />
+
+          <PlayerRoster
+            players={snapshot.players}
+            visibility={snapshot.visibility}
+            redacted={snapshot.redacted}
+          />
+
+          <TeamAssignmentBoard snapshot={snapshot} />
         </section>
       </div>
     </section>

@@ -1,5 +1,6 @@
 import { LobbyClientShell } from "@/components/lobby/LobbyClientShell";
 import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
+import { loadChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 
@@ -25,5 +26,18 @@ export default async function LobbyPage({
     );
   }
 
-  return <LobbyClientShell initialSnapshot={snapshot} />;
+  const chatMessages = await loadChatMessages({
+    roomId: snapshot.room.id,
+    playerId: snapshot.me.playerId,
+    stageId: snapshot.stage?.stageId ?? null,
+  });
+
+  return (
+    <LobbyClientShell
+      initialSnapshot={snapshot}
+      initialChatMessages={chatMessages.messages}
+      initialChatSource={chatMessages.source}
+      chatEndpoint={chatMessages.endpoint}
+    />
+  );
 }

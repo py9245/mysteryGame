@@ -34,8 +34,8 @@ export function PlayerRoster({
     <section className="panel">
       <div className="composer-header">
         <div>
-          <h3 className="panel-title">플레이어 현황</h3>
-          <p className="panel-copy">현재 공개 가능한 범위의 플레이어만 보여줍니다.</p>
+          <h3 className="panel-title">참가자</h3>
+          <p className="panel-copy">누가 들어와 있고 누가 준비됐는지만 빠르게 봅니다.</p>
         </div>
         <span className="status-badge">{players.length}명</span>
       </div>
@@ -55,9 +55,7 @@ export function PlayerRoster({
               {formatTeamLabel(player.teamSlotId)} · {formatStageStatus(player.stageStatus)} ·{" "}
               {player.isReady ? "준비 완료" : "대기 중"}
             </p>
-            <p className="roster-meta">
-              {visibility.players === "redacted" ? "비공개 규칙 적용" : "공개 정보"}
-            </p>
+            <p className="roster-meta">{player.isMe ? "내 상태" : visibility.players === "redacted" ? "공개 범위만 표시" : "공개 정보"}</p>
           </li>
         ))}
       </ul>
