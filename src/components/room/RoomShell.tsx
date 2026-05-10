@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
 import type { RoomSnapshot } from "@/contracts/api";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
@@ -28,21 +27,40 @@ export function RoomShell({
   requestedRoomCode?: string;
 }) {
   const lobbyHref = appendRoomContextToHref("/lobby", snapshot, requestedRoomCode);
+  const gameStartHref = "/rooms";
+  const myTeamLabel =
+    snapshot.teamSlots.find((slot) => slot.id === snapshot.me.teamSlotId)?.label ?? "팀 배정 전";
+  const readyCount = snapshot.players.filter((player) => player.isReady).length;
 
   return (
     <section className="page-shell">
       <header className="page-header">
-        <p className="eyebrow">상황실</p>
-        <h2 className="page-title">방 현황</h2>
-        <p className="page-kicker">방 코드, 내 자리, 팀 배치만 간결하게 확인하는 화면입니다.</p>
+        <div className="header-top-row">
+          <div>
+            <p className="eyebrow">방 현황</p>
+            <h2 className="page-title">{requestedRoomCode ?? snapshot.room.code}</h2>
+            <p className="page-kicker">이 방의 상태만 빠르게 확인하고 다시 대기방이나 게임 시작 화면으로 이동합니다.</p>
+          </div>
+          <div className="header-actions">
+            <span className="status-badge" data-tone="live">
+              {getRoomStatusLabel(snapshot.room.status)}
+            </span>
+            <Link className="button-secondary button-compact" href={gameStartHref}>
+              게임 시작
+            </Link>
+            <Link className="button-primary button-compact" href={lobbyHref}>
+              대기방으로 이동
+            </Link>
+          </div>
+        </div>
       </header>
-      <SampleFlowNavigation snapshot={snapshot} requestedRoomCode={requestedRoomCode} />
+
       <div className="panel-grid">
-        <section className="panel panel-accent span-5">
+        <section className="panel panel-accent span-4">
           <div className="composer-header">
             <div>
               <h3 className="panel-title">현재 상태</h3>
-              <p className="panel-copy">방 정보를 한 줄씩만 확인하고 바로 돌아갈 수 있습니다.</p>
+              <p className="panel-copy">대기방에 들어가기 전에 필요한 정보만 요약합니다.</p>
             </div>
             <span className="status-badge" data-tone="live">
               {getRoomStatusLabel(snapshot.room.status)}
@@ -60,18 +78,23 @@ export function RoomShell({
               <span className="metric-detail">정원 {snapshot.room.maxPlayers}명</span>
             </article>
             <article className="metric-card">
+              <span className="metric-label">준비 완료</span>
+              <strong className="metric-value">{readyCount}명</strong>
+              <span className="metric-detail">전원 준비 후 팀 배정이 가능합니다.</span>
+            </article>
+            <article className="metric-card">
               <span className="metric-label">내 위치</span>
-              <strong className="metric-value">{snapshot.me.teamSlotId ?? "팀 배정 전"}</strong>
+              <strong className="metric-value">{myTeamLabel}</strong>
               <span className="metric-detail">현재 배정 상태</span>
             </article>
           </div>
           <div className="action-row">
-            <Link className="button-secondary" href={lobbyHref}>
+            <Link className="button-primary" href={lobbyHref}>
               대기실로 이동
             </Link>
           </div>
         </section>
-        <section className="span-7">
+        <section className="span-8">
           <PlayerRoster
             players={snapshot.players}
             visibility={snapshot.visibility}

@@ -66,7 +66,7 @@ export function ChatRailClientShell({
         <div className="composer-header">
           <div>
             <h3 className="panel-title">전체 채팅</h3>
-            <p className="panel-copy">지금 방 전체가 공유하는 내용만 위쪽에 모았습니다.</p>
+            <p className="panel-copy">방 전체가 함께 보는 대화입니다. 시작 전 논의와 게임 중 공개 발언이 여기에 쌓입니다.</p>
           </div>
           <span className="status-badge" data-tone={source === "api" ? "live" : "alert"}>
             {syncLabel}
@@ -81,7 +81,7 @@ export function ChatRailClientShell({
           <div className="composer-header">
             <div>
               <h4>보조 채팅</h4>
-              <p className="panel-copy">시스템 안내와 짧은 재공유만 아래에서 정리합니다.</p>
+              <p className="panel-copy">시스템 안내와 최근 공개 대화를 빠르게 다시 확인합니다.</p>
             </div>
             <span className="status-badge">{systemMessages.length > 0 ? "시스템" : "보조"}</span>
           </div>

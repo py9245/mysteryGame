@@ -22,17 +22,20 @@ function getViewModeLabel(viewMode: RoomSnapshot["viewMode"]) {
 
 export function ReadyPanel({
   me,
+  teamSlots,
   viewMode,
   isSubmitting = false,
   errorMessage = null,
   statusMessage = null,
   onToggleReady,
-}: Pick<RoomSnapshot, "me" | "viewMode"> & {
+}: Pick<RoomSnapshot, "me" | "viewMode" | "teamSlots"> & {
   isSubmitting?: boolean;
   errorMessage?: string | null;
   statusMessage?: string | null;
   onToggleReady?: () => void;
 }) {
+  const myTeamLabel = teamSlots.find((teamSlot) => teamSlot.id === me.teamSlotId)?.label ?? "팀 배정 전";
+
   return (
     <section className="panel panel-muted ready-panel">
       <div className="composer-header">
@@ -44,7 +47,18 @@ export function ReadyPanel({
           {me.isReady ? "준비 완료" : "대기 중"}
         </span>
       </div>
-      <div className="message-note">현재 상태: {getViewModeLabel(viewMode)}</div>
+      <div className="metric-grid">
+        <article className="metric-card">
+          <span className="metric-label">현재 상태</span>
+          <strong className="metric-value">{getViewModeLabel(viewMode)}</strong>
+          <span className="metric-detail">대기실에서 내 위치를 표시합니다.</span>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">내 팀</span>
+          <strong className="metric-value">{myTeamLabel}</strong>
+          <span className="metric-detail">팀 배정 전에는 아직 비어 있습니다.</span>
+        </article>
+      </div>
       <div className="action-row">
         <button className="button-primary" type="button" onClick={onToggleReady} disabled={isSubmitting}>
           {isSubmitting ? "상태 갱신 중..." : me.isReady ? "준비 해제" : "준비 완료"}
