@@ -1593,6 +1593,23 @@ select {
   font-size: clamp(1rem, 1.65vw, 1.18rem);
 }
 
+.dashboard-eyebrow {
+  margin-bottom: 12px;
+  font-size: 0.76rem;
+}
+
+.dashboard-page-title {
+  max-width: 720px;
+  font-size: clamp(2rem, 4.8vw, 4.1rem);
+  letter-spacing: -0.05em;
+}
+
+.dashboard-page-kicker {
+  max-width: 620px;
+  margin-top: 14px;
+  font-size: clamp(0.95rem, 1.15vw, 1.05rem);
+}
+
 .header-actions,
 .action-row,
 .home-hero-actions {
@@ -2181,6 +2198,14 @@ select {
 
   .page-title {
     font-size: clamp(2rem, 12vw, 3.4rem);
+  }
+
+  .dashboard-page-title {
+    font-size: clamp(1.72rem, 8vw, 2.7rem);
+  }
+
+  .dashboard-page-kicker {
+    font-size: 0.94rem;
   }
 
   .mt-command-title {

@@ -222,6 +222,27 @@ export function HomeEntrySurface({
     trimmedHostNote,
     trimmedRoomTitle,
   ]);
+  const heroTitle =
+    showJoinSurface && showCreateSurface
+      ? "초대 코드가 있으면 바로 들어가고, 없으면 방을 열면 됩니다."
+      : showJoinSurface
+        ? "입장할 방만 고르면 바로 대기방으로 이동합니다."
+        : "방 설정을 끝내면 생성 즉시 방장으로 입장합니다.";
+  const heroCopy =
+    showJoinSurface && showCreateSurface
+      ? "입장과 생성 중 필요한 행동만 먼저 보여줍니다."
+      : showJoinSurface
+        ? "코드 입력이나 열린 방 목록 중 한 가지 방법만 선택하면 됩니다."
+        : "공개방, 비밀방, 연습방 중 하나를 열고 바로 시작 준비로 넘어갑니다.";
+  const heroPrimaryLabel = showCreateSurface && !showJoinSurface ? "방 만들기" : "코드로 입장";
+  const heroPrimaryHref = showCreateSurface && !showJoinSurface ? "#create-room" : "#quick-join";
+  const heroSecondaryLabel =
+    showJoinSurface && showCreateSurface
+      ? "열린 방 보기"
+      : showJoinSurface
+        ? "열린 방 보기"
+        : "설정 수정";
+  const heroSecondaryHref = showCreateSurface && !showJoinSurface ? "#create-room" : "#open-rooms";
 
   useEffect(() => {
     if (initialViewer || !isGuestIdentityBooting) {
@@ -599,16 +620,8 @@ export function HomeEntrySurface({
           </div>
 
           <div className="mt-command-body">
-            <h2 className="mt-command-title">
-              {showJoinSurface && showCreateSurface
-                ? "초대 코드가 있으면 바로 들어가고, 없으면 방을 열면 됩니다."
-                : showJoinSurface
-                  ? "입장할 방만 고르면 바로 대기실로 이동합니다."
-                  : "방 설정을 끝내면 바로 대기실이 열립니다."}
-            </h2>
-            <p className="panel-copy">
-              사건을 열고 참가자를 모아 추리를 시작하세요.
-            </p>
+            <h2 className="mt-command-title">{heroTitle}</h2>
+            <p className="panel-copy">{heroCopy}</p>
           </div>
 
           <div className="metric-grid home-identity-summary mt-command-metrics">
@@ -619,9 +632,9 @@ export function HomeEntrySurface({
             </article>
             {showJoinSurface ? (
               <article className="metric-card">
-                <span className="metric-label">열린 방</span>
+                <span className="metric-label">입장 가능한 방</span>
                 <strong className="metric-value">{isDirectoryLoading ? "확인 중" : `${roomDirectory.length}개`}</strong>
-                <span className="metric-detail">코드 입장 또는 공개방 선택</span>
+                <span className="metric-detail">코드 입력 또는 공개방 선택</span>
               </article>
             ) : null}
             {showCreateSurface ? (
@@ -634,21 +647,12 @@ export function HomeEntrySurface({
           </div>
 
           <div className="home-hero-actions">
-            {showJoinSurface ? (
-              <>
-                <a className="button-primary" href="#quick-join">
-                  코드로 입장
-                </a>
-                <a className="button-secondary" href="#open-rooms">
-                  열린 방 보기
-                </a>
-              </>
-            ) : null}
-            {showCreateSurface ? (
-              <a className="button-primary" href="#create-room">
-                새 방 만들기
-              </a>
-            ) : null}
+            <a className="button-primary" href={heroPrimaryHref}>
+              {heroPrimaryLabel}
+            </a>
+            <a className="button-secondary" href={heroSecondaryHref}>
+              {heroSecondaryLabel}
+            </a>
           </div>
         </article>
 
@@ -658,7 +662,7 @@ export function HomeEntrySurface({
               <div className="composer-header">
                 <div>
                   <h2 className="panel-title">코드 입장</h2>
-                  <p className="panel-copy">초대 코드만 입력하면 대기실로 이동합니다.</p>
+                  <p className="panel-copy">초대 코드와 비밀번호만 확인하면 바로 대기방으로 들어갑니다.</p>
                 </div>
                 <span className="status-badge" data-tone={hasPlayableIdentity ? "live" : "alert"}>
                   {hasPlayableIdentity ? "준비됨" : "대기"}
@@ -699,7 +703,7 @@ export function HomeEntrySurface({
               <div className="composer-header">
                 <div>
                   <h2 className="panel-title">방 만들기</h2>
-                  <p className="panel-copy">제목과 종류만 정하고 바로 시작합니다.</p>
+                  <p className="panel-copy">핵심 설정만 정리하고, 생성 성공 즉시 자동으로 대기방에 입장합니다.</p>
                 </div>
                 <span className="status-badge" data-tone="live">
                   {roomModeSummary.label}
@@ -754,8 +758,8 @@ export function HomeEntrySurface({
         <section className="panel home-directory-panel mt-directory-section" id="open-rooms">
           <div className="room-section-header">
             <div>
-              <h2 className="panel-title">열린 방</h2>
-              <p className="panel-copy">입장 가능한 방만 빠르게 확인하세요.</p>
+              <h2 className="panel-title">열린 공개방</h2>
+              <p className="panel-copy">지금 바로 들어갈 수 있는 방부터 확인합니다.</p>
             </div>
             <button className="button-secondary button-compact" type="button" onClick={refreshRoomDirectory} disabled={isDirectoryLoading}>
               {isDirectoryLoading ? "새로고침 중" : "새로고침"}

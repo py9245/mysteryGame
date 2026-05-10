@@ -17,11 +17,11 @@ export type DirectoryRoom = {
 function modeLabel(mode: DirectoryRoom["mode"]) {
   switch (mode) {
     case "secret":
-      return "비밀";
+      return "비밀방";
     case "practice":
-      return "연습";
+      return "연습방";
     default:
-      return "공개";
+      return "공개방";
   }
 }
 
@@ -35,7 +35,7 @@ function resolveRoomAction(room: DirectoryRoom) {
       label: "연습 전용",
       disabled: true,
       tone: "blocked" as const,
-      description: "방장만 입장",
+      description: "방장 전용",
     };
   }
 
@@ -44,7 +44,7 @@ function resolveRoomAction(room: DirectoryRoom) {
       label: "인원 마감",
       disabled: true,
       tone: "blocked" as const,
-      description: "정원 초과",
+      description: "가득 참",
     };
   }
 
@@ -70,7 +70,7 @@ function resolveRoomAction(room: DirectoryRoom) {
     label: "입장하기",
     disabled: false,
     tone: "join" as const,
-    description: "즉시 입장",
+    description: "즉시 합류",
   };
 }
 
@@ -168,7 +168,7 @@ export function RoomDirectoryPanel({
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="방 제목 또는 코드 검색"
+          placeholder="방 제목 또는 코드 찾기"
           aria-label="방 검색"
         />
         <div className="tab-row" aria-label="방 정렬">
@@ -177,14 +177,14 @@ export function RoomDirectoryPanel({
             type="button"
             onClick={() => setSortMode("newest")}
           >
-            최신
+            최신순
           </button>
           <button
             className={sortMode === "least_players" ? "tab-button is-active" : "tab-button"}
             type="button"
             onClick={() => setSortMode("least_players")}
           >
-            빈 자리
+            인원 적은순
           </button>
         </div>
       </div>
@@ -197,7 +197,7 @@ export function RoomDirectoryPanel({
       ) : rooms.length === 0 ? (
         <div className="modal-card room-empty-state">
           <strong>열린 방이 없습니다.</strong>
-          <p>새 방을 만들거나 초대 코드를 입력하세요.</p>
+          <p>새 방을 만들거나 초대 코드를 직접 입력하세요.</p>
         </div>
       ) : visibleRooms.length === 0 ? (
         <div className="modal-card room-empty-state">

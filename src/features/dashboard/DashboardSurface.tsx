@@ -13,15 +13,20 @@ function formatPercentage(value: number): string {
 export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
   const accountViewer = viewer?.kind === "account" ? viewer.account : null;
   const displayNickname = viewer?.nickname ?? "게스트";
+  const winLossLabel = accountViewer
+    ? `${accountViewer.stats.wins}승 ${accountViewer.stats.losses}패`
+    : "게스트 플레이";
 
   return (
     <main className="page-shell home-page-shell mt-product-home">
       <section className="page-header mt-hero-header">
         <div className="header-top-row">
           <div className="mt-hero-copy">
-            <p className="eyebrow">Mystery Time</p>
-            <h1 className="page-title">{displayNickname}님, 사건이 열렸습니다.</h1>
-            <p className="page-kicker">코드로 합류하거나 새 방을 열어 바로 대기실로 이동하세요.</p>
+            <p className="eyebrow dashboard-eyebrow">Mystery Time</p>
+            <h1 className="page-title dashboard-page-title">{displayNickname}님, 환영합니다.</h1>
+            <p className="page-kicker dashboard-page-kicker">
+              기록을 확인하고, 바로 게임을 시작하거나, 초대 코드로 합류할 수 있습니다.
+            </p>
           </div>
           <div className="header-actions">
             <Link className="button-primary button-compact" href="/rooms">
@@ -32,48 +37,76 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
         </div>
       </section>
 
-      <section className="home-hero-layout mt-home-stage">
-        <article className="panel panel-accent home-hero-main mt-command-card">
-          <div className="mt-command-topline">
+      <section className="panel-grid">
+        <article className="panel panel-accent span-8">
+          <div className="composer-header">
+            <div>
+              <h2 className="panel-title">바로 시작</h2>
+              <p className="panel-copy">지금 가장 많이 쓰는 동선만 남겼습니다. 게임 시작 페이지에서 방 입장, 공개방 확인, 방 만들기를 고를 수 있습니다.</p>
+            </div>
             <span className="status-badge" data-tone={accountViewer ? "live" : "alert"}>
               {accountViewer ? "계정 연결" : "게스트"}
             </span>
-            <span className="room-code-chip">{displayNickname}</span>
           </div>
-          <div className="mt-command-body">
-            <h2 className="mt-command-title">첫 클릭은 하나면 충분합니다.</h2>
-            <p className="panel-copy">방 찾기, 코드 입장, 방 만들기를 한 화면에서 끝냅니다.</p>
+          <div className="metric-grid">
+            <article className="metric-card metric-card-emphasis">
+              <span className="metric-label">플레이어</span>
+              <strong className="metric-value">{displayNickname}</strong>
+              <span className="metric-detail">{accountViewer ? "닉네임과 기록 유지" : "바로 플레이 가능"}</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">현재 상태</span>
+              <strong className="metric-value">{accountViewer ? "로그인" : "게스트"}</strong>
+              <span className="metric-detail">{accountViewer ? accountViewer.email : "로그인하면 전적 저장"}</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">최근 전적</span>
+              <strong className="metric-value">{winLossLabel}</strong>
+              <span className="metric-detail">{accountViewer ? `평균 ${formatRank(accountViewer.stats.averageRank)}` : "기록 미저장"}</span>
+            </article>
           </div>
-          <div className="home-hero-actions">
+          <div className="action-row">
             <Link className="button-primary" href="/rooms">
-              입장 / 만들기
+              게임 시작하기
             </Link>
-            {accountViewer ? (
-              <a className="button-secondary" href="#dashboard-records">
-                내 기록
-              </a>
-            ) : null}
+            <Link className="button-secondary" href="/rooms/join">
+              코드로 입장
+            </Link>
+            <Link className="button-secondary" href="/rooms/create">
+              방 만들기
+            </Link>
           </div>
         </article>
 
-        <aside className="home-side-stack mt-action-stack">
-          <Link className="panel home-action-card mt-link-card" href="/rooms/join">
-            <span className="status-badge" data-tone="live">빠른 입장</span>
-            <h2 className="panel-title">초대 코드로 합류</h2>
-            <p className="panel-copy">받은 코드가 있다면 바로 대기실로 들어갑니다.</p>
-          </Link>
-          <Link className="panel panel-muted home-action-card mt-link-card" href="/rooms/create">
-            <span className="status-badge">호스트</span>
-            <h2 className="panel-title">새 방 만들기</h2>
-            <p className="panel-copy">공개방, 비밀방, 연습방을 바로 엽니다.</p>
-          </Link>
-        </aside>
+        <article className="panel span-4">
+          <div className="composer-header">
+            <div>
+              <h2 className="panel-title">빠른 안내</h2>
+              <p className="panel-copy">첫 진입 흐름은 단순합니다.</p>
+            </div>
+            <span className="status-badge">3단계</span>
+          </div>
+          <ul className="surface-list">
+            <li className="history-item">
+              <strong>1. 게임 시작 페이지로 이동</strong>
+              <p className="panel-copy">메인 CTA를 누르면 바로 방 관련 페이지로 들어갑니다.</p>
+            </li>
+            <li className="history-item">
+              <strong>2. 입장 또는 생성</strong>
+              <p className="panel-copy">초대 코드가 있으면 입장, 없다면 방을 만들면 됩니다.</p>
+            </li>
+            <li className="history-item">
+              <strong>3. 대기방에서 바로 준비</strong>
+              <p className="panel-copy">입장 후에는 대기방으로 자동 이동해 참가자/채팅/시작만 보게 됩니다.</p>
+            </li>
+          </ul>
+        </article>
       </section>
 
       <section className="panel panel-muted mt-record-panel" id="dashboard-records">
         <div className="composer-header">
           <div>
-            <h2 className="panel-title">내 기록</h2>
+            <h2 className="panel-title">내 대시보드</h2>
             <p className="panel-copy">
               {accountViewer ? `${accountViewer.email} 기준 기록입니다.` : "로그인하면 전적이 저장됩니다."}
             </p>
