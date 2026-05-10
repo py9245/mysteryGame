@@ -5,10 +5,7 @@ import type {
   SendChatMessageResponse,
 } from "@/contracts/api";
 import { sendChatMessageToStore } from "@/server/live-store";
-import {
-  buildSampleSentChatMessage,
-  isSendableChatChannel,
-} from "@/server/sample-chat-messages";
+import { isSendableChatChannel } from "@/server/sample-chat-messages";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
@@ -173,10 +170,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const payload = {
-    ok: true,
-    data: buildSampleSentChatMessage(validated),
-  } satisfies ApiResponse<SendChatMessageResponse>;
-
-  return Response.json(payload, { status: 200 });
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "채팅 전송은 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<SendChatMessageResponse>,
+    { status: 501 },
+  );
 }

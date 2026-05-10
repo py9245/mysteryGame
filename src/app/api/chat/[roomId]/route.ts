@@ -1,6 +1,5 @@
 import type { ApiResponse, ListChatMessagesResponse } from "@/contracts/api";
 import { listChatMessagesFromStore } from "@/server/live-store";
-import { buildSampleChatMessages } from "@/server/sample-chat-messages";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
@@ -35,10 +34,14 @@ export async function GET(
     }
   }
 
-  const payload: ApiResponse<ListChatMessagesResponse> = {
-    ok: true,
-    data: buildSampleChatMessages(roomId),
-  };
-
-  return Response.json(payload, { status: 200 });
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "채팅 조회는 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<ListChatMessagesResponse>,
+    { status: 501 },
+  );
 }

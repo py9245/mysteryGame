@@ -8,7 +8,7 @@ export interface GameRuntimeLoaderOptions {
 
 export interface LoadedGameRuntimeSnapshot {
   snapshot: GameRuntimeSnapshot | null;
-  source: "api" | "fallback";
+  source: "api" | "unavailable";
   endpoint: string;
 }
 
@@ -58,7 +58,7 @@ export async function loadGameRuntimeSnapshot(
   try {
     const response = await fetchImpl(endpoint, { cache: "no-store" });
     if (!response.ok) {
-      return { snapshot: null, source: "fallback", endpoint };
+      return { snapshot: null, source: "unavailable", endpoint };
     }
 
     const payload = (await response.json()) as
@@ -73,11 +73,11 @@ export async function loadGameRuntimeSnapshot(
 
     const normalizedSnapshot = normalizeGameRuntimeSnapshot(gameSnapshot);
     if (!normalizedSnapshot) {
-      return { snapshot: null, source: "fallback", endpoint };
+      return { snapshot: null, source: "unavailable", endpoint };
     }
 
     return { snapshot: normalizedSnapshot, source: "api", endpoint };
   } catch {
-    return { snapshot: null, source: "fallback", endpoint };
+    return { snapshot: null, source: "unavailable", endpoint };
   }
 }

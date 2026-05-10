@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import type { RoomSnapshot } from "@/contracts/api";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
 
 export interface GameplayRuntimeSignal {
@@ -101,7 +101,7 @@ export function buildGameplayRuntimeOverview({
 
   return {
     contextLabel: stageNumber ? `스테이지 ${stageNumber} · ${stageTitle}` : stageTitle,
-    sourceLabel: runtime.source === "api" ? "실시간 상황 동기화" : "상태 동기화 준비 중",
+    sourceLabel: runtime.source === "api" ? "실시간 상황 동기화" : "실시간 상태를 불러오지 못함",
     endpoint: runtime.endpoint,
     signals: [
       {

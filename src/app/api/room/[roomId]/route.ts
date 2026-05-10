@@ -5,7 +5,6 @@ import type {
   RoomSnapshot,
   UpdateRoomSettingsRequest,
 } from "@/contracts/api";
-import { buildSampleRoomSnapshot } from "@/server/sample-room-snapshot";
 import {
   RoomSettingsError,
   getRoomSnapshotFromStore,
@@ -149,12 +148,16 @@ export async function GET(
     }
   }
 
-  const payload: ApiResponse<RoomSnapshot> = {
-    ok: true,
-    data: buildSampleRoomSnapshot(roomRef),
-  };
-
-  return Response.json(payload, { status: 200 });
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "방 상태 조회는 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<RoomSnapshot>,
+    { status: 501 },
+  );
 }
 
 export async function PATCH(
@@ -182,24 +185,16 @@ export async function PATCH(
   }
 
   if (!isSupabaseEnabled()) {
-    const payload: ApiResponse<RoomSettingsResponse> = {
-      ok: true,
-      data: {
-        roomId: roomRef,
-        settings: {
-          roomId: roomRef,
-          title: "샘플 방",
-          mode: "public",
-          stageCount: 3,
-          maxPlayers: 6,
-          passwordProtected: false,
-          updatedAt: new Date().toISOString(),
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "LIVE_STORAGE_REQUIRED",
+          message: "방 설정 변경은 Supabase 런타임 설정이 필요합니다.",
         },
-        snapshot: buildSampleRoomSnapshot(roomRef),
-      },
-    };
-
-    return Response.json(payload, { status: 200 });
+      } satisfies ApiResponse<RoomSettingsResponse>,
+      { status: 501 },
+    );
   }
 
   try {

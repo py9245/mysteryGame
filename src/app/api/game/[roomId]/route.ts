@@ -1,6 +1,5 @@
 import type { ApiResponse, GetGameSnapshotResponse } from "@/contracts/api";
 import { getGameRuntimeSnapshotFromStore } from "@/server/live-store";
-import { buildSampleGameSnapshot } from "@/server/sample-game-snapshot";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
@@ -47,10 +46,14 @@ export async function GET(
     }
   }
 
-  const payload: ApiResponse<GetGameSnapshotResponse> = {
-    ok: true,
-    data: buildSampleGameSnapshot(roomId),
-  };
-
-  return Response.json(payload, { status: 200 });
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "실제 게임 상태 조회는 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<GetGameSnapshotResponse>,
+    { status: 501 },
+  );
 }

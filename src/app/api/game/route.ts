@@ -38,18 +38,6 @@ import {
   startStageInStore,
   StartStageError,
 } from "@/server/live-store";
-import {
-  buildSampleAcquireLockResponse,
-  buildSampleAdvanceStageResponse,
-  buildSampleAssignTeamsResponse,
-  buildSampleSubmitAnswerResponse,
-  buildSampleSubmitQuestionResponse,
-  buildSampleReleaseLockResponse,
-  buildSampleSetReadyResponse,
-  buildSampleStartStageResponse,
-  IMPLEMENTED_SAMPLE_GAME_COMMAND_TYPES,
-} from "@/server/sample-game-command";
-import { buildSampleGameSnapshotsResponse } from "@/server/sample-game-snapshot";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { createPlaceholderFailure } from "../_shared/placeholder";
 
@@ -178,12 +166,16 @@ export async function GET() {
     }
   }
 
-  const payload = {
-    ok: true,
-    data: buildSampleGameSnapshotsResponse(),
-  } satisfies ApiResponse<ListGameSnapshotsResponse>;
-
-  return Response.json(payload, { status: 200 });
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "게임 목록 조회는 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<ListGameSnapshotsResponse>,
+    { status: 501 },
+  );
 }
 
 type ValidatedGameCommand =
@@ -872,9 +864,8 @@ export async function POST(request: Request) {
     case "unsupported": {
       const payload = createPlaceholderFailure({
         route: "game.command",
-        status: "partial_sample",
+        status: "unimplemented_command",
         requestedType: validated.requestedType,
-        implementedTypes: [...IMPLEMENTED_SAMPLE_GAME_COMMAND_TYPES],
       }) satisfies ApiResponse<GameCommandResponse>;
 
       return Response.json(payload, { status: 501 });
@@ -1449,49 +1440,13 @@ export async function POST(request: Request) {
         return Response.json(payload, { status: 501 });
       }
 
-      const response = (() => {
-        switch (validated.command.type) {
-          case "set_ready":
-            return buildSampleSetReadyResponse(validated.command);
-          case "assign_teams":
-            return buildSampleAssignTeamsResponse(validated.command);
-          case "start_stage":
-            return buildSampleStartStageResponse(validated.command);
-          case "advance_stage":
-            return buildSampleAdvanceStageResponse(validated.command);
-          case "join_lock_queue":
-          case "leave_lock_queue":
-            return null;
-          case "acquire_lock":
-            return buildSampleAcquireLockResponse(validated.command);
-          case "release_lock":
-            return buildSampleReleaseLockResponse(validated.command);
-          case "submit_question":
-            return buildSampleSubmitQuestionResponse(validated.command);
-          case "submit_answer":
-            return buildSampleSubmitAnswerResponse(validated.command);
-          case "request_private_chat":
-          case "respond_private_chat":
-          case "end_private_chat":
-            return null;
-        }
-      })();
+      const payload = createPlaceholderFailure({
+        route: "game.command",
+        status: "supabase_required",
+        requestedType: validated.command.type,
+      }) satisfies ApiResponse<GameCommandResponse>;
 
-      if (!response) {
-        const payload = createPlaceholderFailure({
-          route: "game.command",
-          status: "supabase_required",
-          requestedType: validated.command.type,
-        }) satisfies ApiResponse<GameCommandResponse>;
-
-        return Response.json(payload, { status: 501 });
-      }
-      const payload = {
-        ok: true,
-        data: response,
-      } satisfies ApiResponse<GameCommandResponse>;
-
-      return Response.json(payload, { status: 200 });
+      return Response.json(payload, { status: 501 });
     }
   }
 }

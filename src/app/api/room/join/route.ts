@@ -10,7 +10,6 @@ import {
   getCurrentViewerFromCookies,
 } from "@/server/auth-session";
 import { joinRoomInStore, RoomJoinError } from "@/server/live-store";
-import { buildSampleJoinRoomResponse } from "@/server/sample-room-snapshot";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { NextResponse } from "next/server";
 
@@ -161,14 +160,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const payload = {
-    ok: true,
-    data: buildSampleJoinRoomResponse(validated.roomCode, resolvedNickname),
-  } satisfies ApiResponse<JoinRoomResponse>;
-
-  const nextResponse = NextResponse.json(payload, { status: 200 });
-  if (!viewer || viewer.kind === "guest") {
-    applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
-  }
-  return nextResponse;
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "방 입장은 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<JoinRoomResponse>,
+    { status: 501 },
+  );
 }

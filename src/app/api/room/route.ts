@@ -7,7 +7,6 @@ import type {
   ListRoomDirectoryResponse,
 } from "@/contracts/api";
 import { createGuestViewer, getCurrentViewerFromCookies, applyGuestProfileCookie } from "@/server/auth-session";
-import { buildSampleCreateRoomResponse } from "@/server/sample-room-snapshot";
 import { createRoomInStore, listRoomDirectoryFromStore } from "@/server/live-store";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
@@ -106,14 +105,13 @@ export async function GET(request: Request) {
 
   return Response.json(
     {
-      ok: true,
-      data: {
-        sort: "newest",
-        search: null,
-        rooms: [],
-      } satisfies ListRoomDirectoryResponse,
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "방 목록 조회는 Supabase 런타임 설정이 필요합니다.",
+      },
     } satisfies ApiResponse<ListRoomDirectoryResponse>,
-    { status: 200 },
+    { status: 501 },
   );
 }
 
@@ -181,14 +179,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const payload = {
-    ok: true,
-    data: buildSampleCreateRoomResponse(resolvedNickname),
-  } satisfies ApiResponse<CreateRoomResponse>;
-
-  const nextResponse = NextResponse.json(payload, { status: 200 });
-  if (!viewer || viewer.kind === "guest") {
-    applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
-  }
-  return nextResponse;
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code: "LIVE_STORAGE_REQUIRED",
+        message: "방 생성은 Supabase 런타임 설정이 필요합니다.",
+      },
+    } satisfies ApiResponse<CreateRoomResponse>,
+    { status: 501 },
+  );
 }

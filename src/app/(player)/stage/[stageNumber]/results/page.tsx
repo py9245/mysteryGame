@@ -1,4 +1,5 @@
 import { StageResultsPanel } from "@/features/results/StageResultsPanel";
+import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 
@@ -19,5 +20,15 @@ export default async function StageResultsPage({
     playerId,
     stageNumber: resolvedStageNumber,
   });
+
+  if (!snapshot) {
+    return (
+      <UnavailableStatePanel
+        title="스테이지 결과를 불러오지 못했습니다"
+        description="결과 정산 데이터가 아직 준비되지 않았거나 접근할 수 없습니다."
+      />
+    );
+  }
+
   return <StageResultsPanel snapshot={snapshot} currentStageNumber={resolvedStageNumber} />;
 }

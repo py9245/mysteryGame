@@ -1,4 +1,5 @@
 import { GameplayClientShell } from "@/features/gameplay/GameplayClientShell";
+import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { loadGameRuntimeSnapshot } from "@/features/gameplay/game-runtime-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
@@ -20,6 +21,16 @@ export default async function GameplayPage({
     playerId,
     stageNumber: resolvedStageNumber,
   });
+
+  if (!snapshot) {
+    return (
+      <UnavailableStatePanel
+        title="게임 화면을 불러오지 못했습니다"
+        description="현재 방 상태를 가져오지 못해 실시간 플레이 화면을 열 수 없습니다."
+      />
+    );
+  }
+
   const runtime = await loadGameRuntimeSnapshot({ roomId: snapshot.room.id });
 
   return (

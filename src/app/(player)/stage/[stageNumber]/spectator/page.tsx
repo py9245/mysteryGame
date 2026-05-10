@@ -1,4 +1,5 @@
 import { SpectatorPanel } from "@/features/spectator/SpectatorPanel";
+import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 
@@ -18,5 +19,15 @@ export default async function SpectatorPage({
     playerId,
     stageNumber: Number(stageNumber),
   });
+
+  if (!snapshot) {
+    return (
+      <UnavailableStatePanel
+        title="관전 화면을 불러오지 못했습니다"
+        description="현재 방 상태나 스테이지 공개 데이터가 아직 준비되지 않았습니다."
+      />
+    );
+  }
+
   return <SpectatorPanel snapshot={snapshot} />;
 }

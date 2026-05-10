@@ -58,7 +58,7 @@ export function ChatRailClientShell({
   const stageLabel = snapshot.stage
     ? `스테이지 ${snapshot.stage.stageNumber} · ${snapshot.stage.publicTitle}`
     : "대기 브리핑";
-  const syncLabel = source === "api" ? "연결됨" : "조정 중";
+  const syncLabel = source === "api" ? "연결됨" : "불러오지 못함";
 
   return (
     <aside className="chat-rail chat-shell chat-rail-layout">
@@ -68,7 +68,7 @@ export function ChatRailClientShell({
             <h3 className="panel-title">전체 채팅</h3>
             <p className="panel-copy">지금 방 전체가 공유하는 내용만 위쪽에 모았습니다.</p>
           </div>
-          <span className="status-badge" data-tone={source === "api" ? "live" : undefined}>
+          <span className="status-badge" data-tone={source === "api" ? "live" : "alert"}>
             {syncLabel}
           </span>
         </div>
