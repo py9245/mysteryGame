@@ -35,8 +35,7 @@ export function LobbyShell({
   errorMessage = null,
   statusMessage = null,
   onToggleReady,
-  onAssignTeams,
-  onStartStage,
+  onStartGame,
 }: {
   snapshot: RoomSnapshot;
   initialChatMessages: ChatMessage[];
@@ -47,32 +46,40 @@ export function LobbyShell({
   errorMessage?: string | null;
   statusMessage?: string | null;
   onToggleReady?: () => void;
-  onAssignTeams?: () => void;
-  onStartStage?: () => void;
+  onStartGame?: () => void;
 }) {
   const isHost = snapshot.me.role === "host" || snapshot.me.role === "admin";
+  const isPracticeMode = snapshot.room.maxPlayers === 1 && snapshot.teamSlots.length === 1;
   const playerCount = snapshot.players.length;
-  const readyCount = snapshot.players.filter((player) => player.isReady).length;
+  const participantPlayers = snapshot.players.filter(
+    (player) => player.role !== "host" && player.role !== "admin",
+  );
+  const readyCount = participantPlayers.filter((player) => player.isReady).length;
+  const readyTargetCount = isPracticeMode ? 0 : participantPlayers.length;
   const isRoomFull = playerCount >= snapshot.room.maxPlayers;
-  const canAssignTeams =
+  const everyoneElseReady = isPracticeMode || (readyTargetCount > 0 && readyCount === readyTargetCount);
+  const canStartGame =
     isHost &&
-    snapshot.room.status === "ready" &&
-    isRoomFull &&
-    snapshot.currentAssignments.length === 0;
-  const canStartStage =
-    isHost &&
-    snapshot.room.status === "assigning" &&
-    snapshot.currentAssignments.length === snapshot.room.maxPlayers;
+    ((isPracticeMode && playerCount >= 1) || (!isPracticeMode && isRoomFull && everyoneElseReady));
   const roomHref = appendRoomContextToHref(`/room/${encodeURIComponent(snapshot.room.code)}`, snapshot);
   const myTeamLabel =
     snapshot.teamSlots.find((slot) => slot.id === snapshot.me.teamSlotId)?.label ?? "팀 배정 전";
-  const nextStepMessage = canStartStage
-    ? "팀 배정이 끝났습니다. 방장이 시작하기를 누르면 브리핑으로 넘어갑니다."
-    : canAssignTeams
-      ? "전원이 준비되면 방장이 팀 랜덤 배정을 진행할 수 있습니다."
-      : snapshot.me.isReady
-        ? "내 준비는 끝났습니다. 다른 참가자의 준비를 기다립니다."
-        : "준비 완료를 눌러야 방장이 다음 단계로 넘어갈 수 있습니다.";
+  const nextStepMessage = isHost
+    ? isPracticeMode
+      ? "연습방은 혼자 바로 플레이할 수 있습니다. 게임 시작을 누르면 즉시 브리핑으로 넘어갑니다."
+      : canStartGame
+        ? "모든 참가자가 준비를 마쳤습니다. 게임 시작을 누르면 팀 배정 후 바로 브리핑으로 넘어갑니다."
+        : "본인을 제외한 모든 참가자가 준비 완료가 되면 게임 시작 버튼이 활성화됩니다."
+    : snapshot.me.isReady
+      ? "내 준비는 끝났습니다. 방장이 게임 시작을 누를 때까지 기다립니다."
+      : "준비 완료를 눌러야 방장이 게임을 시작할 수 있습니다.";
+  const actionBadgeTone = isHost ? (canStartGame ? "live" : "alert") : snapshot.me.isReady ? "live" : "alert";
+  const actionBadgeLabel = isHost ? (canStartGame ? "시작 가능" : "대기 중") : snapshot.me.isReady ? "준비 완료" : "준비 필요";
+  const readyMetricLabel = isPracticeMode ? "준비 절차" : "준비 완료";
+  const readyMetricValue = isPracticeMode ? "없음" : `${readyCount}/${readyTargetCount}`;
+  const readyMetricDetail = isPracticeMode
+    ? "연습방은 방장이 혼자 바로 시작합니다."
+    : "방장을 제외한 참가자가 모두 준비해야 합니다.";
 
   return (
     <section className="page-shell">
@@ -81,7 +88,7 @@ export function LobbyShell({
           <div>
             <p className="eyebrow">대기실</p>
             <h2 className="page-title">방 코드 {snapshot.room.code}</h2>
-            <p className="page-kicker">참가자 확인, 채팅, 준비 완료, 팀 랜덤 배정, 시작하기만 여기서 처리합니다.</p>
+            <p className="page-kicker">참가자 확인, 채팅, 준비 상태, 게임 시작만 여기서 처리합니다.</p>
           </div>
           <div className="header-actions">
             <span className="status-badge" data-tone="live">
@@ -102,8 +109,8 @@ export function LobbyShell({
             <h3 className="panel-title">지금 해야 할 일</h3>
             <p className="panel-copy">{nextStepMessage}</p>
           </div>
-          <span className="status-badge" data-tone={snapshot.me.isReady ? "live" : "alert"}>
-            {snapshot.me.isReady ? "준비 완료" : "준비 필요"}
+          <span className="status-badge" data-tone={actionBadgeTone}>
+            {actionBadgeLabel}
           </span>
         </div>
         <div className="metric-grid">
@@ -112,14 +119,14 @@ export function LobbyShell({
             <strong className="metric-value">
               {playerCount}/{snapshot.room.maxPlayers}
             </strong>
-            <span className="metric-detail">정원이 차야 팀 배정을 시작할 수 있습니다.</span>
+            <span className="metric-detail">
+              {isPracticeMode ? "연습방은 본인만 입장합니다." : "정원이 차야 게임을 시작할 수 있습니다."}
+            </span>
           </article>
           <article className="metric-card">
-            <span className="metric-label">준비 완료</span>
-            <strong className="metric-value">
-              {readyCount}/{snapshot.room.maxPlayers}
-            </strong>
-            <span className="metric-detail">전원 준비 후 방장이 진행합니다.</span>
+            <span className="metric-label">{readyMetricLabel}</span>
+            <strong className="metric-value">{readyMetricValue}</strong>
+            <span className="metric-detail">{readyMetricDetail}</span>
           </article>
           <article className="metric-card">
             <span className="metric-label">내 팀</span>
@@ -161,10 +168,8 @@ export function LobbyShell({
                 </strong>
               </article>
               <article className="metric-card">
-                <span className="metric-label">준비 완료</span>
-                <strong className="metric-value">
-                  {readyCount}/{snapshot.room.maxPlayers}
-                </strong>
+                <span className="metric-label">{readyMetricLabel}</span>
+                <strong className="metric-value">{readyMetricValue}</strong>
               </article>
               <article className="metric-card">
                 <span className="metric-label">방 상태</span>
@@ -178,6 +183,8 @@ export function LobbyShell({
             me={snapshot.me}
             teamSlots={snapshot.teamSlots}
             viewMode={snapshot.viewMode}
+            isHost={isHost}
+            isPracticeMode={isPracticeMode}
             isSubmitting={isSubmitting}
             errorMessage={errorMessage}
             statusMessage={statusMessage}
@@ -189,7 +196,11 @@ export function LobbyShell({
               <div className="composer-header">
                 <div>
                   <h3 className="panel-title">방장 진행</h3>
-                  <p className="panel-copy">전원이 준비되면 팀 랜덤 배정 후 시작하기만 누르면 됩니다.</p>
+                  <p className="panel-copy">
+                    {isPracticeMode
+                      ? "연습방은 혼자 바로 시작할 수 있습니다."
+                      : "본인을 제외한 모든 참가자가 준비되면 게임 시작이 활성화됩니다."}
+                  </p>
                 </div>
                 <span className="status-badge">방장</span>
               </div>
@@ -197,18 +208,10 @@ export function LobbyShell({
                 <button
                   className="button-primary"
                   type="button"
-                  onClick={onAssignTeams}
-                  disabled={!canAssignTeams || isHostActionSubmitting}
+                  onClick={onStartGame}
+                  disabled={!canStartGame || isHostActionSubmitting}
                 >
-                  {isHostActionSubmitting && canAssignTeams ? "팀 배정 중..." : "팀 랜덤 배정"}
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  onClick={onStartStage}
-                  disabled={!canStartStage || isHostActionSubmitting}
-                >
-                  {isHostActionSubmitting && canStartStage ? "시작 준비 중..." : "시작하기"}
+                  {isHostActionSubmitting ? "게임 시작 중..." : "게임 시작"}
                 </button>
               </div>
             </section>

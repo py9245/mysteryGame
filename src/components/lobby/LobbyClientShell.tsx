@@ -120,7 +120,7 @@ export function LobbyClientShell({
     setIsSubmitting(false);
   }
 
-  async function handleAssignTeams() {
+  async function handleStartGame() {
     if (isHostActionSubmitting) {
       return;
     }
@@ -129,36 +129,29 @@ export function LobbyClientShell({
     setErrorMessage(null);
 
     const stageNumber = snapshot.game?.currentStageNumber ?? 1;
-    const result = await submitAssignTeams({
-      roomId: snapshot.room.id,
-      requestedByPlayerId: snapshot.me.playerId,
-      stageNumber,
-    });
+    let nextSnapshot = snapshot;
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setStatusMessage("팀 배정이 완료되었습니다. 이제 브리핑을 시작할 수 있습니다.");
-      setIsHostActionSubmitting(false);
-      return;
+    if (snapshot.currentAssignments.length !== snapshot.players.length || snapshot.currentAssignments.length === 0) {
+      const assignResult = await submitAssignTeams({
+        roomId: snapshot.room.id,
+        requestedByPlayerId: snapshot.me.playerId,
+        stageNumber,
+      });
+
+      if (!assignResult.ok || !assignResult.snapshot) {
+        setErrorMessage(assignResult.errorMessage ?? "팀 배정에 실패했습니다.");
+        setStatusMessage(null);
+        setIsHostActionSubmitting(false);
+        return;
+      }
+
+      nextSnapshot = assignResult.snapshot;
+      setSnapshot(assignResult.snapshot);
     }
 
-    setErrorMessage(result.errorMessage ?? "팀 배정에 실패했습니다.");
-    setStatusMessage(null);
-    setIsHostActionSubmitting(false);
-  }
-
-  async function handleStartStage() {
-    if (isHostActionSubmitting) {
-      return;
-    }
-
-    setIsHostActionSubmitting(true);
-    setErrorMessage(null);
-
-    const stageNumber = snapshot.game?.currentStageNumber ?? 1;
     const result = await submitStartStage({
-      roomId: snapshot.room.id,
-      requestedByPlayerId: snapshot.me.playerId,
+      roomId: nextSnapshot.room.id,
+      requestedByPlayerId: nextSnapshot.me.playerId,
       caseKey: resolveCaseKey(stageNumber),
       durationSeconds: 15 * 60,
     });
@@ -189,8 +182,7 @@ export function LobbyClientShell({
       errorMessage={errorMessage}
       statusMessage={statusMessage}
       onToggleReady={handleToggleReady}
-      onAssignTeams={handleAssignTeams}
-      onStartStage={handleStartStage}
+      onStartGame={handleStartGame}
     />
   );
 }

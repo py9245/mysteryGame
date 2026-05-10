@@ -2387,6 +2387,23 @@ export async function createRoomInStore(
     throw new Error(`Failed to create team slots: ${teamSlotsError.message}`);
   }
 
+  const hostPlayers: DbPlayerRow[] = [player];
+  const nextRoomStatus = resolveLobbyStatus(room, hostPlayers);
+
+  if (room.status !== nextRoomStatus) {
+    const { error: roomStatusError } = await supabase
+      .from("rooms")
+      .update({
+        status: nextRoomStatus,
+        updated_at: nowUtcIso(),
+      })
+      .eq("id", room.id);
+
+    if (roomStatusError) {
+      throw new Error(`Failed to initialize room status: ${roomStatusError.message}`);
+    }
+  }
+
   const state = await loadSyncedLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
@@ -2513,7 +2530,7 @@ export async function joinRoomInStore(
   }
 
   const joinedState = await loadSyncedLobbyState(room.id);
-  const nextRoomStatus = resolveLobbyStatus(joinedState.players, joinedState.room.max_players);
+  const nextRoomStatus = resolveLobbyStatus(joinedState.room, joinedState.players);
 
   if (joinedState.room.status !== nextRoomStatus) {
     const { error: roomUpdateError } = await supabase
@@ -2657,8 +2674,36 @@ export async function getRoomSnapshotFromStore(
   return buildSnapshotFromState(state, caseSummary, viewerPlayerId);
 }
 
-function resolveLobbyStatus(players: DbPlayerRow[], maxPlayers: number): Room["status"] {
-  return players.length === maxPlayers && players.every((player) => player.is_ready) ? "ready" : "waiting";
+function isHostLikeRole(role: PlayerRole): boolean {
+  return role === "host" || role === "admin";
+}
+
+function isPracticeRoom(room: Pick<DbRoomRow, "mode" | "max_players">): boolean {
+  return resolveRoomMode(room) === "practice" || room.max_players === 1;
+}
+
+function getReadyRequiredPlayers(players: DbPlayerRow[]): DbPlayerRow[] {
+  return players.filter((player) => !isHostLikeRole(player.role));
+}
+
+function isLobbyReadyForStart(room: Pick<DbRoomRow, "mode" | "max_players">, players: DbPlayerRow[]): boolean {
+  if (isPracticeRoom(room)) {
+    return players.length >= 1;
+  }
+
+  if (players.length !== room.max_players) {
+    return false;
+  }
+
+  const readyRequiredPlayers = getReadyRequiredPlayers(players);
+  return readyRequiredPlayers.length > 0 && readyRequiredPlayers.every((player) => player.is_ready);
+}
+
+function resolveLobbyStatus(
+  room: Pick<DbRoomRow, "mode" | "max_players">,
+  players: DbPlayerRow[],
+): Room["status"] {
+  return isLobbyReadyForStart(room, players) ? "ready" : "waiting";
 }
 
 function isPresenceManagedRoomStatus(status: Room["status"]): boolean {
@@ -2744,7 +2789,7 @@ async function removePlayerFromRoomRecord(
   const nextRoomStatus =
     room.status === "in_game" || room.status === "closed"
       ? room.status
-      : resolveLobbyStatus(nextPlayers, room.max_players);
+      : resolveLobbyStatus(room, nextPlayers);
 
   if (room.status !== nextRoomStatus) {
     const { error: roomStatusError } = await supabase
@@ -2907,7 +2952,7 @@ export async function setReadyInStore(
   }
 
   const stateBeforeRoomUpdate = await loadSyncedLobbyState(roomId);
-  const nextRoomStatus = resolveLobbyStatus(stateBeforeRoomUpdate.players, stateBeforeRoomUpdate.room.max_players);
+  const nextRoomStatus = resolveLobbyStatus(stateBeforeRoomUpdate.room, stateBeforeRoomUpdate.players);
   const { data: room, error: roomError } = await supabase
     .from("rooms")
     .update({
@@ -2949,11 +2994,11 @@ function assertAssignableRoomState(input: {
     throw new AssignTeamsError("REQUESTER_NOT_ALLOWED", "방장만 팀 배정을 실행할 수 있습니다.");
   }
 
-  if (input.players.length !== input.room.max_players) {
+  if (!isPracticeRoom(input.room) && input.players.length !== input.room.max_players) {
     throw new AssignTeamsError("ROOM_NOT_FULL", "정원이 가득 찼을 때만 팀 배정을 할 수 있습니다.");
   }
 
-  if (input.room.status !== "ready" && input.room.status !== "assigning") {
+  if (input.room.status !== "assigning" && !isLobbyReadyForStart(input.room, input.players)) {
     throw new AssignTeamsError("ROOM_NOT_READY", "현재 상태에서는 팀 배정을 실행할 수 없습니다.");
   }
 
