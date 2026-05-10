@@ -20,14 +20,14 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
         <div className="header-top-row">
           <div>
             <p className="eyebrow">메인 대시보드</p>
-            <h1 className="page-title">Mystery Time</h1>
+            <h1 className="page-title">환영합니다, {displayNickname}</h1>
             <p className="page-kicker">
-              방을 만들거나 입장할 준비를 하고, 현재 계정 상태와 최근 기록을 먼저 확인하는 페이지입니다.
+              현재 기록을 확인한 뒤 게임을 시작하면, 방 입장 또는 방 만들기 페이지로 바로 넘어갑니다.
             </p>
           </div>
           <div className="header-actions">
             <Link className="button-primary button-compact" href="/rooms">
-              방 입장 / 만들기
+              게임 시작하기
             </Link>
             <RulebookLauncher label="룰북" compact scope="main" />
           </div>
@@ -38,9 +38,9 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
         <article className="panel panel-accent home-hero-main">
           <div className="composer-header">
             <div>
-              <h2 className="panel-title">지금 어디로 갈지 먼저 고릅니다</h2>
+              <h2 className="panel-title">지금 바로 한 판 시작할 수 있습니다</h2>
               <p className="panel-copy">
-                방을 찾고 싶다면 방 페이지로, 이미 들어간 방이 있다면 대기방이나 게임 진행 화면으로 이동하면 됩니다.
+                게임 시작 버튼을 누르면 방 입장과 방 만들기 중 하나를 고르고, 성공 즉시 대기방으로 이동합니다.
               </p>
             </div>
             <span className="status-badge" data-tone={accountViewer ? "live" : "alert"}>
@@ -59,9 +59,9 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
               </span>
             </article>
             <article className="metric-card">
-              <span className="metric-label">방 관련 페이지</span>
-              <strong className="metric-value">입장 / 만들기 / 현황</strong>
-              <span className="metric-detail">방 코드 입력, 공개방 입장, 새 방 생성은 모두 한 페이지에서 처리합니다.</span>
+              <span className="metric-label">게임 시작 흐름</span>
+              <strong className="metric-value">입장 · 만들기 · 대기방</strong>
+              <span className="metric-detail">대시보드 다음 단계는 게임 시작 페이지입니다.</span>
             </article>
             <article className="metric-card">
               <span className="metric-label">{accountViewer ? "내 전적" : "로그인 혜택"}</span>
@@ -78,7 +78,7 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
 
           <div className="home-hero-actions">
             <Link className="button-primary" href="/rooms">
-              방 입장 / 만들기
+              게임 시작하기
             </Link>
             <a className="button-secondary" href="#dashboard-records">
               내 기록 보기
@@ -100,8 +100,8 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
                 <p className="roster-meta">현재 계정 상태와 최근 기록, 주요 이동 버튼</p>
               </li>
               <li className="history-item">
-                <strong>방 입장 / 만들기</strong>
-                <p className="roster-meta">공개방 목록, 코드 입장, 새 방 생성</p>
+                <strong>게임 시작</strong>
+                <p className="roster-meta">방 입장과 방 만들기 중 하나를 선택</p>
               </li>
               <li className="history-item">
                 <strong>대기방 / 게임중</strong>
@@ -173,7 +173,7 @@ export function DashboardSurface({ viewer }: { viewer: CurrentViewer | null }) {
         ) : (
           <div className="action-row">
             <Link className="button-primary" href="/rooms">
-              방 페이지로 이동해 로그인 / 회원가입
+              게임 시작하기
             </Link>
           </div>
         )}

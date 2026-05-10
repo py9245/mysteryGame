@@ -36,7 +36,13 @@ export function SampleFlowNavigation({
           <Link className="nav-link" href="/">메인</Link>
         </li>
         <li>
-          <Link className="nav-link" href="/rooms">방 페이지</Link>
+          <Link className="nav-link" href="/rooms">게임 시작</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href="/rooms/join">방 입장</Link>
+        </li>
+        <li>
+          <Link className="nav-link" href="/rooms/create">방 만들기</Link>
         </li>
         <li>
           <Link className="nav-link" href={roomHref}>방 현황</Link>
