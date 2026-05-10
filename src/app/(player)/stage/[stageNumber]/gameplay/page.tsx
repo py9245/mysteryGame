@@ -3,6 +3,8 @@ import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel
 import { loadGameRuntimeSnapshot } from "@/features/gameplay/game-runtime-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { getGameRuntimeSnapshotFromStore, getRoomSnapshotFromStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function GameplayPage({
   params,
@@ -15,12 +17,15 @@ export default async function GameplayPage({
   const resolvedStageNumber = Number(stageNumber);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
-  const snapshot = await loadRoomSnapshot({
-    roomId,
-    roomCode: roomId ? undefined : roomCode,
-    playerId,
-    stageNumber: resolvedStageNumber,
-  });
+  const snapshot =
+    isSupabaseEnabled() && (roomId ?? roomCode)
+      ? await getRoomSnapshotFromStore(roomId ?? roomCode ?? "", playerId)
+      : await loadRoomSnapshot({
+          roomId,
+          roomCode: roomId ? undefined : roomCode,
+          playerId,
+          stageNumber: resolvedStageNumber,
+        });
 
   if (!snapshot) {
     return (
@@ -31,7 +36,14 @@ export default async function GameplayPage({
     );
   }
 
-  const runtime = await loadGameRuntimeSnapshot({ roomId: snapshot.room.id });
+  const runtime =
+    isSupabaseEnabled()
+      ? {
+          snapshot: await getGameRuntimeSnapshotFromStore(snapshot.room.id),
+          source: "api" as const,
+          endpoint: `/api/game/${encodeURIComponent(snapshot.room.id)}`,
+        }
+      : await loadGameRuntimeSnapshot({ roomId: snapshot.room.id });
 
   return (
     <GameplayClientShell

@@ -2,6 +2,8 @@ import { StageResultsPanel } from "@/features/results/StageResultsPanel";
 import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { getRoomSnapshotFromStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function StageResultsPage({
   params,
@@ -14,12 +16,15 @@ export default async function StageResultsPage({
   const resolvedStageNumber = Number(stageNumber);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
-  const snapshot = await loadRoomSnapshot({
-    roomId,
-    roomCode: roomId ? undefined : roomCode,
-    playerId,
-    stageNumber: resolvedStageNumber,
-  });
+  const snapshot =
+    isSupabaseEnabled() && (roomId ?? roomCode)
+      ? await getRoomSnapshotFromStore(roomId ?? roomCode ?? "", playerId)
+      : await loadRoomSnapshot({
+          roomId,
+          roomCode: roomId ? undefined : roomCode,
+          playerId,
+          stageNumber: resolvedStageNumber,
+        });
 
   if (!snapshot) {
     return (

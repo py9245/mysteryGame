@@ -2,6 +2,8 @@ import { RoomShell } from "@/components/room/RoomShell";
 import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { getRoomSnapshotFromStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function RoomPage({
   params,
@@ -13,7 +15,10 @@ export default async function RoomPage({
   const { roomCode } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const { roomId, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
-  const snapshot = await loadRoomSnapshot({ roomId, roomCode, playerId });
+  const snapshot =
+    isSupabaseEnabled()
+      ? await getRoomSnapshotFromStore(roomId ?? roomCode, playerId)
+      : await loadRoomSnapshot({ roomId, roomCode, playerId });
 
   if (!snapshot) {
     return (

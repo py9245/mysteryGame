@@ -2,6 +2,8 @@ import { GameResultsPanel } from "@/features/results/GameResultsPanel";
 import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { getRoomSnapshotFromStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function GameResultsPage({
   searchParams,
@@ -10,11 +12,14 @@ export default async function GameResultsPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
-  const snapshot = await loadRoomSnapshot({
-    roomId,
-    roomCode: roomId ? undefined : roomCode,
-    playerId,
-  });
+  const snapshot =
+    isSupabaseEnabled() && (roomId ?? roomCode)
+      ? await getRoomSnapshotFromStore(roomId ?? roomCode ?? "", playerId)
+      : await loadRoomSnapshot({
+          roomId,
+          roomCode: roomId ? undefined : roomCode,
+          playerId,
+        });
 
   if (!snapshot) {
     return (

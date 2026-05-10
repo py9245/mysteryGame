@@ -3,6 +3,8 @@ import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel
 import { loadChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { listChatMessagesFromStore, getRoomSnapshotFromStore } from "@/server/live-store";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function LobbyPage({
   searchParams,
@@ -11,11 +13,15 @@ export default async function LobbyPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const { roomId, roomCode, playerId } = resolveRoomContextFromSearchParams(resolvedSearchParams);
-  const snapshot = await loadRoomSnapshot({
-    roomId,
-    roomCode: roomId ? undefined : roomCode,
-    playerId,
-  });
+  const roomRef = roomId ?? roomCode;
+  const snapshot =
+    isSupabaseEnabled() && roomRef
+      ? await getRoomSnapshotFromStore(roomRef, playerId)
+      : await loadRoomSnapshot({
+          roomId,
+          roomCode: roomId ? undefined : roomCode,
+          playerId,
+        });
 
   if (!snapshot) {
     return (
@@ -26,11 +32,21 @@ export default async function LobbyPage({
     );
   }
 
-  const chatMessages = await loadChatMessages({
-    roomId: snapshot.room.id,
-    playerId: snapshot.me.playerId,
-    stageId: snapshot.stage?.stageId ?? null,
-  });
+  const chatMessages =
+    isSupabaseEnabled()
+      ? {
+          messages: (await listChatMessagesFromStore(
+            snapshot.room.id,
+            snapshot.stage?.stageId ?? null,
+          )).messages,
+          source: "api" as const,
+          endpoint: `/api/chat/${encodeURIComponent(snapshot.room.id)}`,
+        }
+      : await loadChatMessages({
+          roomId: snapshot.room.id,
+          playerId: snapshot.me.playerId,
+          stageId: snapshot.stage?.stageId ?? null,
+        });
 
   return (
     <LobbyClientShell
