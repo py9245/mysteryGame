@@ -497,6 +497,14 @@ function normalizeRoomMode(mode: unknown, fallback: RoomMode = "public"): RoomMo
   return mode === "secret" || mode === "practice" || mode === "public" ? mode : fallback;
 }
 
+function normalizeRoomDirectoryTitle(title: unknown, roomCode: string): string {
+  if (typeof title === "string" && title.trim().length > 0) {
+    return title.trim();
+  }
+
+  return `${roomCode} 사건방`;
+}
+
 function normalizeRoomTitle(title: unknown, fallback: string): string {
   if (typeof title !== "string") {
     return fallback;
@@ -5062,7 +5070,8 @@ export async function listRoomDirectoryFromStore(input: {
       }
 
       const normalizedSearch = search.toLowerCase();
-      return room.title.toLowerCase().includes(normalizedSearch) || room.code.toLowerCase().includes(normalizedSearch);
+      const roomTitle = normalizeRoomDirectoryTitle((room as Partial<DbRoomRow>).title, room.code);
+      return roomTitle.toLowerCase().includes(normalizedSearch) || room.code.toLowerCase().includes(normalizedSearch);
     })
     .sort((left, right) => {
       if (input.sort === "least_players") {
@@ -5078,17 +5087,34 @@ export async function listRoomDirectoryFromStore(input: {
     })
     .map((room) => {
       const currentPlayers = currentPlayersByRoomId.get(room.id) ?? 0;
+      const roomMode = normalizeRoomMode((room as Partial<DbRoomRow>).mode, "public");
+      const roomTitle = normalizeRoomDirectoryTitle((room as Partial<DbRoomRow>).title, room.code);
+      const stageCount =
+        typeof (room as Partial<DbRoomRow>).stage_count === "number" &&
+        Number.isFinite((room as Partial<DbRoomRow>).stage_count)
+          ? Math.max(1, Math.floor((room as Partial<DbRoomRow>).stage_count as number))
+          : roomMode === "practice"
+            ? 1
+            : 3;
+      const maxPlayers =
+        typeof (room as Partial<DbRoomRow>).max_players === "number" &&
+        Number.isFinite((room as Partial<DbRoomRow>).max_players)
+          ? Math.max(1, Math.floor((room as Partial<DbRoomRow>).max_players as number))
+          : roomMode === "practice"
+            ? 1
+            : 6;
+      const roomStatus = (room as Partial<DbRoomRow>).status ?? "waiting";
 
       return {
         roomId: room.id,
         roomCode: room.code,
-        title: room.title,
-        mode: room.mode,
-        stageCount: room.stage_count,
-        maxPlayers: room.max_players,
+        title: roomTitle,
+        mode: roomMode,
+        stageCount,
+        maxPlayers,
         currentPlayers,
-        passwordProtected: room.mode === "secret",
-        joinable: room.mode !== "practice" && room.status !== "closed" && currentPlayers < room.max_players,
+        passwordProtected: roomMode === "secret",
+        joinable: roomMode !== "practice" && roomStatus !== "closed" && currentPlayers < maxPlayers,
         createdAt: room.created_at,
         updatedAt: room.updated_at,
       };

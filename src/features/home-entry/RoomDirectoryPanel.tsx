@@ -25,6 +25,10 @@ function modeLabel(mode: DirectoryRoom["mode"]) {
   }
 }
 
+function normalizeDirectoryText(value: string | null | undefined): string {
+  return typeof value === "string" ? value : "";
+}
+
 function resolveRoomAction(room: DirectoryRoom) {
   if (room.mode === "practice") {
     return {
@@ -98,7 +102,8 @@ export function RoomDirectoryPanel({
   const visibleRooms = useMemo(() => {
     const query = search.trim().toLowerCase();
     const filtered = rooms.filter((room) =>
-      room.title.toLowerCase().includes(query) || room.code.toLowerCase().includes(query),
+      normalizeDirectoryText(room.title).toLowerCase().includes(query) ||
+      normalizeDirectoryText(room.code).toLowerCase().includes(query),
     );
 
     return [...filtered].sort((left, right) => {

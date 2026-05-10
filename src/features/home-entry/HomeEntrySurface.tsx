@@ -108,14 +108,27 @@ function getRoomModeSummary(mode: RoomLaunchMode) {
 }
 
 function mapRoomEntry(entry: RoomDirectoryEntry): DirectoryRoom {
+  const resolvedMode = entry.mode === "secret" || entry.mode === "practice" || entry.mode === "public"
+    ? entry.mode
+    : "public";
+  const resolvedStageCount =
+    typeof entry.stageCount === "number" && Number.isFinite(entry.stageCount)
+      ? Math.max(1, Math.floor(entry.stageCount))
+      : resolvedMode === "practice"
+        ? 1
+        : 3;
+
   return {
     code: entry.roomCode,
-    title: entry.title,
-    mode: entry.mode,
+    title:
+      typeof entry.title === "string" && entry.title.trim().length > 0
+        ? entry.title.trim()
+        : `${entry.roomCode} 사건방`,
+    mode: resolvedMode,
     currentPlayers: entry.currentPlayers,
     maxPlayers: entry.maxPlayers,
     createdAt: entry.createdAt,
-    stageCount: entry.stageCount,
+    stageCount: resolvedStageCount,
     passwordProtected: entry.passwordProtected,
     joinable: entry.joinable,
   };
