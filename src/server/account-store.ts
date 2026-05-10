@@ -22,7 +22,7 @@ type DbUserAccountRow = {
 
 type DbUserProfileRow = {
   account_id: string;
-  age: number;
+  age?: number | null;
   nickname: string;
   created_at: string;
   updated_at: string;
@@ -129,6 +129,13 @@ function normalizeAge(age: number | null | undefined): number {
 
 function validatePassword(password: string): boolean {
   return password.length >= 8 && password.length <= 72;
+}
+
+function isMissingAgeColumnError(error: { message?: string } | null | undefined): boolean {
+  return Boolean(
+    error?.message &&
+      error.message.includes("Could not find the 'age' column of 'user_profiles'"),
+  );
 }
 
 async function getAccountRowById(accountId: string): Promise<DbUserAccountRow | null> {
@@ -321,7 +328,7 @@ export async function getAccountProfileView(
   return {
     accountId: account.id,
     email: account.email,
-    age: profile.age,
+    age: typeof profile.age === "number" ? profile.age : 0,
     nickname: profile.nickname,
     createdAt: account.created_at,
     lastLoginAt: account.last_login_at,
@@ -353,33 +360,82 @@ export async function registerAccount(input: {
     throw new Error("닉네임은 2자 이상 20자 이하로 입력해야 합니다.");
   }
 
+  const passwordHash = await hashPassword(password);
+  const supabase = getSupabaseAdminClient();
   const existingAccount = await getAccountRowByEmail(email);
-  if (existingAccount) {
+  const existingProfile = existingAccount
+    ? await getProfileRowByAccountId(existingAccount.id)
+    : null;
+
+  if (existingAccount && existingProfile) {
     throw new AccountAuthError("EMAIL_TAKEN", "이미 사용 중인 이메일입니다.");
   }
 
-  const passwordHash = await hashPassword(password);
-  const supabase = getSupabaseAdminClient();
-  const { data: account, error: accountError } = await supabase
-    .from("user_accounts")
-    .insert({
-      email,
-      password_hash: passwordHash,
-    })
-    .select("*")
-    .single<DbUserAccountRow>();
+  let account: DbUserAccountRow | null = null;
+  let createdNewAccount = false;
 
-  if (accountError || !account) {
-    throw new Error(`Failed to create account: ${accountError?.message ?? "unknown error"}`);
+  if (existingAccount && !existingProfile) {
+    const { data: updatedAccount, error: updateAccountError } = await supabase
+      .from("user_accounts")
+      .update({
+        password_hash: passwordHash,
+        updated_at: nowUtcIso(),
+      })
+      .eq("id", existingAccount.id)
+      .select("*")
+      .single<DbUserAccountRow>();
+
+    if (updateAccountError || !updatedAccount) {
+      throw new Error(`Failed to recover partial account: ${updateAccountError?.message ?? "unknown error"}`);
+    }
+
+    account = updatedAccount;
+  } else {
+    const { data: insertedAccount, error: accountError } = await supabase
+      .from("user_accounts")
+      .insert({
+        email,
+        password_hash: passwordHash,
+      })
+      .select("*")
+      .single<DbUserAccountRow>();
+
+    if (accountError || !insertedAccount) {
+      throw new Error(`Failed to create account: ${accountError?.message ?? "unknown error"}`);
+    }
+
+    account = insertedAccount;
+    createdNewAccount = true;
   }
 
-  const { error: profileError } = await supabase.from("user_profiles").insert({
-    account_id: account.id,
-    age,
-    nickname,
-  });
+  let profileError =
+    (
+      await supabase
+        .from("user_profiles")
+        .insert({
+          account_id: account.id,
+          age,
+          nickname,
+        })
+    ).error ?? null;
+
+  if (isMissingAgeColumnError(profileError)) {
+    profileError =
+      (
+        await supabase
+          .from("user_profiles")
+          .insert({
+            account_id: account.id,
+            nickname,
+          })
+      ).error ?? null;
+  }
 
   if (profileError) {
+    if (createdNewAccount) {
+      await supabase.from("user_accounts").delete().eq("id", account.id);
+    }
+
     throw new Error(`Failed to create account profile: ${profileError.message}`);
   }
 

@@ -86,10 +86,10 @@ import { createTextCompletion } from "@/lib/ai";
 type DbRoomRow = {
   id: string;
   code: string;
-  title: string;
-  mode: RoomMode;
-  password_hash: string | null;
-  stage_count: number;
+  title?: string | null;
+  mode?: RoomMode | null;
+  password_hash?: string | null;
+  stage_count?: number | null;
   status: Room["status"];
   max_players: number;
   created_at: string;
@@ -551,14 +551,48 @@ function normalizeRoomPasswordHash(mode: RoomMode, password: string | null | und
   return hashPassword(password.trim());
 }
 
+function resolveRoomMode(row: Pick<DbRoomRow, "mode">): RoomMode {
+  return normalizeRoomMode(row.mode, "public");
+}
+
+function resolveRoomTitle(row: Pick<DbRoomRow, "title" | "code">): string {
+  return normalizeRoomDirectoryTitle(row.title, row.code);
+}
+
+function resolveRoomStageCount(row: Pick<DbRoomRow, "stage_count" | "mode">): number {
+  const mode = resolveRoomMode(row);
+  if (typeof row.stage_count === "number" && Number.isFinite(row.stage_count)) {
+    return Math.max(1, Math.floor(row.stage_count));
+  }
+
+  return mode === "practice" ? 1 : 3;
+}
+
+function resolveRoomPasswordHash(row: Pick<DbRoomRow, "password_hash">): string | null {
+  return typeof row.password_hash === "string" && row.password_hash.length > 0
+    ? row.password_hash
+    : null;
+}
+
+function isLegacyMissingRoomColumnsError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message ?? "";
+  return (
+    message.includes("Could not find the 'mode' column of 'rooms'") ||
+    message.includes("Could not find the 'title' column of 'rooms'") ||
+    message.includes("Could not find the 'password_hash' column of 'rooms'") ||
+    message.includes("Could not find the 'stage_count' column of 'rooms'")
+  );
+}
+
 function toRoomSettings(row: DbRoomRow): RoomSettingsView {
+  const mode = resolveRoomMode(row);
   return {
     roomId: row.id,
-    title: row.title,
-    mode: row.mode,
-    stageCount: row.stage_count,
+    title: resolveRoomTitle(row),
+    mode,
+    stageCount: resolveRoomStageCount(row),
     maxPlayers: row.max_players,
-    passwordProtected: row.mode === "secret",
+    passwordProtected: mode === "secret" || resolveRoomPasswordHash(row) !== null,
     updatedAt: row.updated_at,
   };
 }
@@ -2220,7 +2254,7 @@ async function createUniqueRoom(input: {
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const code = generateRoomCode();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("rooms")
       .insert({
         code,
@@ -2234,12 +2268,24 @@ async function createUniqueRoom(input: {
       .select("*")
       .single<DbRoomRow>();
 
+    if (error && isLegacyMissingRoomColumnsError(error)) {
+      ({ data, error } = await supabase
+        .from("rooms")
+        .insert({
+          code,
+          status: "waiting",
+          max_players: input.maxPlayers,
+        })
+        .select("*")
+        .single<DbRoomRow>());
+    }
+
     if (!error && data) {
       return data;
     }
 
     if (error?.code !== "23505") {
-      throw new Error(`Failed to create room: ${error.message}`);
+      throw new Error(`Failed to create room: ${error?.message ?? "unknown error"}`);
     }
   }
 
@@ -2306,7 +2352,7 @@ export async function createRoomInStore(
   }
 
   const { error: teamSlotsError } = await supabase.from("team_slots").insert(
-    (room.mode === "practice" ? ["Solo"] : DEFAULT_TEAM_LABELS).map((label) => ({
+    (resolveRoomMode(room) === "practice" ? ["Solo"] : DEFAULT_TEAM_LABELS).map((label) => ({
       room_id: room.id,
       label,
     })),
@@ -2333,6 +2379,9 @@ function assertJoinableRoom(
   nickname: string,
   roomPassword?: string | null,
 ) {
+  const roomMode = resolveRoomMode(room);
+  const passwordHash = resolveRoomPasswordHash(room);
+
   if (room.status !== "waiting" && room.status !== "ready") {
     throw new RoomJoinError(
       "ROOM_NOT_JOINABLE",
@@ -2340,16 +2389,16 @@ function assertJoinableRoom(
     );
   }
 
-  if (room.mode === "practice") {
+  if (roomMode === "practice") {
     throw new RoomJoinError("ROOM_NOT_JOINABLE", "연습방은 외부 입장이 불가능합니다.");
   }
 
-  if (room.mode === "secret") {
+  if (roomMode === "secret") {
     if (typeof roomPassword !== "string" || roomPassword.trim().length === 0) {
       throw new RoomJoinError("ROOM_PASSWORD_REQUIRED", "비밀방에는 비밀번호가 필요합니다.");
     }
 
-    if (!room.password_hash) {
+    if (!passwordHash) {
       throw new RoomJoinError("ROOM_NOT_JOINABLE", "비밀방 설정이 손상되었습니다.");
     }
   }
@@ -2399,8 +2448,11 @@ export async function joinRoomInStore(
 
   assertJoinableRoom(stateBeforeJoin.room, stateBeforeJoin.players, nickname, roomPassword);
 
-  if (stateBeforeJoin.room.mode === "secret") {
-    const passwordOk = await verifyPassword(roomPassword ?? "", stateBeforeJoin.room.password_hash ?? "");
+  if (resolveRoomMode(stateBeforeJoin.room) === "secret") {
+    const passwordOk = await verifyPassword(
+      roomPassword ?? "",
+      resolveRoomPasswordHash(stateBeforeJoin.room) ?? "",
+    );
     if (!passwordOk) {
       throw new RoomJoinError("ROOM_PASSWORD_INVALID", "비밀번호가 올바르지 않습니다.");
     }
@@ -2499,12 +2551,12 @@ export async function updateRoomSettingsInStore(input: {
     requestedByPlayerId: input.requestedByPlayerId,
   });
 
-  const nextMode = normalizeRoomMode(input.mode ?? state.room.mode);
-  const nextTitle = normalizeRoomTitle(input.title, state.room.title || state.room.code);
-  const nextStageCount = normalizeStageCount(nextMode, input.stageCount ?? state.room.stage_count);
+  const nextMode = normalizeRoomMode(input.mode ?? resolveRoomMode(state.room));
+  const nextTitle = normalizeRoomTitle(input.title, resolveRoomTitle(state.room));
+  const nextStageCount = normalizeStageCount(nextMode, input.stageCount ?? resolveRoomStageCount(state.room));
   const nextMaxPlayers = normalizeMaxPlayers(nextMode, input.maxPlayers ?? state.room.max_players);
 
-  if (nextMode === "secret" && typeof input.roomPassword !== "string" && !state.room.password_hash) {
+  if (nextMode === "secret" && typeof input.roomPassword !== "string" && !resolveRoomPasswordHash(state.room)) {
     throw new RoomSettingsError("PASSWORD_REQUIRED", "비밀방으로 변경하려면 비밀번호가 필요합니다.");
   }
 
@@ -2520,7 +2572,7 @@ export async function updateRoomSettingsInStore(input: {
     nextMode === "secret"
       ? typeof input.roomPassword === "string"
         ? await normalizeRoomPasswordHash(nextMode, input.roomPassword)
-        : state.room.password_hash
+        : resolveRoomPasswordHash(state.room)
       : null;
 
   if (nextMode === "secret" && !passwordHash) {
@@ -2997,7 +3049,7 @@ function assertAdvanceStageState(input: {
     throw new AdvanceStageError("REQUESTER_NOT_ALLOWED", "방장만 다음 스테이지를 준비할 수 있습니다.");
   }
 
-  if (input.game.current_stage_number >= input.room.stage_count) {
+  if (input.game.current_stage_number >= resolveRoomStageCount(input.room)) {
     throw new AdvanceStageError("FINAL_STAGE_NOT_ADVANCABLE", "마지막 스테이지 이후에는 다음 스테이지를 준비할 수 없습니다.");
   }
 
@@ -4284,7 +4336,7 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
         .map((playerState) => playerState.player_id),
     ]),
   );
-  const shouldFinishGame = stage.stage_number >= state.room.stage_count;
+  const shouldFinishGame = stage.stage_number >= resolveRoomStageCount(state.room);
   const stageEndedAt = stage.ends_at;
 
   const { error: stageUpdateError } = await supabase
@@ -4654,7 +4706,7 @@ export async function submitAnswerInStore(
     : currentStage.solved_player_ids;
 
   const shouldEndStage = resolution.shouldLockPlayer && updatedSolvedPlayerIds.length >= 2;
-  const shouldFinishGame = shouldEndStage && currentStage.stage_number >= state.room.stage_count;
+  const shouldFinishGame = shouldEndStage && currentStage.stage_number >= resolveRoomStageCount(state.room);
   const { error: stageUpdateError } = await supabase
     .from("stages")
     .update({
