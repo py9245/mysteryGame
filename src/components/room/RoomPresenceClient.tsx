@@ -2,16 +2,8 @@
 
 import { useEffect } from "react";
 
-function buildPresenceEndpoint(roomId: string, playerId: string, stageNumber?: number): string {
-  const params = new URLSearchParams({
-    playerId,
-  });
-
-  if (typeof stageNumber === "number" && Number.isFinite(stageNumber)) {
-    params.set("stageNumber", String(stageNumber));
-  }
-
-  return `/api/room/${encodeURIComponent(roomId)}?${params.toString()}`;
+function buildPresenceEndpoint(roomId: string): string {
+  return `/api/room/${encodeURIComponent(roomId)}/presence`;
 }
 
 export function RoomPresenceClient({
@@ -30,8 +22,15 @@ export function RoomPresenceClient({
 
     async function ping() {
       try {
-        await fetch(buildPresenceEndpoint(roomId, playerId, stageNumber), {
-          method: "GET",
+        await fetch(buildPresenceEndpoint(roomId), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            playerId,
+            stageNumber,
+          }),
           cache: "no-store",
         });
       } catch {

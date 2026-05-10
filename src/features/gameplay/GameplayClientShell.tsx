@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RoomSnapshot } from "@/contracts/api";
-import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
+import { useRoomRealtimeSnapshot } from "@/features/room-snapshot/use-room-realtime-snapshot";
 import { StageGameplayPanel } from "./StageGameplayPanel";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
 import {
@@ -10,24 +10,6 @@ import {
   submitPrivateChatRequest,
   submitPrivateChatResponse,
 } from "./private-chat-command";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
-  const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
-  const params = new URLSearchParams({
-    playerId: snapshot.me.playerId,
-    stageNumber: String(stageNumber),
-  });
-
-  return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
-}
-
-function shouldPollRoomSnapshot(): boolean {
-  return typeof document === "undefined" || document.visibilityState === "visible";
-}
 
 export function GameplayClientShell({
   initialSnapshot,
@@ -38,7 +20,10 @@ export function GameplayClientShell({
   runtime: LoadedGameRuntimeSnapshot;
   currentStageNumber?: number;
 }) {
-  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [runtimeSnapshot] = useState(runtime);
+  const [snapshot] = useRoomRealtimeSnapshot(initialSnapshot, {
+    fallbackIntervalMs: 18_000,
+  });
   const [nowMs, setNowMs] = useState(Date.now());
   const [isSubmittingPrivateChat, setIsSubmittingPrivateChat] = useState(false);
   const [privateChatStatusMessage, setPrivateChatStatusMessage] = useState<string | null>(null);
@@ -53,48 +38,6 @@ export function GameplayClientShell({
       window.clearInterval(timerId);
     };
   }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function refreshSnapshot() {
-      if (!shouldPollRoomSnapshot()) {
-        return;
-      }
-
-      try {
-        const response = await fetch(buildSnapshotEndpoint(snapshot), {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as unknown;
-        const nextSnapshot =
-          isRecord(payload) && "data" in payload
-            ? normalizeRoomSnapshot(payload.data)
-            : normalizeRoomSnapshot(payload);
-
-        if (mounted) {
-          setSnapshot(nextSnapshot);
-        }
-      } catch {
-        // Polling is best effort only.
-      }
-    }
-
-    const intervalId = window.setInterval(() => {
-      void refreshSnapshot();
-    }, 8000);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(intervalId);
-    };
-  }, [snapshot.room.id, snapshot.me.playerId, snapshot.stage?.stageNumber]);
 
   async function handleRequestPrivateChat(targetPlayerId: string) {
     if (isSubmittingPrivateChat || !snapshot.stage?.stageId) {
@@ -114,7 +57,6 @@ export function GameplayClientShell({
     });
 
     if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
       setPrivateChatStatusMessage("1:1 요청을 보냈습니다. 상대가 15초 안에 수락 또는 거절할 수 있습니다.");
     } else {
       setPrivateChatErrorMessage(result.errorMessage ?? "1:1 요청을 보내지 못했습니다.");
@@ -141,7 +83,6 @@ export function GameplayClientShell({
     });
 
     if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
       setPrivateChatStatusMessage(
         accept
           ? "1:1 대화가 연결되었습니다. 최소 유지 시간이 지나야 종료할 수 있습니다."
@@ -172,7 +113,6 @@ export function GameplayClientShell({
     });
 
     if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
       setPrivateChatStatusMessage("1:1 대화를 종료했습니다. 이후 10초 동안은 새 요청을 보낼 수 없습니다.");
     } else {
       setPrivateChatErrorMessage(result.errorMessage ?? "1:1 대화를 종료하지 못했습니다.");
@@ -184,7 +124,7 @@ export function GameplayClientShell({
   return (
     <StageGameplayPanel
       snapshot={snapshot}
-      runtime={runtime}
+      runtime={runtimeSnapshot}
       currentStageNumber={currentStageNumber}
       nowMs={nowMs}
       isSubmittingPrivateChat={isSubmittingPrivateChat}

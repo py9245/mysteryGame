@@ -2903,6 +2903,19 @@ async function touchPlayerPresence(roomId: string, playerId: string): Promise<vo
   }
 }
 
+export async function touchRoomPresenceInStore(
+  roomRef: string,
+  playerId: string,
+): Promise<boolean> {
+  const room = await findRoomByRef(roomRef);
+  if (!room) {
+    return false;
+  }
+
+  await touchPlayerPresence(room.id, playerId);
+  return true;
+}
+
 export async function leaveRoomInStore(
   roomId: string,
   playerId: string,
