@@ -6,6 +6,7 @@ import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { ReadyPanel } from "@/components/lobby/ReadyPanel";
+import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 
@@ -89,6 +90,7 @@ export function LobbyShell({
             <Link className="button-secondary button-compact" href={roomHref}>
               방 현황
             </Link>
+            <LeaveRoomButton roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
             <RulebookLauncher label="룰북" compact scope="lobby" />
           </div>
         </div>
@@ -174,6 +176,7 @@ export function LobbyShell({
 
           <ReadyPanel
             me={snapshot.me}
+            teamSlots={snapshot.teamSlots}
             viewMode={snapshot.viewMode}
             isSubmitting={isSubmitting}
             errorMessage={errorMessage}

@@ -382,6 +382,19 @@ export class RoomSettingsError extends Error {
   }
 }
 
+export class LeaveRoomError extends Error {
+  constructor(
+    public readonly code:
+      | "ROOM_NOT_FOUND"
+      | "PLAYER_NOT_FOUND"
+      | "ROOM_LEAVE_FAILED",
+    message: string,
+  ) {
+    super(message);
+    this.name = "LeaveRoomError";
+  }
+}
+
 export class AssignTeamsError extends Error {
   constructor(
     public readonly code:
@@ -2624,6 +2637,133 @@ export async function getRoomSnapshotFromStore(
 
 function resolveLobbyStatus(players: DbPlayerRow[], maxPlayers: number): Room["status"] {
   return players.length === maxPlayers && players.every((player) => player.is_ready) ? "ready" : "waiting";
+}
+
+export async function leaveRoomInStore(
+  roomId: string,
+  playerId: string,
+): Promise<{
+  roomId: string;
+  playerId: string;
+  roomDeleted: boolean;
+  remainingPlayerCount: number;
+  nextHostPlayerId: string | null;
+}> {
+  const room = await findRoomByRef(roomId);
+  if (!room) {
+    throw new LeaveRoomError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
+  }
+
+  const stateBeforeLeave = await loadSyncedLobbyState(room.id);
+  const leavingPlayer = stateBeforeLeave.players.find((player) => player.id === playerId);
+
+  if (!leavingPlayer) {
+    throw new LeaveRoomError("PLAYER_NOT_FOUND", "이미 방에서 나갔거나 플레이어 정보를 찾을 수 없습니다.");
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error: deletePlayerError } = await supabase
+    .from("players")
+    .delete()
+    .eq("id", playerId)
+    .eq("room_id", room.id);
+
+  if (deletePlayerError) {
+    throw new LeaveRoomError(
+      "ROOM_LEAVE_FAILED",
+      `방에서 나가는 중 플레이어를 제거하지 못했습니다: ${deletePlayerError.message}`,
+    );
+  }
+
+  const { data: remainingPlayers, error: playersError } = await supabase
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .order("joined_at", { ascending: true })
+    .returns<DbPlayerRow[]>();
+
+  if (playersError) {
+    throw new LeaveRoomError(
+      "ROOM_LEAVE_FAILED",
+      `방 나가기 이후 남은 플레이어를 확인하지 못했습니다: ${playersError.message}`,
+    );
+  }
+
+  const nextPlayers = remainingPlayers ?? [];
+
+  if (nextPlayers.length === 0) {
+    const { error: deleteRoomError } = await supabase.from("rooms").delete().eq("id", room.id);
+
+    if (deleteRoomError) {
+      throw new LeaveRoomError(
+        "ROOM_LEAVE_FAILED",
+        `빈 방을 정리하지 못했습니다: ${deleteRoomError.message}`,
+      );
+    }
+
+    return {
+      roomId: room.id,
+      playerId,
+      roomDeleted: true,
+      remainingPlayerCount: 0,
+      nextHostPlayerId: null,
+    };
+  }
+
+  let nextHostPlayerId = nextPlayers.find((player) => player.role === "host")?.id ?? null;
+
+  if (!nextHostPlayerId) {
+    const nextHost = nextPlayers[0] ?? null;
+    if (nextHost) {
+      const { error: hostUpdateError } = await supabase
+        .from("players")
+        .update({
+          role: "host",
+          last_seen_at: nowUtcIso(),
+        })
+        .eq("id", nextHost.id)
+        .eq("room_id", room.id);
+
+      if (hostUpdateError) {
+        throw new LeaveRoomError(
+          "ROOM_LEAVE_FAILED",
+          `새 방장을 지정하지 못했습니다: ${hostUpdateError.message}`,
+        );
+      }
+
+      nextHostPlayerId = nextHost.id;
+    }
+  }
+
+  const nextRoomStatus =
+    room.status === "in_game" || room.status === "closed"
+      ? room.status
+      : resolveLobbyStatus(nextPlayers, room.max_players);
+
+  if (room.status !== nextRoomStatus) {
+    const { error: roomStatusError } = await supabase
+      .from("rooms")
+      .update({
+        status: nextRoomStatus,
+        updated_at: nowUtcIso(),
+      })
+      .eq("id", room.id);
+
+    if (roomStatusError) {
+      throw new LeaveRoomError(
+        "ROOM_LEAVE_FAILED",
+        `방 상태를 다시 계산하지 못했습니다: ${roomStatusError.message}`,
+      );
+    }
+  }
+
+  return {
+    roomId: room.id,
+    playerId,
+    roomDeleted: false,
+    remainingPlayerCount: nextPlayers.length,
+    nextHostPlayerId,
+  };
 }
 
 export async function setReadyInStore(

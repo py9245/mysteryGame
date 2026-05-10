@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { RoomSnapshot } from "@/contracts/api";
+import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
@@ -48,6 +49,7 @@ export function RoomShell({
             <Link className="button-secondary button-compact" href={gameStartHref}>
               게임 시작
             </Link>
+            <LeaveRoomButton roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
             <Link className="button-primary button-compact" href={lobbyHref}>
               대기방으로 이동
             </Link>

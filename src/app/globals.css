@@ -541,6 +541,11 @@ pre {
   gap: 12px;
 }
 
+.leave-room-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .home-directory-panel {
   display: grid;
   gap: 16px;

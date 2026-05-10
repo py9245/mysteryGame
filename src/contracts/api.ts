@@ -170,6 +170,19 @@ export interface UpdateRoomSettingsRequest {
   maxPlayers?: number;
 }
 
+export interface LeaveRoomRequest {
+  roomId: EntityId;
+  playerId: EntityId;
+}
+
+export interface LeaveRoomResponse {
+  roomId: EntityId;
+  playerId: EntityId;
+  roomDeleted: boolean;
+  remainingPlayerCount: number;
+  nextHostPlayerId: EntityId | null;
+}
+
 export interface GetRoomStateRequest {
   roomId: EntityId;
 }
