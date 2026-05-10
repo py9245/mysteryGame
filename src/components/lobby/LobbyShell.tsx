@@ -80,111 +80,93 @@ export function LobbyShell({
   const readyMetricDetail = isPracticeMode
     ? "연습방은 방장이 혼자 바로 시작합니다."
     : "방장을 제외한 참가자가 모두 준비해야 합니다.";
+  const startButtonLabel = isPracticeMode ? "혼자 시작" : "게임 시작";
 
   return (
-    <section className="page-shell">
-      <header className="page-header">
-        <div className="header-top-row">
+    <section className="page-shell lobby-screen">
+      <section className="nav-strip lobby-summary-strip">
+        <div className="lobby-summary-main">
           <div>
             <p className="eyebrow">대기실</p>
-            <h2 className="page-title">방 코드 {snapshot.room.code}</h2>
-            <p className="page-kicker">참가자 확인, 채팅, 준비 상태, 게임 시작만 여기서 처리합니다.</p>
+            <h2 className="lobby-room-title">방 코드 {snapshot.room.code}</h2>
+            <p className="page-kicker lobby-kicker">{nextStepMessage}</p>
           </div>
-          <div className="header-actions">
+          <div className="lobby-summary-badges">
             <span className="status-badge" data-tone="live">
               {getRoomStatusLabel(snapshot.room.status)}
             </span>
-            <Link className="button-secondary button-compact" href={roomHref}>
-              방 현황
-            </Link>
-            <LeaveRoomButton roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
-            <RulebookLauncher label="룰북" compact scope="lobby" />
-          </div>
-        </div>
-      </header>
-
-      <section className="panel panel-accent">
-        <div className="composer-header">
-          <div>
-            <h3 className="panel-title">지금 해야 할 일</h3>
-            <p className="panel-copy">{nextStepMessage}</p>
-          </div>
-          <span className="status-badge" data-tone={actionBadgeTone}>
-            {actionBadgeLabel}
-          </span>
-        </div>
-        <div className="metric-grid">
-          <article className="metric-card metric-card-emphasis">
-            <span className="metric-label">참가 인원</span>
-            <strong className="metric-value">
-              {playerCount}/{snapshot.room.maxPlayers}
-            </strong>
-            <span className="metric-detail">
-              {isPracticeMode ? "연습방은 본인만 입장합니다." : "정원이 차야 게임을 시작할 수 있습니다."}
+            <span className="status-badge" data-tone={actionBadgeTone}>
+              {actionBadgeLabel}
             </span>
+          </div>
+        </div>
+
+        <div className="lobby-summary-metrics">
+          <article className="metric-card metric-card-compact">
+            <span className="metric-label">참가 인원</span>
+            <strong className="metric-value">{playerCount}/{snapshot.room.maxPlayers}</strong>
           </article>
-          <article className="metric-card">
+          <article className="metric-card metric-card-compact">
             <span className="metric-label">{readyMetricLabel}</span>
             <strong className="metric-value">{readyMetricValue}</strong>
-            <span className="metric-detail">{readyMetricDetail}</span>
           </article>
-          <article className="metric-card">
-            <span className="metric-label">내 팀</span>
-            <strong className="metric-value">{myTeamLabel}</strong>
-            <span className="metric-detail">랜덤 배정 전에는 팀이 비어 있습니다.</span>
-          </article>
-          <article className="metric-card">
+          <article className="metric-card metric-card-compact">
             <span className="metric-label">내 역할</span>
             <strong className="metric-value">{isHost ? "방장" : "참가자"}</strong>
-            <span className="metric-detail">{isHost ? "팀 배정과 시작을 진행합니다." : "준비와 채팅으로 합류합니다."}</span>
           </article>
+          <article className="metric-card metric-card-compact">
+            <span className="metric-label">내 팀</span>
+            <strong className="metric-value">{myTeamLabel}</strong>
+          </article>
+        </div>
+
+        <div className="lobby-summary-actions">
+          {isHost ? (
+            <button
+              className="button-primary"
+              type="button"
+              onClick={onStartGame}
+              disabled={!canStartGame || isHostActionSubmitting}
+            >
+              {isHostActionSubmitting ? "시작 준비 중..." : startButtonLabel}
+            </button>
+          ) : null}
+          <Link className="button-secondary button-compact" href={roomHref}>
+            방 현황
+          </Link>
+          <LeaveRoomButton roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
+          <RulebookLauncher label="룰북" compact scope="lobby" />
         </div>
       </section>
 
-      <div className="panel-grid">
-        <section className="span-8">
+      <section className="lobby-main-grid">
+        <div className="lobby-main-column">
+          <PlayerRoster
+            players={snapshot.players}
+            visibility={snapshot.visibility}
+            redacted={snapshot.redacted}
+            compact
+          />
+        </div>
+
+        <div className="lobby-main-column lobby-chat-column">
           <ChatRailClientShell
             snapshot={snapshot}
             initialMessages={initialChatMessages}
             source={initialChatSource}
             endpoint={chatEndpoint}
+            variant="lobby"
           />
-        </section>
+        </div>
 
-        <section className="span-4 lobby-sidebar-stack">
-          <section className="panel panel-accent">
-            <div className="composer-header">
-              <div>
-                <h3 className="panel-title">방 상태</h3>
-                <p className="panel-copy">대기실에서 필요한 핵심 상태만 빠르게 확인합니다.</p>
-              </div>
-              <span className="status-badge">{snapshot.room.code}</span>
-            </div>
-            <div className="metric-grid">
-              <article className="metric-card">
-                <span className="metric-label">참가 인원</span>
-                <strong className="metric-value">
-                  {playerCount}/{snapshot.room.maxPlayers}
-                </strong>
-              </article>
-              <article className="metric-card">
-                <span className="metric-label">{readyMetricLabel}</span>
-                <strong className="metric-value">{readyMetricValue}</strong>
-              </article>
-              <article className="metric-card">
-                <span className="metric-label">방 상태</span>
-                <strong className="metric-value">{getRoomStatusLabel(snapshot.room.status)}</strong>
-                <span className="metric-detail">팀 배정과 시작 가능 여부를 의미합니다.</span>
-              </article>
-            </div>
-          </section>
-
+        <div className="lobby-main-column lobby-sidebar-column">
           <ReadyPanel
             me={snapshot.me}
             teamSlots={snapshot.teamSlots}
             viewMode={snapshot.viewMode}
             isHost={isHost}
             isPracticeMode={isPracticeMode}
+            compact
             isSubmitting={isSubmitting}
             errorMessage={errorMessage}
             statusMessage={statusMessage}
@@ -192,44 +174,30 @@ export function LobbyShell({
           />
 
           {isHost ? (
-            <section className="panel panel-muted lobby-host-panel">
+            <section className="panel panel-accent panel-compact lobby-host-card">
               <div className="composer-header">
                 <div>
-                  <h3 className="panel-title">방장 진행</h3>
+                  <h3 className="panel-title">게임 시작</h3>
                   <p className="panel-copy">
-                    {isPracticeMode
-                      ? "연습방은 혼자 바로 시작할 수 있습니다."
-                      : "본인을 제외한 모든 참가자가 준비되면 게임 시작이 활성화됩니다."}
+                    {isPracticeMode ? "지금 바로 시작할 수 있습니다." : readyMetricDetail}
                   </p>
                 </div>
-                <span className="status-badge">방장</span>
+                <span className="status-badge">{isPracticeMode ? "연습" : "방장"}</span>
               </div>
-              <div className="action-row">
-                <button
-                  className="button-primary"
-                  type="button"
-                  onClick={onStartGame}
-                  disabled={!canStartGame || isHostActionSubmitting}
-                >
-                  {isHostActionSubmitting ? "게임 시작 중..." : "게임 시작"}
-                </button>
-              </div>
+              <button
+                className="button-primary"
+                type="button"
+                onClick={onStartGame}
+                disabled={!canStartGame || isHostActionSubmitting}
+              >
+                {isHostActionSubmitting ? "시작 준비 중..." : startButtonLabel}
+              </button>
             </section>
           ) : null}
-        </section>
 
-        <section className="span-6">
-          <PlayerRoster
-            players={snapshot.players}
-            visibility={snapshot.visibility}
-            redacted={snapshot.redacted}
-          />
-        </section>
-
-        <section className="span-6">
-          <TeamAssignmentBoard snapshot={snapshot} />
-        </section>
-      </div>
+          <TeamAssignmentBoard snapshot={snapshot} compact />
+        </div>
+      </section>
     </section>
   );
 }

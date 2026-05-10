@@ -1,23 +1,31 @@
 import type { RoomSnapshot } from "@/contracts/api";
 
-export function TeamAssignmentBoard({ snapshot }: { snapshot: RoomSnapshot }) {
+export function TeamAssignmentBoard({
+  snapshot,
+  compact = false,
+}: {
+  snapshot: RoomSnapshot;
+  compact?: boolean;
+}) {
   const hasAssignments = snapshot.currentAssignments.length > 0;
   const assignedPlayers = snapshot.players.filter((player) => player.teamSlotId !== null).length;
 
   return (
-    <section className="panel panel-muted">
+    <section className={`panel panel-muted${compact ? " panel-compact" : ""}`}>
       <div className="composer-header">
         <div>
           <h3 className="panel-title">랜덤 팀 배정</h3>
           <p className="panel-copy">
             {hasAssignments
               ? "현재 배정된 팀을 바로 확인할 수 있습니다."
-              : "방장이 배정을 누르면 여기서 팀이 정해집니다."}
+              : compact
+                ? "게임 시작 시 자동으로 팀이 정해집니다."
+                : "방장이 배정을 누르면 여기서 팀이 정해집니다."}
           </p>
         </div>
         <span className="status-badge">{assignedPlayers}/{snapshot.players.length}명</span>
       </div>
-      <div className="metric-grid">
+      <div className={`metric-grid${compact ? " metric-grid-compact" : ""}`}>
         <article className="metric-card">
           <span className="metric-label">팀 수</span>
           <strong className="metric-value">{snapshot.teamSlots.length}</strong>
@@ -29,7 +37,7 @@ export function TeamAssignmentBoard({ snapshot }: { snapshot: RoomSnapshot }) {
           <span className="metric-detail">{hasAssignments ? "각 팀 구성을 바로 확인할 수 있습니다." : "방장이 랜덤 배정을 시작해야 합니다."}</span>
         </article>
       </div>
-      <div className="assignment-grid">
+      <div className={`assignment-grid${compact ? " assignment-grid-compact" : ""}`}>
         {snapshot.teamSlots.map((slot) => (
           <article className="assignment-card" key={slot.id}>
             <div className="roster-top">

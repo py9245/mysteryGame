@@ -26,6 +26,7 @@ export function ReadyPanel({
   viewMode,
   isHost = false,
   isPracticeMode = false,
+  compact = false,
   isSubmitting = false,
   errorMessage = null,
   statusMessage = null,
@@ -33,6 +34,7 @@ export function ReadyPanel({
 }: Pick<RoomSnapshot, "me" | "viewMode" | "teamSlots"> & {
   isHost?: boolean;
   isPracticeMode?: boolean;
+  compact?: boolean;
   isSubmitting?: boolean;
   errorMessage?: string | null;
   statusMessage?: string | null;
@@ -41,7 +43,7 @@ export function ReadyPanel({
   const myTeamLabel = teamSlots.find((teamSlot) => teamSlot.id === me.teamSlotId)?.label ?? "팀 배정 전";
 
   return (
-    <section className="panel panel-muted ready-panel">
+    <section className={`panel panel-muted ready-panel${compact ? " panel-compact" : ""}`}>
       <div className="composer-header">
         <div>
           <h3 className="panel-title">준비 상태</h3>
@@ -57,7 +59,7 @@ export function ReadyPanel({
           {isHost ? "방장" : me.isReady ? "준비 완료" : "대기 중"}
         </span>
       </div>
-      <div className="metric-grid">
+      <div className={`metric-grid${compact ? " metric-grid-compact" : ""}`}>
         <article className="metric-card">
           <span className="metric-label">현재 상태</span>
           <strong className="metric-value">{getViewModeLabel(viewMode)}</strong>

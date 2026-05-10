@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
@@ -506,6 +507,10 @@ function generateRoomCode(length = 4): string {
     result += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)] ?? "A";
   }
   return result;
+}
+
+function createEntityId(): string {
+  return randomUUID();
 }
 
 function normalizeRoomMode(mode: unknown, fallback: RoomMode = "public"): RoomMode {
@@ -4398,7 +4403,7 @@ function buildQuestionCostScoreEvent(input: {
   reasonCode: string;
 }): ScoreEvent {
   return buildQuestionCostEvent({
-    id: `score-question-${input.questionId}`,
+    id: createEntityId(),
     roomId: input.roomId,
     gameId: input.gameId,
     stageId: input.stageId,
@@ -4422,7 +4427,7 @@ function buildWrongAnswerCostScoreEvent(input: {
   reasonCode: string;
 }): ScoreEvent {
   return buildWrongAnswerCostEvent({
-    id: `score-answer-${input.answerAttemptId}`,
+    id: createEntityId(),
     roomId: input.roomId,
     gameId: input.gameId,
     stageId: input.stageId,
@@ -4453,7 +4458,7 @@ function buildStageEndPenaltyEvents(input: {
 
     return [
       createScoreEvent({
-        id: `score-unsolved-${input.stageId}-${playerId}`,
+        id: createEntityId(),
         roomId: input.roomId,
         gameId: input.gameId,
         stageId: input.stageId,
@@ -4565,7 +4570,7 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
 
       timeTickEvents.push(
         buildTimeTickEvent({
-          id: `score-time-${stage.id}-${playerState.player_id}-${chargedSeconds + 1}-${elapsedSeconds}`,
+          id: createEntityId(),
           roomId,
           gameId: game.id,
           stageId: stage.id,
@@ -5135,8 +5140,10 @@ export async function submitAnswerInStore(
         stageId,
         playerId,
         createdAt: nowIso,
-        createId: () =>
-          `score-bonus-${answerRow.id}-${bonusEventIndex++}`,
+        createId: () => {
+          bonusEventIndex += 1;
+          return createEntityId();
+        },
         matchedBonusKeywords: resolution.matchedBonusKeywords,
         metadata: {
           answerAttemptId: answerRow.id,
