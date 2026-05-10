@@ -30,6 +30,10 @@ function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
   return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
 }
 
+function shouldPollRoomSnapshot(): boolean {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
 export function LobbyClientShell({
   initialSnapshot,
   initialChatMessages,
@@ -52,6 +56,10 @@ export function LobbyClientShell({
     let mounted = true;
 
     async function refreshSnapshot() {
+      if (!shouldPollRoomSnapshot()) {
+        return;
+      }
+
       try {
         const response = await fetch(buildSnapshotEndpoint(snapshot), {
           method: "GET",
@@ -78,7 +86,7 @@ export function LobbyClientShell({
 
     const intervalId = window.setInterval(() => {
       void refreshSnapshot();
-    }, 10_000);
+    }, 12_000);
 
     return () => {
       mounted = false;

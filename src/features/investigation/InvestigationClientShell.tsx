@@ -32,6 +32,10 @@ function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
   return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
 }
 
+function shouldPollRoomSnapshot(): boolean {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
 function getRemainingSeconds(snapshot: RoomSnapshot, nowMs: number): number {
   const investigation = snapshot.stage?.investigation;
   if (!investigation) {
@@ -97,6 +101,10 @@ export function InvestigationClientShell({
     let mounted = true;
 
     async function refreshSnapshot() {
+      if (!shouldPollRoomSnapshot()) {
+        return;
+      }
+
       try {
         const response = await fetch(buildSnapshotEndpoint(snapshot), {
           method: "GET",
@@ -135,7 +143,7 @@ export function InvestigationClientShell({
 
     const intervalId = window.setInterval(() => {
       void refreshSnapshot();
-    }, 3000);
+    }, 5000);
 
     return () => {
       mounted = false;

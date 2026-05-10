@@ -25,6 +25,10 @@ function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
   return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
 }
 
+function shouldPollRoomSnapshot(): boolean {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
 export function GameplayClientShell({
   initialSnapshot,
   runtime,
@@ -54,6 +58,10 @@ export function GameplayClientShell({
     let mounted = true;
 
     async function refreshSnapshot() {
+      if (!shouldPollRoomSnapshot()) {
+        return;
+      }
+
       try {
         const response = await fetch(buildSnapshotEndpoint(snapshot), {
           method: "GET",
@@ -80,7 +88,7 @@ export function GameplayClientShell({
 
     const intervalId = window.setInterval(() => {
       void refreshSnapshot();
-    }, 4000);
+    }, 8000);
 
     return () => {
       mounted = false;

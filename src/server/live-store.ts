@@ -1903,16 +1903,21 @@ async function loadLobbyState(roomId: string): Promise<{
   };
 }
 
-async function loadSyncedLobbyState(roomId: string) {
+async function loadSyncedLobbyState(
+  roomId: string,
+  options: { cleanupPresence?: boolean } = {},
+) {
   const room = await findRoomByRef(roomId);
   if (!room) {
     throw new Error("Room not found during synchronized lobby load.");
   }
 
-  await cleanupStalePlayersInRoom(room);
-  const refreshedRoom = await findRoomByRef(roomId);
-  if (!refreshedRoom) {
-    throw new Error("Room was removed during presence cleanup.");
+  if (options.cleanupPresence !== false) {
+    await cleanupStalePlayersInRoom(room);
+    const refreshedRoom = await findRoomByRef(roomId);
+    if (!refreshedRoom) {
+      throw new Error("Room was removed during presence cleanup.");
+    }
   }
 
   await syncDerivedStageState(roomId);
@@ -2669,7 +2674,9 @@ export async function getRoomSnapshotFromStore(
     return null;
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadSyncedLobbyState(room.id, {
+    cleanupPresence: !viewerPlayerId,
+  });
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
   return buildSnapshotFromState(state, caseSummary, viewerPlayerId);
 }
