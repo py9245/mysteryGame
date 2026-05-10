@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RoomSnapshot } from "@/features/mock/mock-room-snapshot";
+import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 import {
   submitAcquireInvestigationLock,
   submitReleaseInvestigationLock,
@@ -19,6 +20,16 @@ import { InvestigationPanel } from "./InvestigationPanel";
 function buildDraftStorageKey(snapshot: RoomSnapshot): string {
   const stageId = snapshot.stage?.stageId ?? "stage";
   return `investigation-draft:${snapshot.room.id}:${stageId}:${snapshot.me.playerId}`;
+}
+
+function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
+  const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
+  const params = new URLSearchParams({
+    playerId: snapshot.me.playerId,
+    stageNumber: String(stageNumber),
+  });
+
+  return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
 }
 
 function getRemainingSeconds(snapshot: RoomSnapshot, nowMs: number): number {
@@ -81,6 +92,62 @@ export function InvestigationClientShell({
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function refreshSnapshot() {
+      try {
+        const response = await fetch(buildSnapshotEndpoint(snapshot), {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as unknown;
+        const nextSnapshot =
+          typeof payload === "object" && payload !== null && "data" in payload
+            ? normalizeRoomSnapshot((payload as { data: unknown }).data)
+            : normalizeRoomSnapshot(payload);
+
+        if (!mounted) {
+          return;
+        }
+
+        const nextLockOwnerId = nextSnapshot.stage?.investigation?.lockedByPlayerId ?? null;
+        if (
+          snapshot.stage?.investigation?.queuePosition &&
+          nextLockOwnerId === snapshot.me.playerId &&
+          nextLockOwnerId !== snapshot.stage?.investigation?.lockedByPlayerId
+        ) {
+          setStatusMessage("차례가 와서 질문방에 자동 입장했습니다.");
+          setErrorMessage(null);
+        }
+
+        setSnapshot(nextSnapshot);
+      } catch {
+        // Polling is best effort only.
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshSnapshot();
+    }, 3000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    snapshot.room.id,
+    snapshot.me.playerId,
+    snapshot.stage?.stageNumber,
+    snapshot.stage?.investigation?.queuePosition,
+    snapshot.stage?.investigation?.lockedByPlayerId,
+  ]);
 
   useEffect(() => {
     try {
