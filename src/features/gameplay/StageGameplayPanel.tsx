@@ -10,10 +10,24 @@ export function StageGameplayPanel({
   snapshot,
   runtime,
   currentStageNumber,
+  nowMs,
+  isSubmittingPrivateChat = false,
+  privateChatStatusMessage = null,
+  privateChatErrorMessage = null,
+  onRequestPrivateChat,
+  onRespondPrivateChat,
+  onEndPrivateChat,
 }: {
   snapshot: RoomSnapshot;
   runtime: LoadedGameRuntimeSnapshot;
   currentStageNumber?: number;
+  nowMs?: number;
+  isSubmittingPrivateChat?: boolean;
+  privateChatStatusMessage?: string | null;
+  privateChatErrorMessage?: string | null;
+  onRequestPrivateChat?: (targetPlayerId: string) => void;
+  onRespondPrivateChat?: (requestId: string, accept: boolean) => void;
+  onEndPrivateChat?: (sessionId: string) => void;
 }) {
   const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
 
@@ -53,7 +67,17 @@ export function StageGameplayPanel({
         </section>
 
         <section className="gameplay-column gameplay-column-right">
-          <GameplayUtilityRail snapshot={snapshot} runtime={runtime} />
+          <GameplayUtilityRail
+            snapshot={snapshot}
+            runtime={runtime}
+            nowMs={nowMs}
+            isSubmittingPrivateChat={isSubmittingPrivateChat}
+            privateChatStatusMessage={privateChatStatusMessage}
+            privateChatErrorMessage={privateChatErrorMessage}
+            onRequestPrivateChat={onRequestPrivateChat}
+            onRespondPrivateChat={onRespondPrivateChat}
+            onEndPrivateChat={onEndPrivateChat}
+          />
         </section>
       </div>
     </section>

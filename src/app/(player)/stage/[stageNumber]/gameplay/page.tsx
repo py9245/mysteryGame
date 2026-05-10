@@ -1,4 +1,4 @@
-import { StageGameplayPanel } from "@/features/gameplay/StageGameplayPanel";
+import { GameplayClientShell } from "@/features/gameplay/GameplayClientShell";
 import { loadGameRuntimeSnapshot } from "@/features/gameplay/game-runtime-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
@@ -22,5 +22,11 @@ export default async function GameplayPage({
   });
   const runtime = await loadGameRuntimeSnapshot({ roomId: snapshot.room.id });
 
-  return <StageGameplayPanel snapshot={snapshot} runtime={runtime} currentStageNumber={resolvedStageNumber} />;
+  return (
+    <GameplayClientShell
+      initialSnapshot={snapshot}
+      runtime={runtime}
+      currentStageNumber={resolvedStageNumber}
+    />
+  );
 }

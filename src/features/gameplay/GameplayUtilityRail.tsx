@@ -8,9 +8,23 @@ import { PlayerActionPanel } from "./PlayerActionPanel";
 export function GameplayUtilityRail({
   snapshot,
   runtime,
+  nowMs,
+  isSubmittingPrivateChat = false,
+  privateChatStatusMessage = null,
+  privateChatErrorMessage = null,
+  onRequestPrivateChat,
+  onRespondPrivateChat,
+  onEndPrivateChat,
 }: {
   snapshot: RoomSnapshot;
   runtime: LoadedGameRuntimeSnapshot;
+  nowMs?: number;
+  isSubmittingPrivateChat?: boolean;
+  privateChatStatusMessage?: string | null;
+  privateChatErrorMessage?: string | null;
+  onRequestPrivateChat?: (targetPlayerId: string) => void;
+  onRespondPrivateChat?: (requestId: string, accept: boolean) => void;
+  onEndPrivateChat?: (sessionId: string) => void;
 }) {
   return (
     <aside className="gameplay-utility-rail">
@@ -22,8 +36,17 @@ export function GameplayUtilityRail({
       </section>
       <PlayerActionPanel snapshot={snapshot} />
       <MyScoreCard snapshot={snapshot} />
-      <InvestigationQueueBanner snapshot={snapshot} />
-      <PrivateChatBanner snapshot={snapshot} />
+      <InvestigationQueueBanner snapshot={snapshot} players={snapshot.players} nowMs={nowMs} />
+      <PrivateChatBanner
+        snapshot={snapshot}
+        nowMs={nowMs}
+        isSubmitting={isSubmittingPrivateChat}
+        statusMessage={privateChatStatusMessage}
+        errorMessage={privateChatErrorMessage}
+        onRequestPrivateChat={onRequestPrivateChat}
+        onRespondPrivateChat={onRespondPrivateChat}
+        onEndPrivateChat={onEndPrivateChat}
+      />
       {runtime.source !== "api" ? (
         <section className="panel panel-muted utility-card gameplay-runtime-note">
           <div className="composer-header">
