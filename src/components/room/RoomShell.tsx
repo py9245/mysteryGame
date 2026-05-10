@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { RoomSnapshot } from "@/contracts/api";
 import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
@@ -35,6 +36,7 @@ export function RoomShell({
 
   return (
     <section className="page-shell">
+      <RoomPresenceClient roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
       <header className="page-header">
         <div className="header-top-row">
           <div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
 import type { ChatMessage } from "@/contracts/game";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
+import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import {
   submitAssignTeams,
@@ -12,6 +13,22 @@ import {
 } from "@/features/lobby/host-stage-command";
 import { submitSetReady } from "@/features/lobby/set-ready-command";
 import { LobbyShell } from "./LobbyShell";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
+  const params = new URLSearchParams({
+    playerId: snapshot.me.playerId,
+  });
+
+  if (snapshot.stage?.stageNumber) {
+    params.set("stageNumber", String(snapshot.stage.stageNumber));
+  }
+
+  return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
+}
 
 export function LobbyClientShell({
   initialSnapshot,
@@ -30,6 +47,44 @@ export function LobbyClientShell({
   const [isHostActionSubmitting, setIsHostActionSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function refreshSnapshot() {
+      try {
+        const response = await fetch(buildSnapshotEndpoint(snapshot), {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as unknown;
+        const nextSnapshot =
+          isRecord(payload) && "data" in payload
+            ? normalizeRoomSnapshot(payload.data)
+            : normalizeRoomSnapshot(payload);
+
+        if (mounted) {
+          setSnapshot(nextSnapshot);
+        }
+      } catch {
+        // Lobby refresh is best effort only.
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshSnapshot();
+    }, 10_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [snapshot.room.id, snapshot.me.playerId, snapshot.stage?.stageNumber]);
 
   function resolveCaseKey(stageNumber: number): string {
     return `case-${String(stageNumber).padStart(3, "0")}`;

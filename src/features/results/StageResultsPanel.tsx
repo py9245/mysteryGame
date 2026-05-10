@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { StageResultsSummary } from "@/components/results/StageResultsSummary";
 import { RankingTable } from "@/components/results/RankingTable";
@@ -15,6 +16,11 @@ export function StageResultsPanel({
 }) {
   return (
     <section className="page-shell">
+      <RoomPresenceClient
+        roomId={snapshot.room.id}
+        playerId={snapshot.me.playerId}
+        stageNumber={currentStageNumber ?? snapshot.stage?.stageNumber}
+      />
       <header className="page-header">
         <div className="header-top-row">
           <div>

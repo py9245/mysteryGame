@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { StageRuleBulletList } from "./StageRuleBulletList";
 import { StageStartCountdown } from "./StageStartCountdown";
@@ -7,6 +8,11 @@ import { StageStartCountdown } from "./StageStartCountdown";
 export function StageBriefingPanel({ snapshot }: { snapshot: RoomSnapshot }) {
   return (
     <section className="page-shell">
+      <RoomPresenceClient
+        roomId={snapshot.room.id}
+        playerId={snapshot.me.playerId}
+        stageNumber={snapshot.stage?.stageNumber}
+      />
       <header className="page-header">
         <div className="header-top-row">
           <div>

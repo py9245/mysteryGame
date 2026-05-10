@@ -320,6 +320,7 @@ const DEFAULT_STAGE_DURATION_SECONDS = 15 * 60;
 const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
 const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
 const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
+const ROOM_PRESENCE_TTL_SECONDS = 30;
 
 type CaseSummary = {
   title: string;
@@ -1903,6 +1904,17 @@ async function loadLobbyState(roomId: string): Promise<{
 }
 
 async function loadSyncedLobbyState(roomId: string) {
+  const room = await findRoomByRef(roomId);
+  if (!room) {
+    throw new Error("Room not found during synchronized lobby load.");
+  }
+
+  await cleanupStalePlayersInRoom(room);
+  const refreshedRoom = await findRoomByRef(roomId);
+  if (!refreshedRoom) {
+    throw new Error("Room was removed during presence cleanup.");
+  }
+
   await syncDerivedStageState(roomId);
   return loadLobbyState(roomId);
 }
@@ -2630,6 +2642,16 @@ export async function getRoomSnapshotFromStore(
     return null;
   }
 
+  if (viewerPlayerId) {
+    await touchPlayerPresence(room.id, viewerPlayerId);
+    await cleanupStalePlayersInRoom(room, viewerPlayerId);
+  }
+
+  const refreshedRoom = await findRoomByRef(room.id);
+  if (!refreshedRoom) {
+    return null;
+  }
+
   const state = await loadSyncedLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
   return buildSnapshotFromState(state, caseSummary, viewerPlayerId);
@@ -2637,6 +2659,185 @@ export async function getRoomSnapshotFromStore(
 
 function resolveLobbyStatus(players: DbPlayerRow[], maxPlayers: number): Room["status"] {
   return players.length === maxPlayers && players.every((player) => player.is_ready) ? "ready" : "waiting";
+}
+
+function isPresenceManagedRoomStatus(status: Room["status"]): boolean {
+  return status === "waiting" || status === "ready" || status === "assigning";
+}
+
+function isPlayerPresenceStale(player: Pick<DbPlayerRow, "last_seen_at">, nowIso: string): boolean {
+  if (!player.last_seen_at) {
+    return true;
+  }
+
+  return hasExpired(addSeconds(player.last_seen_at, ROOM_PRESENCE_TTL_SECONDS), nowIso);
+}
+
+async function removePlayerFromRoomRecord(
+  room: DbRoomRow,
+  playerId: string,
+): Promise<{
+  roomDeleted: boolean;
+  remainingPlayerCount: number;
+  nextHostPlayerId: string | null;
+}> {
+  const supabase = getSupabaseAdminClient();
+  const { error: deletePlayerError } = await supabase
+    .from("players")
+    .delete()
+    .eq("id", playerId)
+    .eq("room_id", room.id);
+
+  if (deletePlayerError) {
+    throw new Error(`Failed to remove player from room: ${deletePlayerError.message}`);
+  }
+
+  const { data: remainingPlayers, error: playersError } = await supabase
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .order("joined_at", { ascending: true })
+    .returns<DbPlayerRow[]>();
+
+  if (playersError) {
+    throw new Error(`Failed to load remaining players after removal: ${playersError.message}`);
+  }
+
+  const nextPlayers = remainingPlayers ?? [];
+
+  if (nextPlayers.length === 0) {
+    const { error: deleteRoomError } = await supabase.from("rooms").delete().eq("id", room.id);
+
+    if (deleteRoomError) {
+      throw new Error(`Failed to delete empty room: ${deleteRoomError.message}`);
+    }
+
+    return {
+      roomDeleted: true,
+      remainingPlayerCount: 0,
+      nextHostPlayerId: null,
+    };
+  }
+
+  let nextHostPlayerId = nextPlayers.find((player) => player.role === "host")?.id ?? null;
+
+  if (!nextHostPlayerId) {
+    const nextHost = nextPlayers[0] ?? null;
+    if (nextHost) {
+      const { error: hostUpdateError } = await supabase
+        .from("players")
+        .update({
+          role: "host",
+          last_seen_at: nowUtcIso(),
+        })
+        .eq("id", nextHost.id)
+        .eq("room_id", room.id);
+
+      if (hostUpdateError) {
+        throw new Error(`Failed to promote next host: ${hostUpdateError.message}`);
+      }
+
+      nextHostPlayerId = nextHost.id;
+    }
+  }
+
+  const nextRoomStatus =
+    room.status === "in_game" || room.status === "closed"
+      ? room.status
+      : resolveLobbyStatus(nextPlayers, room.max_players);
+
+  if (room.status !== nextRoomStatus) {
+    const { error: roomStatusError } = await supabase
+      .from("rooms")
+      .update({
+        status: nextRoomStatus,
+        updated_at: nowUtcIso(),
+      })
+      .eq("id", room.id);
+
+    if (roomStatusError) {
+      throw new Error(`Failed to recalculate room status: ${roomStatusError.message}`);
+    }
+  }
+
+  return {
+    roomDeleted: false,
+    remainingPlayerCount: nextPlayers.length,
+    nextHostPlayerId,
+  };
+}
+
+async function cleanupStalePlayersInRoom(room: DbRoomRow, excludePlayerId?: string): Promise<boolean> {
+  if (!isPresenceManagedRoomStatus(room.status)) {
+    return false;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data: players, error: playersError } = await supabase
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .order("joined_at", { ascending: true })
+    .returns<DbPlayerRow[]>();
+
+  if (playersError) {
+    throw new Error(`Failed to load room players for presence cleanup: ${playersError.message}`);
+  }
+
+  const nowIso = nowUtcIso();
+  const stalePlayers = (players ?? []).filter(
+    (player) => player.id !== excludePlayerId && isPlayerPresenceStale(player, nowIso),
+  );
+
+  let changed = false;
+
+  for (const stalePlayer of stalePlayers) {
+    await removePlayerFromRoomRecord(room, stalePlayer.id);
+    changed = true;
+  }
+
+  return changed;
+}
+
+async function cleanupStalePlayersInRoomDirectory(
+  rooms: DbRoomRow[],
+  players: DbPlayerRow[],
+): Promise<boolean> {
+  const nowIso = nowUtcIso();
+  let changed = false;
+
+  for (const room of rooms) {
+    if (!isPresenceManagedRoomStatus(room.status)) {
+      continue;
+    }
+
+    const stalePlayers = players.filter(
+      (player) => player.room_id === room.id && isPlayerPresenceStale(player, nowIso),
+    );
+
+    for (const stalePlayer of stalePlayers) {
+      await removePlayerFromRoomRecord(room, stalePlayer.id);
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function touchPlayerPresence(roomId: string, playerId: string): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from("players")
+    .update({
+      connection_status: "connected",
+      last_seen_at: nowUtcIso(),
+    })
+    .eq("id", playerId)
+    .eq("room_id", roomId);
+
+  if (error) {
+    throw new Error(`Failed to touch player presence: ${error.message}`);
+  }
 }
 
 export async function leaveRoomInStore(
@@ -2661,108 +2862,22 @@ export async function leaveRoomInStore(
     throw new LeaveRoomError("PLAYER_NOT_FOUND", "이미 방에서 나갔거나 플레이어 정보를 찾을 수 없습니다.");
   }
 
-  const supabase = getSupabaseAdminClient();
-  const { error: deletePlayerError } = await supabase
-    .from("players")
-    .delete()
-    .eq("id", playerId)
-    .eq("room_id", room.id);
-
-  if (deletePlayerError) {
+  let leaveResult;
+  try {
+    leaveResult = await removePlayerFromRoomRecord(room, playerId);
+  } catch (error) {
     throw new LeaveRoomError(
       "ROOM_LEAVE_FAILED",
-      `방에서 나가는 중 플레이어를 제거하지 못했습니다: ${deletePlayerError.message}`,
+      error instanceof Error ? error.message : "방에서 나가지 못했습니다.",
     );
-  }
-
-  const { data: remainingPlayers, error: playersError } = await supabase
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id)
-    .order("joined_at", { ascending: true })
-    .returns<DbPlayerRow[]>();
-
-  if (playersError) {
-    throw new LeaveRoomError(
-      "ROOM_LEAVE_FAILED",
-      `방 나가기 이후 남은 플레이어를 확인하지 못했습니다: ${playersError.message}`,
-    );
-  }
-
-  const nextPlayers = remainingPlayers ?? [];
-
-  if (nextPlayers.length === 0) {
-    const { error: deleteRoomError } = await supabase.from("rooms").delete().eq("id", room.id);
-
-    if (deleteRoomError) {
-      throw new LeaveRoomError(
-        "ROOM_LEAVE_FAILED",
-        `빈 방을 정리하지 못했습니다: ${deleteRoomError.message}`,
-      );
-    }
-
-    return {
-      roomId: room.id,
-      playerId,
-      roomDeleted: true,
-      remainingPlayerCount: 0,
-      nextHostPlayerId: null,
-    };
-  }
-
-  let nextHostPlayerId = nextPlayers.find((player) => player.role === "host")?.id ?? null;
-
-  if (!nextHostPlayerId) {
-    const nextHost = nextPlayers[0] ?? null;
-    if (nextHost) {
-      const { error: hostUpdateError } = await supabase
-        .from("players")
-        .update({
-          role: "host",
-          last_seen_at: nowUtcIso(),
-        })
-        .eq("id", nextHost.id)
-        .eq("room_id", room.id);
-
-      if (hostUpdateError) {
-        throw new LeaveRoomError(
-          "ROOM_LEAVE_FAILED",
-          `새 방장을 지정하지 못했습니다: ${hostUpdateError.message}`,
-        );
-      }
-
-      nextHostPlayerId = nextHost.id;
-    }
-  }
-
-  const nextRoomStatus =
-    room.status === "in_game" || room.status === "closed"
-      ? room.status
-      : resolveLobbyStatus(nextPlayers, room.max_players);
-
-  if (room.status !== nextRoomStatus) {
-    const { error: roomStatusError } = await supabase
-      .from("rooms")
-      .update({
-        status: nextRoomStatus,
-        updated_at: nowUtcIso(),
-      })
-      .eq("id", room.id);
-
-    if (roomStatusError) {
-      throw new LeaveRoomError(
-        "ROOM_LEAVE_FAILED",
-        `방 상태를 다시 계산하지 못했습니다: ${roomStatusError.message}`,
-      );
-    }
   }
 
   return {
     roomId: room.id,
     playerId,
-    roomDeleted: false,
-    remainingPlayerCount: nextPlayers.length,
-    nextHostPlayerId,
+    roomDeleted: leaveResult.roomDeleted,
+    remainingPlayerCount: leaveResult.remainingPlayerCount,
+    nextHostPlayerId: leaveResult.nextHostPlayerId,
   };
 }
 
@@ -5552,9 +5667,9 @@ export async function listRoomDirectoryFromStore(input: {
   search?: string | null;
 } = {}): Promise<ListRoomDirectoryResponse> {
   const supabase = getSupabaseAdminClient();
-  const [roomsResult, playersResult] = await Promise.all([
+  let [roomsResult, playersResult] = await Promise.all([
     supabase.from("rooms").select("*").returns<DbRoomRow[]>(),
-    supabase.from("players").select("room_id, id").returns<Array<{ room_id: string; id: string }>>(),
+    supabase.from("players").select("room_id, id, last_seen_at, joined_at, role, nickname, is_ready, connection_status, total_score, solved_count, bonus_keyword_count, created_at, updated_at").returns<DbPlayerRow[]>(),
   ]);
 
   if (roomsResult.error) {
@@ -5563,6 +5678,21 @@ export async function listRoomDirectoryFromStore(input: {
 
   if (playersResult.error) {
     throw new Error(`Failed to count room players: ${playersResult.error.message}`);
+  }
+
+  if (await cleanupStalePlayersInRoomDirectory(roomsResult.data ?? [], playersResult.data ?? [])) {
+    [roomsResult, playersResult] = await Promise.all([
+      supabase.from("rooms").select("*").returns<DbRoomRow[]>(),
+      supabase.from("players").select("room_id, id, last_seen_at, joined_at, role, nickname, is_ready, connection_status, total_score, solved_count, bonus_keyword_count, created_at, updated_at").returns<DbPlayerRow[]>(),
+    ]);
+
+    if (roomsResult.error) {
+      throw new Error(`Failed to reload rooms after presence cleanup: ${roomsResult.error.message}`);
+    }
+
+    if (playersResult.error) {
+      throw new Error(`Failed to reload players after presence cleanup: ${playersResult.error.message}`);
+    }
   }
 
   const search = input.search?.trim() ?? "";
