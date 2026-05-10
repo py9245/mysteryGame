@@ -5,7 +5,6 @@ import type {
   SendChatMessageResponse,
 } from "@/contracts/api";
 import { sendChatMessageToStore } from "@/server/live-store";
-import { isSendableChatChannel } from "@/server/sample-chat-messages";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export const runtime = "nodejs";
@@ -62,6 +61,12 @@ function normalizeOptionalString(
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function isSendableChatChannel(
+  channel: unknown,
+): channel is SendChatMessageRequest["channel"] {
+  return channel === "global" || channel === "team" || channel === "private";
 }
 
 function validateSendChatMessageRequest(
