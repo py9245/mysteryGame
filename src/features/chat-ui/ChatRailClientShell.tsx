@@ -64,13 +64,13 @@ export function ChatRailClientShell({
   const isLobby = variant === "lobby";
 
   return (
-    <aside className={`chat-rail chat-shell chat-rail-layout${isLobby ? " lobby-chat-layout" : ""}`}>
+    <aside className={`chat-rail chat-shell chat-rail-layout mt-chat-rail${isLobby ? " lobby-chat-layout" : ""}`}>
       <section className="chat-main-panel chat-primary-panel">
         <div className="composer-header">
           <div>
-            <h3 className="panel-title">전체 채팅</h3>
+            <h3 className="panel-title">채팅</h3>
             <p className="panel-copy">
-              {isLobby ? "방 전체 대화입니다." : "방 전체가 함께 보는 대화입니다. 시작 전 논의와 게임 중 공개 발언이 여기에 쌓입니다."}
+              {isLobby ? "대기실 전체 대화" : "공개 대화"}
             </p>
           </div>
           <span className="status-badge" data-tone={source === "api" ? "live" : "alert"}>
@@ -85,16 +85,16 @@ export function ChatRailClientShell({
         <section className="chat-section chat-support-panel">
           <div className="composer-header">
             <div>
-              <h4>{isLobby ? "메시지 입력" : "보조 채팅"}</h4>
+              <h4>{isLobby ? "메시지" : "시스템"}</h4>
               <p className="panel-copy">
-                {isLobby ? "채널을 고르고 바로 메시지를 보냅니다." : "시스템 안내와 최근 공개 대화를 빠르게 다시 확인합니다."}
+                {isLobby ? "채널 선택 후 전송" : "최근 안내"}
               </p>
             </div>
             <span className="status-badge">{isLobby ? "입력" : systemMessages.length > 0 ? "시스템" : "보조"}</span>
           </div>
           {isLobby ? null : (
             <ChatMessageList
-              emptyMessage="아직 시스템 안내가 없습니다."
+              emptyMessage="아직 안내가 없습니다."
               messages={systemMessages.length > 0 ? systemMessages : globalMessages.slice(-3)}
             />
           )}

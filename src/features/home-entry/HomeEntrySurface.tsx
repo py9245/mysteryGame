@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type { CurrentViewer } from "@/contracts/account";
 import type {
   ApiResponse,
-  CreateRoomResponse,
   ListRoomDirectoryResponse,
   RoomDirectoryEntry,
 } from "@/contracts/api";
@@ -27,7 +26,6 @@ import {
 } from "./join-room-bootstrap";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { RoomModePicker } from "@/components/room/RoomModePicker";
-import { OnboardingGuide } from "@/components/onboarding/OnboardingGuide";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
 type RoomLaunchMode = "public" | "secret" | "practice";
@@ -43,21 +41,6 @@ function makeGuestNickname() {
   const rightIndex = Math.floor(Math.random() * right.length);
   const suffix = Math.floor(Math.random() * 90 + 10);
   return `${left[leftIndex]} ${right[rightIndex]} ${suffix}`;
-}
-
-function getRoomStatusLabel(status: string) {
-  switch (status) {
-    case "ready":
-      return "시작 가능";
-    case "assigning":
-      return "팀 편성 중";
-    case "in_game":
-      return "게임 진행 중";
-    case "closed":
-      return "종료";
-    default:
-      return "입장 대기";
-  }
 }
 
 function isAccountViewer(
@@ -566,11 +549,11 @@ export function HomeEntrySurface({
   }
 
   return (
-    <main className="page-shell home-page-shell">
-      <section className="page-header">
+    <main className="page-shell home-page-shell mt-product-home">
+      <section className="page-header mt-hero-header">
         <div className="header-top-row">
-          <div>
-            <p className="eyebrow">방 페이지</p>
+          <div className="mt-hero-copy">
+            <p className="eyebrow">Mystery Time</p>
             <h1 className="page-title">{pageTitle}</h1>
             <p className="page-kicker">{pageKicker}</p>
           </div>
@@ -578,47 +561,24 @@ export function HomeEntrySurface({
             <Link className="button-secondary button-compact" href="/">
               메인
             </Link>
-            <Link className="button-secondary button-compact" href="/rooms">
-              게임 시작
-            </Link>
             {surfaceMode !== "combined" ? (
               <Link className="button-secondary button-compact" href={secondarySurfaceHref}>
                 {secondarySurfaceLabel}
               </Link>
             ) : null}
             {accountViewer ? (
-              <>
-                {showAccountHistory ? (
-                  <a className="button-secondary button-compact" href="#my-records">
-                    내 전적
-                  </a>
-                ) : null}
-                <button
-                  className="button-secondary button-compact"
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                >
-                  {isLoggingOut ? "정리 중..." : "로그아웃"}
-                </button>
-              </>
+              <button
+                className="button-secondary button-compact"
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? "로그아웃 중" : "로그아웃"}
+              </button>
             ) : (
-              <>
-                <button
-                  className="button-secondary button-compact"
-                  type="button"
-                  onClick={() => openAuthModal("login")}
-                >
-                  로그인
-                </button>
-                <button
-                  className="button-primary button-compact"
-                  type="button"
-                  onClick={() => openAuthModal("register")}
-                >
-                  회원가입
-                </button>
-              </>
+              <button className="button-secondary button-compact" type="button" onClick={() => openAuthModal("login")}>
+                로그인
+              </button>
             )}
             <RulebookLauncher label="룰북" compact scope="main" />
           </div>
@@ -627,69 +587,50 @@ export function HomeEntrySurface({
 
       {identityError ? <p className="message-negative">{identityError}</p> : null}
       {authSuccessMessage ? <p className="message-positive">{authSuccessMessage}</p> : null}
+      {launchResultMessage ? <p className="message-note">{launchResultMessage}</p> : null}
 
-      <section className="home-hero-layout">
-        <article className="panel panel-accent home-hero-main">
-          <div className="composer-header">
-            <div>
-              <h2 className="panel-title">
-                {showJoinSurface && showCreateSurface
-                  ? "지금 바로 게임에 들어갈 수 있습니다"
-                  : showJoinSurface
-                    ? "들어갈 방을 고르면 바로 대기방으로 이동합니다"
-                    : "방을 열면 바로 방장으로 대기방에 들어갑니다"}
-              </h2>
-              <p className="panel-copy">
-                {showJoinSurface && showCreateSurface
-                  ? "코드로 합류하거나, 열린 방을 고르거나, 직접 방을 열면 됩니다."
-                  : showJoinSurface
-                    ? "입장 코드 입력이나 공개방 선택이 성공하면 즉시 대기방으로 넘어갑니다."
-                    : "방 종류와 제목을 정하고 생성이 끝나면 즉시 대기방으로 넘어갑니다."}
-              </p>
-            </div>
-            <span className="status-badge" data-tone={accountViewer ? "live" : isGuestIdentityBooting ? "alert" : "live"}>
-              {accountViewer ? "계정 사용 중" : isGuestIdentityBooting ? "불러오는 중" : "바로 플레이 가능"}
+      <section className="home-hero-layout mt-home-stage">
+        <article className="panel panel-accent home-hero-main mt-command-card">
+          <div className="mt-command-topline">
+            <span className="status-badge" data-tone={hasPlayableIdentity ? "live" : "alert"}>
+              {hasPlayableIdentity ? "입장 가능" : "이름 준비 중"}
             </span>
+            <span className="room-code-chip">{displayNickname}</span>
           </div>
 
-          <div className="metric-grid home-identity-summary">
+          <div className="mt-command-body">
+            <h2 className="mt-command-title">
+              {showJoinSurface && showCreateSurface
+                ? "초대 코드가 있으면 바로 들어가고, 없으면 방을 열면 됩니다."
+                : showJoinSurface
+                  ? "입장할 방만 고르면 바로 대기실로 이동합니다."
+                  : "방 설정을 끝내면 바로 대기실이 열립니다."}
+            </h2>
+            <p className="panel-copy">
+              사건을 열고 참가자를 모아 추리를 시작하세요.
+            </p>
+          </div>
+
+          <div className="metric-grid home-identity-summary mt-command-metrics">
             <article className="metric-card metric-card-emphasis">
-              <span className="metric-label">플레이 이름</span>
+              <span className="metric-label">플레이어</span>
               <strong className="metric-value">{displayNickname}</strong>
-              <span className="metric-detail">
-                {accountViewer
-                  ? "이 계정 이름으로 방 입장과 전적 저장이 함께 이어집니다."
-                  : "이 브라우저에서 바로 사용할 임시 이름입니다."}
-              </span>
+              <span className="metric-detail">{accountViewer ? "계정 전적 저장" : "게스트 즉시 플레이"}</span>
             </article>
-            <article className="metric-card">
-              <span className="metric-label">시작 방법</span>
-              <strong className="metric-value">
-                {showJoinSurface && showCreateSurface
-                  ? "코드 합류 · 공개방 · 새 방"
-                  : showJoinSurface
-                    ? "코드 합류 · 공개방"
-                    : "공개방 · 비밀방 · 연습방"}
-              </strong>
-              <span className="metric-detail">
-                {showJoinSurface && showCreateSurface
-                  ? "지금 필요한 선택지만 먼저 보여줍니다."
-                  : showJoinSurface
-                    ? "원하는 방에 합류하는 데 필요한 선택지만 남겼습니다."
-                    : "방 생성에 필요한 설정만 먼저 다룹니다."}
-              </span>
-            </article>
-            <article className="metric-card">
-              <span className="metric-label">{accountViewer ? "내 전적" : "계정"}</span>
-              <strong className="metric-value">
-                {accountViewer ? `${accountViewer.stats.wins}승 ${accountViewer.stats.losses}패` : "로그인 / 회원가입"}
-              </strong>
-              <span className="metric-detail">
-                {accountViewer
-                  ? `평균 ${formatRank(accountViewer.stats.averageRank)} · 승률 ${formatPercentage(accountViewer.stats.winRate)}`
-                  : "로그인하면 승패와 최근 기록이 같은 계정에 누적됩니다."}
-              </span>
-            </article>
+            {showJoinSurface ? (
+              <article className="metric-card">
+                <span className="metric-label">열린 방</span>
+                <strong className="metric-value">{isDirectoryLoading ? "확인 중" : `${roomDirectory.length}개`}</strong>
+                <span className="metric-detail">코드 입장 또는 공개방 선택</span>
+              </article>
+            ) : null}
+            {showCreateSurface ? (
+              <article className="metric-card">
+                <span className="metric-label">방 설정</span>
+                <strong className="metric-value">{roomModeSummary.label}</strong>
+                <span className="metric-detail">{resolvedStageCount}스테이지 · {resolvedMaxPlayers}명</span>
+              </article>
+            ) : null}
           </div>
 
           <div className="home-hero-actions">
@@ -699,92 +640,66 @@ export function HomeEntrySurface({
                   코드로 입장
                 </a>
                 <a className="button-secondary" href="#open-rooms">
-                  공개방 찾기
+                  열린 방 보기
                 </a>
               </>
             ) : null}
             {showCreateSurface ? (
               <a className="button-primary" href="#create-room">
-                방 만들기
+                새 방 만들기
               </a>
-            ) : null}
-            {surfaceMode !== "combined" ? (
-              <Link className="button-secondary" href={secondarySurfaceHref}>
-                {secondarySurfaceLabel}
-              </Link>
             ) : null}
           </div>
         </article>
 
-        <aside className="home-side-stack">
+        <aside className="home-side-stack mt-action-stack">
           {showJoinSurface ? (
-            <article className="panel home-action-card" id="quick-join">
+            <article className="panel home-action-card mt-glass-card" id="quick-join">
               <div className="composer-header">
                 <div>
-                  <h2 className="panel-title">입장 코드로 합류</h2>
-                  <p className="panel-copy">초대 코드를 알고 있다면 바로 대기실로 들어갑니다.</p>
+                  <h2 className="panel-title">코드 입장</h2>
+                  <p className="panel-copy">초대 코드만 입력하면 대기실로 이동합니다.</p>
                 </div>
                 <span className="status-badge" data-tone={hasPlayableIdentity ? "live" : "alert"}>
-                  {hasPlayableIdentity ? "준비 완료" : "불러오는 중"}
+                  {hasPlayableIdentity ? "준비됨" : "대기"}
                 </span>
               </div>
 
-              <p className="message-note">
-                현재 사용할 이름 <strong>{displayNickname}</strong>
-                {isGuestIdentityBooting ? " · 잠시만 기다려 주세요." : ""}
-              </p>
-
-              <form onSubmit={handleJoinSubmit} className="field-group">
-                <div className="home-quick-join-grid">
-                  <label className="field">
-                    <span>입장 코드</span>
-                    <input
-                      className="text-input"
-                      type="text"
-                      value={joinRoomCode}
-                      onChange={(event) => setJoinRoomCode(event.target.value.toUpperCase())}
-                      placeholder="예: A7K3"
-                      maxLength={6}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>비밀번호</span>
-                    <input
-                      className="text-input"
-                      type="password"
-                      value={joinRoomPassword}
-                      onChange={(event) => setJoinRoomPassword(event.target.value)}
-                      placeholder="비밀방일 때만 입력"
-                    />
-                  </label>
-                </div>
+              <form onSubmit={handleJoinSubmit} className="field-group mt-join-form">
+                <label className="field">
+                  <span>입장 코드</span>
+                  <input
+                    className="text-input text-input-hero"
+                    type="text"
+                    value={joinRoomCode}
+                    onChange={(event) => setJoinRoomCode(event.target.value.toUpperCase())}
+                    placeholder="예: A7K3"
+                    maxLength={6}
+                  />
+                </label>
+                <label className="field">
+                  <span>비밀번호</span>
+                  <input
+                    className="text-input"
+                    type="password"
+                    value={joinRoomPassword}
+                    onChange={(event) => setJoinRoomPassword(event.target.value)}
+                    placeholder="비밀방만 입력"
+                  />
+                </label>
                 <button className="button-primary" type="submit" disabled={!canJoin}>
-                  {isJoining ? "입장 중..." : "코드로 입장"}
+                  {isJoining ? "입장 중" : "입장하기"}
                 </button>
               </form>
-
-              {!accountViewer ? (
-                <div className="home-auth-shortcut">
-                  <p className="panel-copy">전적을 남기고 계속 이어서 플레이하려면 계정으로 들어오세요.</p>
-                  <div className="action-row">
-                    <button className="button-secondary" type="button" onClick={() => openAuthModal("login")}>
-                      로그인
-                    </button>
-                    <button className="button-primary" type="button" onClick={() => openAuthModal("register")}>
-                      회원가입
-                    </button>
-                  </div>
-                </div>
-              ) : null}
             </article>
           ) : null}
 
           {showCreateSurface ? (
-            <article className="panel panel-muted home-action-card" id="create-room">
+            <article className="panel panel-muted home-action-card mt-glass-card" id="create-room">
               <div className="composer-header">
                 <div>
-                  <h2 className="panel-title">새 방 만들기</h2>
-                  <p className="panel-copy">방 종류와 제목만 정하면 바로 대기실을 열 수 있습니다.</p>
+                  <h2 className="panel-title">방 만들기</h2>
+                  <p className="panel-copy">제목과 종류만 정하고 바로 시작합니다.</p>
                 </div>
                 <span className="status-badge" data-tone="live">
                   {roomModeSummary.label}
@@ -793,14 +708,14 @@ export function HomeEntrySurface({
 
               <RoomModePicker value={roomLaunchMode} onChange={setRoomLaunchMode} />
 
-              <div className="metric-grid">
+              <div className="metric-grid mt-room-create-summary">
                 <article className="metric-card">
                   <span className="metric-label">방 제목</span>
                   <strong className="metric-value">{trimmedRoomTitle || "새로운 사건"}</strong>
                   <span className="metric-detail">{roomSettingsStatusMessage}</span>
                 </article>
                 <article className="metric-card">
-                  <span className="metric-label">기본 구성</span>
+                  <span className="metric-label">구성</span>
                   <strong className="metric-value">
                     {resolvedStageCount}스테이지 · {resolvedMaxPlayers}명
                   </strong>
@@ -810,10 +725,10 @@ export function HomeEntrySurface({
 
               <div className="action-row">
                 <button className="button-secondary" type="button" onClick={() => setIsRoomSettingsOpen(true)}>
-                  방장 설정
+                  설정 수정
                 </button>
                 <button className="button-primary" type="button" onClick={handleCreateRoom} disabled={!canCreate}>
-                  {isSubmitting ? "방을 여는 중..." : `${roomModeSummary.label} 열기`}
+                  {isSubmitting ? "방 여는 중" : `${roomModeSummary.label} 열기`}
                 </button>
               </div>
             </article>
@@ -822,50 +737,44 @@ export function HomeEntrySurface({
       </section>
 
       {createResult && !createResult.ok ? (
-        <section className="panel">
-          <h2 className="panel-title">방을 열지 못했습니다</h2>
+        <section className="panel mt-alert-panel">
+          <h2 className="panel-title">방 생성 실패</h2>
           <p className="message-negative">{createResult.errorMessage ?? "방 생성 요청에 실패했습니다."}</p>
         </section>
       ) : null}
 
       {joinResult && !joinResult.ok ? (
-        <section className="panel">
-          <h2 className="panel-title">방에 입장하지 못했습니다</h2>
+        <section className="panel mt-alert-panel">
+          <h2 className="panel-title">입장 실패</h2>
           <p className="message-negative">{joinResult.errorMessage ?? "방 참가 요청에 실패했습니다."}</p>
         </section>
       ) : null}
 
       {showJoinSurface ? (
-        <section className="panel home-directory-panel" id="open-rooms">
+        <section className="panel home-directory-panel mt-directory-section" id="open-rooms">
           <div className="room-section-header">
             <div>
-              <h2 className="panel-title">열려 있는 방</h2>
-              <p className="panel-copy">공개방에 바로 합류하거나, 비밀방이라면 비밀번호를 확인하고 들어가세요.</p>
+              <h2 className="panel-title">열린 방</h2>
+              <p className="panel-copy">입장 가능한 방만 빠르게 확인하세요.</p>
             </div>
-            <span className="status-badge" data-tone="live">
-              {roomDirectory.length}개
-            </span>
+            <button className="button-secondary button-compact" type="button" onClick={refreshRoomDirectory} disabled={isDirectoryLoading}>
+              {isDirectoryLoading ? "새로고침 중" : "새로고침"}
+            </button>
           </div>
           {roomDirectoryError ? <p className="message-negative">{roomDirectoryError}</p> : null}
-          <RoomDirectoryPanel
-            rooms={roomDirectory}
-            onJoinRoom={handleDirectoryJoin}
-            isLoading={isDirectoryLoading}
-          />
+          <RoomDirectoryPanel rooms={roomDirectory} onJoinRoom={handleDirectoryJoin} isLoading={isDirectoryLoading} />
         </section>
       ) : null}
 
       {accountViewer && showAccountHistory ? (
-        <section className="panel panel-muted" id="my-records">
+        <section className="panel panel-muted mt-record-panel" id="my-records">
           <div className="composer-header">
             <div>
-              <h2 className="panel-title">내 전적</h2>
-              <p className="panel-copy">
-                {accountViewer.email} · 최근 로그인 {formatDateTime(accountViewer.lastLoginAt)}
-              </p>
+              <h2 className="panel-title">내 기록</h2>
+              <p className="panel-copy">최근 로그인 {formatDateTime(accountViewer.lastLoginAt)}</p>
             </div>
             <span className="status-badge" data-tone="live">
-              계정 기록
+              저장됨
             </span>
           </div>
 
@@ -888,54 +797,8 @@ export function HomeEntrySurface({
               <span className="metric-detail">정답 {accountViewer.stats.solvedCount}회</span>
             </article>
           </div>
-
-          {accountViewer.recentResults.length > 0 ? (
-            <ul className="surface-list history-list">
-              {accountViewer.recentResults.slice(0, 3).map((result) => (
-                <li key={result.id} className="history-item">
-                  <div className="history-top">
-                    <strong>{result.roomCode ?? "기록"}</strong>
-                    <span className="status-badge" data-tone={result.isWinner ? "live" : "alert"}>
-                      {result.isWinner ? "승리" : "패배"}
-                    </span>
-                  </div>
-                  <div className="meta-row">
-                    <span>순위 {formatRank(result.finalRank)}</span>
-                    <span>총점 {result.totalScore ?? "-"}</span>
-                    <span>{formatDateTime(result.createdAt)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="message-note">아직 누적된 경기 기록이 없습니다.</p>
-          )}
         </section>
       ) : null}
-
-      <details className="panel panel-muted home-support-details">
-        <summary>처음이라면 규칙과 흐름 보기</summary>
-        <div className="home-support-body">
-          <div className="metric-grid">
-            <article className="metric-card">
-              <span className="metric-label">점수</span>
-              <strong className="metric-value">개인 누적 점수</strong>
-              <span className="metric-detail">낮을수록 유리하고, 질문과 오답에는 비용이 붙습니다.</span>
-            </article>
-            <article className="metric-card">
-              <span className="metric-label">조사실</span>
-              <strong className="metric-value">단독 점유</strong>
-              <span className="metric-detail">질문방은 대기열 순서대로 자동 입장됩니다.</span>
-            </article>
-            <article className="metric-card">
-              <span className="metric-label">1:1 채팅</span>
-              <strong className="metric-value">전화형 요청</strong>
-              <span className="metric-detail">수락, 거절, 쿨다운이 있고 동시에 여러 요청이 오면 하나만 선택합니다.</span>
-            </article>
-          </div>
-          <OnboardingGuide scope="main" variant="inline" />
-        </div>
-      </details>
 
       {!accountViewer && isAuthModalOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setIsAuthModalOpen(false)}>

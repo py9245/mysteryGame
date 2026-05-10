@@ -27,11 +27,11 @@ export function GameplayUtilityRail({
   onEndPrivateChat?: (sessionId: string) => void;
 }) {
   return (
-    <aside className="gameplay-utility-rail">
+    <aside className="gameplay-utility-rail mt-utility-rail">
       <section className="panel panel-muted utility-card gameplay-rail-intro">
         <div>
-          <h3 className="panel-title">오른쪽 레일</h3>
-          <p className="panel-copy">점수와 상태는 여기만 보면 됩니다. 맨 위 카드부터 순서대로 확인하세요.</p>
+          <h3 className="panel-title">내 행동</h3>
+          <p className="panel-copy">점수, 질문, 1:1 요청을 여기서 처리합니다.</p>
         </div>
       </section>
       <PlayerActionPanel snapshot={snapshot} />
@@ -51,10 +51,10 @@ export function GameplayUtilityRail({
         <section className="panel panel-muted utility-card gameplay-runtime-note">
           <div className="composer-header">
             <div>
-              <h3 className="panel-title">상태 안내</h3>
-              <p className="panel-copy">실시간 연결을 준비 중이어서 일부 정보는 더미 상태로 보일 수 있습니다.</p>
+              <h3 className="panel-title">오프라인 데이터</h3>
+              <p className="panel-copy">실시간 정보를 불러오지 못했습니다.</p>
             </div>
-            <span className="status-badge">안내</span>
+            <span className="status-badge" data-tone="alert">안내</span>
           </div>
         </section>
       ) : null}

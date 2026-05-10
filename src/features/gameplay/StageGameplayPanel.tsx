@@ -33,18 +33,14 @@ export function StageGameplayPanel({
 
   return (
     <section className="page-shell">
-      <header className="page-header">
+      <header className="page-header mt-game-header">
         <div className="header-top-row">
           <div>
-            <p className="eyebrow">현재 상태</p>
-            <h2 className="page-title">추리 진행</h2>
+            <p className="eyebrow">Investigation</p>
+            <h2 className="page-title">스테이지 {stageNumber}</h2>
             <div className="header-flow">
-              <p className="header-flow-line">
-                <strong>읽는 순서</strong> · 사건을 보고, 채팅을 정리하고, 오른쪽에서 지금 할 일 하나만 확인합니다.
-              </p>
-              <p className="header-flow-line" data-tone="action">
-                <strong>현재 스테이지</strong> · {stageNumber}단계 진행 중
-              </p>
+              <p className="header-flow-line">사건 이미지와 단서를 확인한 뒤 채팅과 행동 패널을 사용하세요.</p>
+              <p className="header-flow-line" data-tone="action">현재 스테이지 · {stageNumber}</p>
             </div>
           </div>
           <div className="header-actions">
@@ -52,7 +48,7 @@ export function StageGameplayPanel({
           </div>
         </div>
       </header>
-      <div className="gameplay-layout">
+      <div className="gameplay-layout mt-gameplay-layout">
         <section className="gameplay-column gameplay-column-left gameplay-left-layout">
           <div className="gameplay-case-image-slot">
             <CaseImageFrame snapshot={snapshot} />

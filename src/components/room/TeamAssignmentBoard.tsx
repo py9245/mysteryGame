@@ -11,16 +11,16 @@ export function TeamAssignmentBoard({
   const assignedPlayers = snapshot.players.filter((player) => player.teamSlotId !== null).length;
 
   return (
-    <section className={`panel panel-muted${compact ? " panel-compact" : ""}`}>
+    <section className={`panel panel-muted mt-team-board${compact ? " panel-compact" : ""}`}>
       <div className="composer-header">
         <div>
-          <h3 className="panel-title">랜덤 팀 배정</h3>
+          <h3 className="panel-title">팀 배정</h3>
           <p className="panel-copy">
             {hasAssignments
-              ? "현재 배정된 팀을 바로 확인할 수 있습니다."
+              ? "배정된 팀을 확인하세요."
               : compact
-                ? "게임 시작 시 자동으로 팀이 정해집니다."
-                : "방장이 배정을 누르면 여기서 팀이 정해집니다."}
+                ? "시작 시 자동 배정됩니다."
+                : "시작하면 팀이 정해집니다."}
           </p>
         </div>
         <span className="status-badge">{assignedPlayers}/{snapshot.players.length}명</span>
@@ -29,12 +29,12 @@ export function TeamAssignmentBoard({
         <article className="metric-card">
           <span className="metric-label">팀 수</span>
           <strong className="metric-value">{snapshot.teamSlots.length}</strong>
-          <span className="metric-detail">기본은 3팀, 연습방은 1팀입니다.</span>
+          <span className="metric-detail">게임 설정 기준</span>
         </article>
         <article className="metric-card">
           <span className="metric-label">배정 상태</span>
           <strong className="metric-value">{hasAssignments ? "완료" : "대기"}</strong>
-          <span className="metric-detail">{hasAssignments ? "각 팀 구성을 바로 확인할 수 있습니다." : "방장이 랜덤 배정을 시작해야 합니다."}</span>
+          <span className="metric-detail">{hasAssignments ? "팀 구성이 확정됐습니다." : "시작 전 대기 중"}</span>
         </article>
       </div>
       <div className={`assignment-grid${compact ? " assignment-grid-compact" : ""}`}>
@@ -57,7 +57,7 @@ export function TeamAssignmentBoard({
                     </li>
                   ))
               ) : (
-                <li>아직 배정 전</li>
+                <li>배정 전</li>
               )}
             </ul>
           </article>

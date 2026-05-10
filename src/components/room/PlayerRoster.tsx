@@ -18,7 +18,7 @@ function formatRoleLabel(role: RoomSnapshot["players"][number]["role"]) {
 }
 
 function formatConnectionStatus(status: RoomSnapshot["players"][number]["connectionStatus"]) {
-  return status === "connected" ? "접속 중" : "이탈";
+  return status === "connected" ? "접속" : "이탈";
 }
 
 function formatStageStatus(status: RoomSnapshot["players"][number]["stageStatus"]) {
@@ -63,28 +63,26 @@ export function PlayerRoster({
   });
 
   return (
-    <section className={`panel${compact ? " panel-compact" : ""}`}>
+    <section className={`panel mt-roster-panel${compact ? " panel-compact" : ""}`}>
       <div className="composer-header">
         <div>
           <h3 className="panel-title">참가자</h3>
-          <p className="panel-copy">
-            {compact ? "입장 인원과 준비 상태만 봅니다." : "누가 들어와 있고 누가 준비됐는지만 빠르게 봅니다."}
-          </p>
+          <p className="panel-copy">준비와 접속 상태를 확인합니다.</p>
         </div>
         <span className="status-badge">{players.length}명</span>
       </div>
       <div className={`metric-grid${compact ? " metric-grid-compact" : ""}`}>
         <article className="metric-card">
-          <span className="metric-label">준비 완료</span>
+          <span className="metric-label">준비</span>
           <strong className="metric-value">{players.filter((player) => player.isReady).length}명</strong>
           <span className="metric-detail">
-            {compact ? "일반 참가자만 준비 대상입니다." : "전원이 준비되면 방장이 다음 단계로 진행합니다."}
+            {compact ? "참가자 기준" : "준비 후 시작 가능"}
           </span>
         </article>
         <article className="metric-card">
-          <span className="metric-label">접속 중</span>
+          <span className="metric-label">접속</span>
           <strong className="metric-value">{players.filter((player) => player.connectionStatus === "connected").length}명</strong>
-          <span className="metric-detail">이탈한 참가자는 상태만 표시됩니다.</span>
+          <span className="metric-detail">실시간 접속 상태</span>
         </article>
       </div>
       <ul className={`roster-list${compact ? " roster-list-compact" : ""}`}>
@@ -106,9 +104,9 @@ export function PlayerRoster({
             </div>
             <p className="roster-meta">
               {formatTeamLabel(player.teamSlotId)} · {formatStageStatus(player.stageStatus)} ·{" "}
-              {player.isReady ? "준비 완료" : "대기 중"}
+              {player.isReady ? "준비" : "대기 중"}
             </p>
-            <p className="roster-meta">{player.isMe ? "내 상태" : visibility.players === "redacted" ? "공개 범위만 표시" : "공개 정보"}</p>
+            <p className="roster-meta">{player.isMe ? "나" : visibility.players === "redacted" ? "일부 공개" : "공개"}</p>
           </li>
         ))}
       </ul>

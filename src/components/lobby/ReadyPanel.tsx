@@ -43,16 +43,16 @@ export function ReadyPanel({
   const myTeamLabel = teamSlots.find((teamSlot) => teamSlot.id === me.teamSlotId)?.label ?? "팀 배정 전";
 
   return (
-    <section className={`panel panel-muted ready-panel${compact ? " panel-compact" : ""}`}>
+    <section className={`panel panel-muted ready-panel mt-ready-panel${compact ? " panel-compact" : ""}`}>
       <div className="composer-header">
         <div>
-          <h3 className="panel-title">준비 상태</h3>
+          <h3 className="panel-title">내 준비</h3>
           <p className="panel-copy">
             {isHost
               ? isPracticeMode
-                ? "연습방에서는 준비 없이 혼자 바로 시작할 수 있습니다."
-                : "방장은 준비 대상이 아닙니다. 다른 참가자가 모두 준비되면 시작할 수 있습니다."
-              : `${me.nickname}님의 준비 여부를 여기서 바로 바꿉니다.`}
+                ? "연습방은 바로 시작할 수 있습니다."
+                : "참가자 준비가 끝나면 시작할 수 있습니다."
+              : "준비 완료를 누르면 방장이 게임을 시작할 수 있습니다."}
           </p>
         </div>
         <span className="status-badge" data-tone={isHost ? "live" : me.isReady ? "live" : "alert"}>
@@ -61,20 +61,20 @@ export function ReadyPanel({
       </div>
       <div className={`metric-grid${compact ? " metric-grid-compact" : ""}`}>
         <article className="metric-card">
-          <span className="metric-label">현재 상태</span>
+          <span className="metric-label">상태</span>
           <strong className="metric-value">{getViewModeLabel(viewMode)}</strong>
-          <span className="metric-detail">대기실에서 내 위치를 표시합니다.</span>
+          <span className="metric-detail">현재 진행 단계</span>
         </article>
         <article className="metric-card">
           <span className="metric-label">내 팀</span>
           <strong className="metric-value">{myTeamLabel}</strong>
-          <span className="metric-detail">팀 배정 전에는 아직 비어 있습니다.</span>
+          <span className="metric-detail">게임 시작 전 배정됩니다.</span>
         </article>
       </div>
       {isHost ? null : (
         <div className="action-row">
           <button className="button-primary" type="button" onClick={onToggleReady} disabled={isSubmitting}>
-            {isSubmitting ? "상태 갱신 중..." : me.isReady ? "준비 해제" : "준비 완료"}
+            {isSubmitting ? "저장 중" : me.isReady ? "준비 해제" : "준비 완료"}
           </button>
         </div>
       )}

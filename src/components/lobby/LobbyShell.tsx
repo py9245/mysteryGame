@@ -66,25 +66,25 @@ export function LobbyShell({
     snapshot.teamSlots.find((slot) => slot.id === snapshot.me.teamSlotId)?.label ?? "팀 배정 전";
   const nextStepMessage = isHost
     ? isPracticeMode
-      ? "연습방은 혼자 바로 플레이할 수 있습니다. 게임 시작을 누르면 즉시 브리핑으로 넘어갑니다."
+      ? "연습방은 혼자 바로 플레이할 수 있습니다. 시작을 누르면 즉시 브리핑으로 넘어갑니다."
       : canStartGame
-        ? "모든 참가자가 준비를 마쳤습니다. 게임 시작을 누르면 팀 배정 후 바로 브리핑으로 넘어갑니다."
-        : "본인을 제외한 모든 참가자가 준비 완료가 되면 게임 시작 버튼이 활성화됩니다."
+        ? "모든 참가자가 준비를 마쳤습니다. 시작을 누르면 팀 배정 후 바로 브리핑으로 넘어갑니다."
+        : "본인을 제외한 모든 참가자가 준비가 되면 시작 버튼이 활성화됩니다."
     : snapshot.me.isReady
-      ? "내 준비는 끝났습니다. 방장이 게임 시작을 누를 때까지 기다립니다."
-      : "준비 완료를 눌러야 방장이 게임을 시작할 수 있습니다.";
+      ? "내 준비는 끝났습니다. 방장이 시작을 누를 때까지 기다립니다."
+      : "준비를 눌러야 방장이 게임을 시작할 수 있습니다.";
   const actionBadgeTone = isHost ? (canStartGame ? "live" : "alert") : snapshot.me.isReady ? "live" : "alert";
-  const actionBadgeLabel = isHost ? (canStartGame ? "시작 가능" : "대기 중") : snapshot.me.isReady ? "준비 완료" : "준비 필요";
-  const readyMetricLabel = isPracticeMode ? "준비 절차" : "준비 완료";
+  const actionBadgeLabel = isHost ? (canStartGame ? "시작 가능" : "대기 중") : snapshot.me.isReady ? "준비" : "준비 필요";
+  const readyMetricLabel = isPracticeMode ? "준비 절차" : "준비";
   const readyMetricValue = isPracticeMode ? "없음" : `${readyCount}/${readyTargetCount}`;
   const readyMetricDetail = isPracticeMode
     ? "연습방은 방장이 혼자 바로 시작합니다."
-    : "방장을 제외한 참가자가 모두 준비해야 합니다.";
-  const startButtonLabel = isPracticeMode ? "혼자 시작" : "게임 시작";
+    : "참가자 준비가 필요합니다.";
+  const startButtonLabel = isPracticeMode ? "혼자 시작" : "시작";
 
   return (
     <section className="page-shell lobby-screen">
-      <section className="nav-strip lobby-summary-strip">
+      <section className="nav-strip lobby-summary-strip mt-lobby-summary">
         <div className="lobby-summary-main">
           <div>
             <p className="eyebrow">대기실</p>
@@ -103,7 +103,7 @@ export function LobbyShell({
 
         <div className="lobby-summary-metrics">
           <article className="metric-card metric-card-compact">
-            <span className="metric-label">참가 인원</span>
+            <span className="metric-label">인원</span>
             <strong className="metric-value">{playerCount}/{snapshot.room.maxPlayers}</strong>
           </article>
           <article className="metric-card metric-card-compact">
@@ -111,11 +111,11 @@ export function LobbyShell({
             <strong className="metric-value">{readyMetricValue}</strong>
           </article>
           <article className="metric-card metric-card-compact">
-            <span className="metric-label">내 역할</span>
+            <span className="metric-label">역할</span>
             <strong className="metric-value">{isHost ? "방장" : "참가자"}</strong>
           </article>
           <article className="metric-card metric-card-compact">
-            <span className="metric-label">내 팀</span>
+            <span className="metric-label">팀</span>
             <strong className="metric-value">{myTeamLabel}</strong>
           </article>
         </div>
@@ -128,18 +128,18 @@ export function LobbyShell({
               onClick={onStartGame}
               disabled={!canStartGame || isHostActionSubmitting}
             >
-              {isHostActionSubmitting ? "시작 준비 중..." : startButtonLabel}
+              {isHostActionSubmitting ? "시작 중" : startButtonLabel}
             </button>
           ) : null}
           <Link className="button-secondary button-compact" href={roomHref}>
-            방 현황
+            상태
           </Link>
           <LeaveRoomButton roomId={snapshot.room.id} playerId={snapshot.me.playerId} />
           <RulebookLauncher label="룰북" compact scope="lobby" />
         </div>
       </section>
 
-      <section className="lobby-main-grid">
+      <section className="lobby-main-grid mt-lobby-grid">
         <div className="lobby-main-column">
           <PlayerRoster
             players={snapshot.players}
@@ -174,12 +174,12 @@ export function LobbyShell({
           />
 
           {isHost ? (
-            <section className="panel panel-accent panel-compact lobby-host-card">
+            <section className="panel panel-accent panel-compact lobby-host-card mt-host-card">
               <div className="composer-header">
                 <div>
-                  <h3 className="panel-title">게임 시작</h3>
+                  <h3 className="panel-title">시작</h3>
                   <p className="panel-copy">
-                    {isPracticeMode ? "지금 바로 시작할 수 있습니다." : readyMetricDetail}
+                    {isPracticeMode ? "바로 시작할 수 있습니다." : readyMetricDetail}
                   </p>
                 </div>
                 <span className="status-badge">{isPracticeMode ? "연습" : "방장"}</span>
@@ -190,7 +190,7 @@ export function LobbyShell({
                 onClick={onStartGame}
                 disabled={!canStartGame || isHostActionSubmitting}
               >
-                {isHostActionSubmitting ? "시작 준비 중..." : startButtonLabel}
+                {isHostActionSubmitting ? "시작 중" : startButtonLabel}
               </button>
             </section>
           ) : null}
