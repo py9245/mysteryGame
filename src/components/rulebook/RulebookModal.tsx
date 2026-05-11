@@ -36,9 +36,9 @@ export function RulebookModal({
   const meta = RULEBOOK_META[scope];
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="modal-backdrop rulebook-modal-backdrop" role="presentation" onClick={onClose}>
       <section
-        className="modal-shell"
+        className="modal-shell rulebook-modal-shell"
         role="dialog"
         aria-modal="true"
         aria-label={meta.title}

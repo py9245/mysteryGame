@@ -110,6 +110,8 @@ export function LobbyClientShell({
       return;
     }
 
+    const stageNumber =
+      snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
     setIsHostActionSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
@@ -117,57 +119,66 @@ export function LobbyClientShell({
     const isPracticeMode = snapshot.room.maxPlayers === 1 && snapshot.teamSlots.length === 1;
     let nextSnapshot = snapshot;
 
-    if (snapshot.currentAssignments.length !== snapshot.players.length || snapshot.currentAssignments.length === 0) {
-      const assignResult = await submitAssignTeams({
-        roomId: snapshot.room.id,
-        requestedByPlayerId: snapshot.me.playerId,
-        stageNumber,
-      });
-
-      if (!assignResult.ok || !assignResult.snapshot) {
-        setErrorMessage(assignResult.errorMessage ?? "팀 배정에 실패했습니다.");
-        setStatusMessage(null);
-        setIsHostActionSubmitting(false);
-        return;
-      }
-
-      nextSnapshot = assignResult.snapshot;
-      setSnapshot(assignResult.snapshot);
-    }
-
-    let loadingInterval: ReturnType<typeof window.setInterval> | null = null;
-    if (isPracticeMode && typeof window !== "undefined") {
+    if (isPracticeMode) {
       setPracticeLoadingStepIndex(0);
     }
 
-    const result = await submitStartStage({
-      roomId: nextSnapshot.room.id,
-      requestedByPlayerId: nextSnapshot.me.playerId,
-      caseKey: AUTO_CASE_SELECTION_SENTINEL,
-      durationSeconds: 15 * 60,
-    });
+    try {
+      if (
+        snapshot.currentAssignments.length !== snapshot.players.length ||
+        snapshot.currentAssignments.length === 0
+      ) {
+        const assignResult = await submitAssignTeams({
+          roomId: snapshot.room.id,
+          requestedByPlayerId: snapshot.me.playerId,
+          stageNumber,
+        });
 
-    if (loadingInterval) {
-      window.clearInterval(loadingInterval);
-    }
-    setPracticeLoadingStepIndex(null);
+        if (!assignResult.ok || !assignResult.snapshot) {
+          setErrorMessage(assignResult.errorMessage ?? "팀 배정에 실패했습니다.");
+          setStatusMessage(null);
+          return;
+        }
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setStatusMessage(
-        isPracticeMode
-          ? "사건을 골랐습니다. 게임 화면으로 이동합니다."
-          : "스테이지 브리핑이 시작되었습니다.",
+        nextSnapshot = assignResult.snapshot;
+        setSnapshot(assignResult.snapshot);
+      }
+
+      const result = await submitStartStage({
+        roomId: nextSnapshot.room.id,
+        requestedByPlayerId: nextSnapshot.me.playerId,
+        caseKey: AUTO_CASE_SELECTION_SENTINEL,
+        durationSeconds: 15 * 60,
+      });
+
+      if (result.ok && result.snapshot) {
+        const nextStageNumber =
+          result.snapshot.stage?.stageNumber ??
+          result.snapshot.game?.currentStageNumber ??
+          stageNumber;
+        setSnapshot(result.snapshot);
+        setStatusMessage(
+          isPracticeMode
+            ? "사건 준비를 마쳤습니다. 게임 화면으로 이동합니다."
+            : "스테이지가 시작되었습니다. 게임 화면으로 이동합니다.",
+        );
+        navigateToHref(
+          appendRoomContextToHref(`/stage/${nextStageNumber}/gameplay`, result.snapshot),
+        );
+        return;
+      }
+
+      setErrorMessage(result.errorMessage ?? "브리핑 시작에 실패했습니다.");
+      setStatusMessage(null);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "게임 시작 처리 중 오류가 발생했습니다.",
       );
+      setStatusMessage(null);
+    } finally {
+      setPracticeLoadingStepIndex(null);
       setIsHostActionSubmitting(false);
-      navigateToHref(appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, result.snapshot));
-      return;
     }
-
-    setErrorMessage(result.errorMessage ?? "브리핑 시작에 실패했습니다.");
-    setStatusMessage(null);
-    setPracticeLoadingStepIndex(null);
-    setIsHostActionSubmitting(false);
   }
 
   return (
