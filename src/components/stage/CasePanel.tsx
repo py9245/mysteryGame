@@ -3,7 +3,7 @@ import type { RoomSnapshot } from "@/contracts/api";
 export function CasePanel({ snapshot }: { snapshot: RoomSnapshot }) {
   const stage = snapshot.stage;
   return (
-    <section className="panel panel-muted case-summary-panel">
+    <section className="case-summary-panel">
       <div className="case-summary-header">
         <span className="status-badge" data-tone="live">
           {stage?.stageNumber ? `S${stage.stageNumber}` : "대기"}

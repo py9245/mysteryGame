@@ -43,8 +43,8 @@ export function StageGameplayPanel({
   const stageTitle = snapshot.stage?.publicTitle ?? `스테이지 ${stageNumber}`;
   const briefingCopy =
     snapshot.stage?.status === "briefing"
-      ? "사건을 읽고 채팅으로 정리하는 시간입니다. 1분 뒤 질문방이 열립니다."
-      : "채팅, 질문방, 1:1 전화를 한 화면에서 이어서 진행하세요.";
+      ? "1분 동안 채팅으로 사건을 정리합니다. 이후 질문방이 열립니다."
+      : "채팅과 행동 패널을 한 화면에서 바로 이어서 진행하세요.";
 
   return (
     <section className="page-shell">
@@ -74,25 +74,18 @@ export function StageGameplayPanel({
         </div>
       </header>
       <div className="gameplay-layout mt-gameplay-layout">
-        <section className="gameplay-column gameplay-column-left gameplay-left-layout">
-          <div className="gameplay-case-image-slot">
-            <CaseImageFrame snapshot={snapshot} />
-          </div>
-          <div className="gameplay-case-summary-slot">
-            <CasePanel snapshot={snapshot} />
-          </div>
+        <section className="gameplay-column gameplay-column-left">
+          <section className="panel panel-muted gameplay-story-card">
+            <div className="gameplay-story-media">
+              <CaseImageFrame snapshot={snapshot} />
+            </div>
+            <div className="gameplay-story-summary">
+              <CasePanel snapshot={snapshot} />
+            </div>
+          </section>
         </section>
 
-        <section className="gameplay-column gameplay-column-center">
-          <ChatRailClientShell
-            snapshot={snapshot}
-            initialMessages={initialChatMessages}
-            source={initialChatSource}
-            endpoint={chatEndpoint}
-          />
-        </section>
-
-        <section className="gameplay-column gameplay-column-right">
+        <section className="gameplay-column gameplay-column-center gameplay-column-actions">
           <GameplayUtilityRail
             snapshot={snapshot}
             runtime={runtime}
@@ -103,6 +96,15 @@ export function StageGameplayPanel({
             onRequestPrivateChat={onRequestPrivateChat}
             onRespondPrivateChat={onRespondPrivateChat}
             onEndPrivateChat={onEndPrivateChat}
+          />
+        </section>
+
+        <section className="gameplay-column gameplay-column-right gameplay-column-chat">
+          <ChatRailClientShell
+            snapshot={snapshot}
+            initialMessages={initialChatMessages}
+            source={initialChatSource}
+            endpoint={chatEndpoint}
           />
         </section>
       </div>

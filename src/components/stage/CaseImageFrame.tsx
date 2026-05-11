@@ -14,6 +14,7 @@ export function CaseImageFrame({ snapshot }: { snapshot: RoomSnapshot }) {
       ) : (
         <span>사건 이미지가 아직 공개되지 않았습니다.</span>
       )}
+      <figcaption className="image-caption">사건 분위기를 보여주는 참고 이미지</figcaption>
     </figure>
   );
 }

@@ -2116,35 +2116,53 @@ select {
 
 .mt-gameplay-layout,
 .gameplay-layout {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(250px, 0.9fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 4fr) minmax(220px, 2fr) minmax(0, 4fr);
+  gap: 12px;
   align-items: stretch;
 }
 
-.gameplay-left-layout {
-  grid-template-rows: minmax(280px, 1.15fr) minmax(190px, 0.8fr);
-  min-height: min(68vh, 700px);
-}
-
-.gameplay-case-image-slot {
-  max-height: min(40vh, 380px);
-}
-
-.gameplay-case-image-slot .image-frame {
-  height: 100%;
-  max-height: min(40vh, 380px);
-  aspect-ratio: 16 / 10;
-}
-
+.gameplay-column-left,
 .gameplay-column-center,
 .gameplay-column-right {
   min-height: 0;
 }
 
-.gameplay-column-center .chat-shell,
-.gameplay-column-center .chat-rail {
+.gameplay-story-card {
+  display: grid;
+  gap: 10px;
+  min-height: min(66vh, 660px);
+  padding: 12px;
+}
+
+.gameplay-story-media {
+  min-height: 0;
+}
+
+.gameplay-story-media .image-frame {
+  height: 100%;
+  min-height: 260px;
+  max-height: min(36vh, 340px);
+  aspect-ratio: 16 / 10;
+}
+
+.gameplay-story-summary {
+  min-height: 0;
+}
+
+.gameplay-column-chat .chat-shell,
+.gameplay-column-chat .chat-rail {
   min-height: 0;
   height: 100%;
+}
+
+.gameplay-column-chat .chat-rail-layout {
+  grid-template-rows: minmax(0, 0.58fr) minmax(0, 0.42fr);
+  min-height: min(66vh, 660px);
+}
+
+.gameplay-column-actions .gameplay-utility-rail {
+  position: static;
+  gap: 10px;
 }
 
 .image-frame {
@@ -2173,9 +2191,9 @@ select {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 10px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-top: 4px;
+  margin-bottom: 10px;
 }
 
 .gameplay-stage-copy,
@@ -2195,16 +2213,16 @@ select {
 
 .gameplay-stage-title {
   margin: 0;
-  font-size: clamp(1.35rem, 2vw, 1.9rem);
-  line-height: 1.08;
+  font-size: clamp(1.15rem, 1.7vw, 1.55rem);
+  line-height: 1.05;
   letter-spacing: -0.04em;
 }
 
 .gameplay-stage-subtitle {
   margin: 0;
   color: rgba(255, 248, 234, 0.72);
-  font-size: 0.92rem;
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .gameplay-topbar-actions {
@@ -2214,21 +2232,35 @@ select {
 }
 
 .case-summary-panel {
-  gap: 10px;
+  display: grid;
+  gap: 8px;
 }
 
 .case-summary-title {
   margin: 0;
-  font-size: 1.02rem;
+  font-size: 0.96rem;
   font-weight: 700;
   color: #fff8ea;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .case-summary-description {
   margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.6;
+  font-size: 0.84rem;
+  line-height: 1.48;
+}
+
+.image-caption {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(7, 8, 13, 0.72);
+  color: rgba(255, 248, 234, 0.85);
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
 .gameplay-layout .chat-main-panel,
@@ -2236,27 +2268,27 @@ select {
 .gameplay-layout .panel,
 .gameplay-layout .score-card,
 .gameplay-layout .metric-card {
-  padding: 14px;
+  padding: 12px;
 }
 
 .gameplay-layout .panel-title,
 .gameplay-layout .chat-section h4,
 .gameplay-layout .panel h3,
 .gameplay-layout .panel h4 {
-  font-size: 1rem;
-  margin-bottom: 4px;
+  font-size: 0.92rem;
+  margin-bottom: 2px;
 }
 
 .gameplay-layout .panel-copy,
 .gameplay-layout .message-note,
 .gameplay-layout .chat-meta,
 .gameplay-layout .utility-meta {
-  font-size: 0.84rem;
-  line-height: 1.45;
+  font-size: 0.78rem;
+  line-height: 1.38;
 }
 
 .gameplay-layout .message-note {
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .gameplay-layout .metric-label {
@@ -2268,36 +2300,36 @@ select {
 }
 
 .gameplay-layout .score-value {
-  font-size: 1.65rem;
+  font-size: 1.45rem;
 }
 
 .gameplay-layout .status-badge {
-  min-height: 30px;
-  padding: 0 10px;
-  font-size: 0.76rem;
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 0.72rem;
 }
 
 .gameplay-layout .chat-message {
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .gameplay-layout .chat-message p {
   margin: 6px 0 0;
-  font-size: 0.86rem;
-  line-height: 1.45;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .gameplay-layout .composer-form {
-  gap: 10px;
+  gap: 8px;
 }
 
 .gameplay-layout .text-area {
-  min-height: 82px;
+  min-height: 72px;
 }
 
 .gameplay-layout .button-primary,
 .gameplay-layout .button-secondary {
-  min-height: 40px;
+  min-height: 36px;
 }
 
 .loading-card {
