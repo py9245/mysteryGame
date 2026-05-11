@@ -2339,8 +2339,32 @@ function parseCaseFilePayload(
   };
 }
 
-function isCaseCatalogUnavailableError(error: { code?: string } | null | undefined): boolean {
-  return error?.code === "42P01";
+function isCaseCatalogUnavailableError(
+  error:
+    | {
+        code?: string;
+        message?: string;
+        details?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST202") {
+    return true;
+  }
+
+  const text = [error.message, error.details].filter((value): value is string => typeof value === "string").join(" ").toLowerCase();
+  return (
+    text.includes("case_library") ||
+    text.includes("player_case_history") ||
+    text.includes("schema cache") ||
+    text.includes("could not find the table 'public.case_library'") ||
+    text.includes("could not find the table 'public.player_case_history'")
+  );
 }
 
 let seededCaseCatalogPromise: Promise<void> | null = null;
