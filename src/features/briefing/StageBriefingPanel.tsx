@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
+import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 import { useRoomRealtimeSnapshot } from "@/features/room-snapshot/use-room-realtime-snapshot";
@@ -55,6 +56,12 @@ export function StageBriefingPanel({ snapshot: initialSnapshot }: { snapshot: Ro
             </div>
           </div>
           <div className="header-actions">
+            <LeaveRoomButton
+              roomId={snapshot.room.id}
+              playerId={snapshot.me.playerId}
+              redirectHref="/"
+              label="게임 나가기"
+            />
             <RulebookLauncher label="룰북" compact scope="game" />
           </div>
         </div>

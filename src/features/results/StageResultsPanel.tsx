@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
+import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { StageResultsSummary } from "@/components/results/StageResultsSummary";
 import { RankingTable } from "@/components/results/RankingTable";
@@ -35,6 +36,12 @@ export function StageResultsPanel({
             </div>
           </div>
           <div className="header-actions">
+            <LeaveRoomButton
+              roomId={snapshot.room.id}
+              playerId={snapshot.me.playerId}
+              redirectHref="/"
+              label="게임 나가기"
+            />
             <RulebookLauncher label="룰북" compact scope="game" />
           </div>
         </div>

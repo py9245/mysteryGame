@@ -21,11 +21,13 @@ export function LeaveRoomButton({
   playerId,
   className = "button-secondary button-compact",
   redirectHref = "/rooms",
+  label = "방 나가기",
 }: {
   roomId: string;
   playerId: string;
   className?: string;
   redirectHref?: string;
+  label?: string;
 }) {
   const router = useRouter();
   const [isLeaving, setIsLeaving] = useState(false);
@@ -81,7 +83,7 @@ export function LeaveRoomButton({
   return (
     <div className="leave-room-stack">
       <button className={className} type="button" onClick={handleLeave} disabled={isLeaving}>
-        {isLeaving ? "나가는 중..." : "방 나가기"}
+        {isLeaving ? "나가는 중..." : label}
       </button>
       {errorMessage ? <p className="message-negative">{errorMessage}</p> : null}
     </div>

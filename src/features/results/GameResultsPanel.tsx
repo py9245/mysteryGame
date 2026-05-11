@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
+import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { GameResultsSummary } from "@/components/results/GameResultsSummary";
 import { RankingTable } from "@/components/results/RankingTable";
@@ -24,6 +25,12 @@ export function GameResultsPanel({ snapshot }: { snapshot: RoomSnapshot }) {
             </div>
           </div>
           <div className="header-actions">
+            <LeaveRoomButton
+              roomId={snapshot.room.id}
+              playerId={snapshot.me.playerId}
+              redirectHref="/"
+              label="게임 나가기"
+            />
             <RulebookLauncher label="룰북" compact scope="game" />
           </div>
         </div>
