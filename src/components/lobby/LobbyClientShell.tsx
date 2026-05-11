@@ -109,7 +109,7 @@ export function LobbyClientShell({
       setStatusMessage("스테이지 브리핑이 시작되었습니다.");
       setIsHostActionSubmitting(false);
       router.push(
-        appendRoomContextToHref(`/stage/${stageNumber}/briefing`, result.snapshot),
+        appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, result.snapshot),
       );
       return;
     }

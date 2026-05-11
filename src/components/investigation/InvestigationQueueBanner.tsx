@@ -20,6 +20,7 @@ export function InvestigationQueueBanner({
   players?: RoomSnapshot["players"];
   nowMs?: number;
 }) {
+  const isBriefing = snapshot.stage?.status === "briefing";
   const investigation = snapshot.stage?.investigation;
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLocked = Boolean(lockOwnerId);
@@ -45,26 +46,40 @@ export function InvestigationQueueBanner({
       <div className="composer-header">
         <div>
           <h3 className="panel-title">질문방 상태</h3>
-          <p className="panel-copy">대기열에 들어가면 비는 즉시 자동 입장합니다.</p>
+          <p className="panel-copy">
+            {isBriefing
+              ? "브리핑 1분 동안은 잠시 닫혀 있습니다."
+              : "대기열에 들어가면 비는 즉시 자동 입장합니다."}
+          </p>
         </div>
-        <span className="status-badge" data-tone={!isLocked || isLockedByMe ? "live" : "alert"}>
-          {isLockedByMe ? "내가 사용 중" : isLocked ? "다른 플레이어 사용 중" : "바로 입장 가능"}
+        <span className="status-badge" data-tone={isBriefing ? "alert" : !isLocked || isLockedByMe ? "live" : "alert"}>
+          {isBriefing
+            ? `준비 중 ${snapshot.stage?.remainingSeconds ?? 0}초`
+            : isLockedByMe
+              ? "내가 사용 중"
+              : isLocked
+                ? "다른 플레이어 사용 중"
+                : "바로 입장 가능"}
         </span>
       </div>
-      <div className="utility-chip-row">
-        <span className="status-badge">질문 {investigation?.questionCountRemaining ?? 0}회 남음</span>
-        <span className="status-badge">정답 {investigation?.answerAttemptCountRemaining ?? 0}회 남음</span>
-        <span className="status-badge">대기열 {waitingPlayerCount}명</span>
-        {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
-        {queueCooldownSeconds > 0 ? <span className="status-badge">재진입 {queueCooldownSeconds}초</span> : null}
-        {isLocked ? <span className="status-badge">남은 시간 {remainingSeconds}초</span> : null}
-      </div>
+      {!isBriefing ? (
+        <div className="utility-chip-row">
+          <span className="status-badge">질문 {investigation?.questionCountRemaining ?? 0}회 남음</span>
+          <span className="status-badge">정답 {investigation?.answerAttemptCountRemaining ?? 0}회 남음</span>
+          <span className="status-badge">대기열 {waitingPlayerCount}명</span>
+          {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
+          {queueCooldownSeconds > 0 ? <span className="status-badge">재진입 {queueCooldownSeconds}초</span> : null}
+          {isLocked ? <span className="status-badge">남은 시간 {remainingSeconds}초</span> : null}
+        </div>
+      ) : null}
       <p className="message-note">
-        {isLockedByMe
+        {isBriefing
+          ? "지금은 채팅으로 사건을 정리하는 시간입니다. 브리핑이 끝나면 질문방과 시간 점수가 동시에 열립니다."
+          : isLockedByMe
           ? "지금은 내가 질문방을 점유하고 있습니다."
           : queuePosition
             ? `현재 질문방 대기열 ${queuePosition}번입니다. 차례가 오면 자동으로 입장합니다.`
-          : isLocked
+            : isLocked
             ? `${lockOwnerNickname}님이 질문방을 사용 중입니다. 끝나면 다음 플레이어가 자동으로 입장합니다.`
             : queueCooldownSeconds > 0
               ? "방금 질문방에서 나왔습니다. 5초 뒤 다시 대기열에 들어갈 수 있습니다."
