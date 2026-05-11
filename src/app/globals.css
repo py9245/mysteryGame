@@ -1092,6 +1092,11 @@ pre {
   font-weight: 700;
 }
 
+.chat-author {
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
 .roster-meta,
 .chat-meta {
   color: var(--muted);
@@ -2285,6 +2290,15 @@ select {
 .gameplay-layout .utility-meta {
   font-size: 0.78rem;
   line-height: 1.38;
+}
+
+.gameplay-layout .chat-author {
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+
+.gameplay-layout .chat-message-top {
+  gap: 4px 8px;
 }
 
 .gameplay-layout .message-note {
