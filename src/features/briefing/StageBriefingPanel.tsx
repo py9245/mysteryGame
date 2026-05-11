@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
-import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
@@ -60,7 +59,6 @@ export function StageBriefingPanel({ snapshot: initialSnapshot }: { snapshot: Ro
           </div>
         </div>
       </header>
-      <SampleFlowNavigation snapshot={snapshot} currentStageNumber={snapshot.stage?.stageNumber} />
       <div className="hero-grid">
         <section className="panel panel-accent hero-card briefing-main">
           <div className="briefing-hero-cta">

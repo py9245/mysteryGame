@@ -1,5 +1,4 @@
 import type { RoomSnapshot } from "@/contracts/api";
-import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { GameResultsSummary } from "@/components/results/GameResultsSummary";
@@ -29,7 +28,6 @@ export function GameResultsPanel({ snapshot }: { snapshot: RoomSnapshot }) {
           </div>
         </div>
       </header>
-      <SampleFlowNavigation snapshot={snapshot} />
       <div className="results-grid">
         <section className="span-4">
           <GameResultsSummary snapshot={snapshot} />

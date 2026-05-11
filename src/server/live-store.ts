@@ -338,6 +338,7 @@ type CaseFile = {
   stageNumber: number;
   title: string;
   publicDescription: string;
+  imageUrl: string | null;
   question: string;
   truth: string;
   requiredKeywords: string[];
@@ -2182,7 +2183,7 @@ async function loadCaseSummary(caseKey: string): Promise<CaseSummary | null> {
   return {
     title: caseFile.title,
     publicDescription: caseFile.publicDescription,
-    imageUrl: null,
+    imageUrl: caseFile.imageUrl,
   };
 }
 
@@ -2190,10 +2191,12 @@ async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
   try {
     const raw = await readFile(join(process.cwd(), "data/cases", `${caseKey}.json`), "utf8");
     const parsed = JSON.parse(raw) as {
+      id?: unknown;
       key?: unknown;
       stageNumber?: unknown;
       title?: unknown;
       publicDescription?: unknown;
+      imageUrl?: unknown;
       question?: unknown;
       truth?: unknown;
       requiredKeywords?: unknown;
@@ -2202,8 +2205,15 @@ async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
       hints?: unknown;
     };
 
+    const resolvedKey =
+      typeof parsed.key === "string"
+        ? parsed.key
+        : typeof parsed.id === "string"
+          ? parsed.id
+          : null;
+
     if (
-      typeof parsed.key !== "string" ||
+      typeof resolvedKey !== "string" ||
       typeof parsed.stageNumber !== "number" ||
       typeof parsed.title !== "string" ||
       typeof parsed.publicDescription !== "string" ||
@@ -2218,10 +2228,14 @@ async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
     }
 
     return {
-      key: parsed.key,
+      key: resolvedKey,
       stageNumber: parsed.stageNumber,
       title: parsed.title,
       publicDescription: parsed.publicDescription,
+      imageUrl:
+        typeof parsed.imageUrl === "string" && parsed.imageUrl.trim().length > 0
+          ? parsed.imageUrl.trim()
+          : `/case-images/${resolvedKey}.svg`,
       question: parsed.question,
       truth: parsed.truth,
       requiredKeywords: parsed.requiredKeywords.filter((value): value is string => typeof value === "string"),

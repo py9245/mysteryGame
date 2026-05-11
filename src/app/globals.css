@@ -251,6 +251,20 @@ pre {
   padding: 14px;
 }
 
+.image-frame {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.case-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: calc(var(--radius-md) - 4px);
+}
+
 .panel-accent {
   background:
     linear-gradient(180deg, rgba(199, 78, 59, 0.14), transparent 45%),

@@ -1,5 +1,4 @@
 import type { RoomSnapshot } from "@/contracts/api";
-import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { InvestigationDrawer } from "@/features/investigation/InvestigationDrawer";
 import { InvestigationLimitMeter } from "@/features/investigation/InvestigationLimitMeter";
@@ -124,7 +123,6 @@ export function InvestigationPanel({
           </div>
         </div>
       </header>
-      <SampleFlowNavigation snapshot={snapshot} currentStageNumber={snapshot.stage?.stageNumber} />
       <div className="hero-grid investigation-hero">
         <section className="hero-card investigation-main">
           <InvestigationDrawer
