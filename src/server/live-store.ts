@@ -372,6 +372,7 @@ type CaseFile = {
 type GeneratedPracticeCasePayload = {
   caseKey: string;
   caseFile: CaseFile;
+  imageDataUrl?: string | null;
 };
 
 export class RoomJoinError extends Error {
@@ -2335,7 +2336,10 @@ async function loadPracticeGeneratedCaseFile(caseKey: string): Promise<CaseFile 
     return null;
   }
 
-  return data.payload.caseFile;
+  return {
+    ...data.payload.caseFile,
+    imageUrl: `/api/stage-image/${encodeURIComponent(stageId)}`,
+  };
 }
 
 function buildPracticeImageFallbackDataUrl(title: string, description: string): string {
@@ -2427,7 +2431,13 @@ function buildFallbackPracticeCase(stageId: string, stageNumber: number): CaseFi
   };
 }
 
-async function generatePracticeCaseFile(stageId: string, stageNumber: number): Promise<CaseFile> {
+async function generatePracticeCaseFile(
+  stageId: string,
+  stageNumber: number,
+): Promise<{
+  caseFile: CaseFile;
+  imageDataUrl: string;
+}> {
   const caseKey = `${PRACTICE_GENERATED_CASE_PREFIX}${stageId}`;
   const fallbackCase = buildFallbackPracticeCase(stageId, stageNumber);
 
@@ -2556,21 +2566,32 @@ async function generatePracticeCaseFile(stageId: string, stageNumber: number): P
       }
     }
 
+    const resolvedImageDataUrl = imageUrl ?? buildPracticeImageFallbackDataUrl(title, publicDescription);
+
     return {
-      key: caseKey,
-      stageNumber,
-      title,
-      publicDescription,
-      imageUrl: imageUrl ?? buildPracticeImageFallbackDataUrl(title, publicDescription),
-      question,
-      truth,
-      requiredKeywords: requiredKeywords.length >= 4 ? requiredKeywords.slice(0, 6) : fallbackCase.requiredKeywords,
-      bonusKeywords: bonusKeywords.length >= 1 ? bonusKeywords.slice(0, 3) : fallbackCase.bonusKeywords,
-      acceptedAnswerSummary,
-      hints,
+      caseFile: {
+        key: caseKey,
+        stageNumber,
+        title,
+        publicDescription,
+        imageUrl: `/api/stage-image/${encodeURIComponent(stageId)}`,
+        question,
+        truth,
+        requiredKeywords: requiredKeywords.length >= 4 ? requiredKeywords.slice(0, 6) : fallbackCase.requiredKeywords,
+        bonusKeywords: bonusKeywords.length >= 1 ? bonusKeywords.slice(0, 3) : fallbackCase.bonusKeywords,
+        acceptedAnswerSummary,
+        hints,
+      },
+      imageDataUrl: resolvedImageDataUrl,
     };
   } catch {
-    return fallbackCase;
+    return {
+      caseFile: {
+        ...fallbackCase,
+        imageUrl: `/api/stage-image/${encodeURIComponent(stageId)}`,
+      },
+      imageDataUrl: fallbackCase.imageUrl ?? buildPracticeImageFallbackDataUrl(fallbackCase.title, fallbackCase.publicDescription),
+    };
   }
 }
 
@@ -2580,6 +2601,7 @@ async function persistPracticeGeneratedCase(input: {
   stageId: string;
   requestedByPlayerId: string;
   caseFile: CaseFile;
+  imageDataUrl: string | null;
 }): Promise<void> {
   const supabase = getSupabaseAdminClient();
   const nowIso = nowUtcIso();
@@ -2593,6 +2615,7 @@ async function persistPracticeGeneratedCase(input: {
     payload: {
       caseKey: input.caseFile.key,
       caseFile: input.caseFile,
+      imageDataUrl: input.imageDataUrl,
     },
     created_at: nowIso,
   });
@@ -3887,9 +3910,10 @@ export async function startStageInStore(
       gameId: game.id,
       stageId: stage.id,
       requestedByPlayerId,
-      caseFile: generatedCase,
+      caseFile: generatedCase.caseFile,
+      imageDataUrl: generatedCase.imageDataUrl,
     });
-    resolvedCaseKey = generatedCase.key;
+    resolvedCaseKey = generatedCase.caseFile.key;
   }
 
   const nowIso = nowUtcIso();

@@ -2122,8 +2122,18 @@ select {
 }
 
 .gameplay-left-layout {
-  grid-template-rows: minmax(0, 7fr) minmax(0, 3fr);
-  min-height: min(78vh, 900px);
+  grid-template-rows: minmax(320px, 1.25fr) minmax(220px, 0.85fr);
+  min-height: min(72vh, 760px);
+}
+
+.gameplay-case-image-slot {
+  max-height: min(46vh, 460px);
+}
+
+.gameplay-case-image-slot .image-frame {
+  height: 100%;
+  max-height: min(46vh, 460px);
+  aspect-ratio: 16 / 10;
 }
 
 .gameplay-column-center,
@@ -2139,6 +2149,7 @@ select {
 
 .image-frame {
   min-height: 240px;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
     repeating-linear-gradient(135deg, rgba(240, 195, 106, 0.035), rgba(240, 195, 106, 0.035) 10px, transparent 10px, transparent 22px),
