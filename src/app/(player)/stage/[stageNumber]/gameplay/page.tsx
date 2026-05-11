@@ -1,9 +1,10 @@
 import { GameplayClientShell } from "@/features/gameplay/GameplayClientShell";
 import { UnavailableStatePanel } from "@/components/status/UnavailableStatePanel";
+import { loadChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { loadGameRuntimeSnapshot } from "@/features/gameplay/game-runtime-loader";
 import { resolveRoomContextFromSearchParams, type RoomRouteSearchParams } from "@/features/room-context/room-context";
 import { loadRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
-import { getGameRuntimeSnapshotFromStore, getRoomSnapshotFromStore } from "@/server/live-store";
+import { getGameRuntimeSnapshotFromStore, getRoomSnapshotFromStore, listChatMessagesFromStore } from "@/server/live-store";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
 export default async function GameplayPage({
@@ -36,6 +37,22 @@ export default async function GameplayPage({
     );
   }
 
+  const chatMessages =
+    isSupabaseEnabled()
+      ? {
+          messages: (await listChatMessagesFromStore(
+            snapshot.room.id,
+            snapshot.stage?.stageId ?? null,
+          )).messages,
+          source: "api" as const,
+          endpoint: `/api/chat/${encodeURIComponent(snapshot.room.id)}`,
+        }
+      : await loadChatMessages({
+          roomId: snapshot.room.id,
+          playerId: snapshot.me.playerId,
+          stageId: snapshot.stage?.stageId ?? null,
+        });
+
   const runtime =
     isSupabaseEnabled()
       ? {
@@ -48,6 +65,9 @@ export default async function GameplayPage({
   return (
     <GameplayClientShell
       initialSnapshot={snapshot}
+      initialChatMessages={chatMessages.messages}
+      initialChatSource={chatMessages.source}
+      chatEndpoint={chatMessages.endpoint}
       runtime={runtime}
       currentStageNumber={resolvedStageNumber}
     />

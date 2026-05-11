@@ -28,16 +28,6 @@ export function GameplayUtilityRail({
 }) {
   return (
     <aside className="gameplay-utility-rail mt-utility-rail">
-      <section className="panel panel-muted utility-card gameplay-rail-intro">
-        <div>
-          <h3 className="panel-title">내 행동</h3>
-          <p className="panel-copy">
-            {snapshot.stage?.status === "briefing"
-              ? "브리핑 동안은 채팅과 상황 정리에 집중합니다. 질문방은 1분 뒤 열립니다."
-              : "점수, 질문, 1:1 요청을 여기서 처리합니다."}
-          </p>
-        </div>
-      </section>
       <PlayerActionPanel snapshot={snapshot} />
       <MyScoreCard snapshot={snapshot} />
       <InvestigationQueueBanner snapshot={snapshot} players={snapshot.players} nowMs={nowMs} />

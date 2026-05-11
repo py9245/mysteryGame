@@ -1,15 +1,20 @@
 import type { RoomSnapshot } from "@/contracts/api";
+import type { ChatMessage } from "@/contracts/game";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { CaseImageFrame } from "@/components/stage/CaseImageFrame";
 import { CasePanel } from "@/components/stage/CasePanel";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
-import { ChatRail } from "../chat-ui/ChatRail";
+import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
+import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { GameplayUtilityRail } from "./GameplayUtilityRail";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
 
 export function StageGameplayPanel({
   snapshot,
+  initialChatMessages,
+  initialChatSource,
+  chatEndpoint,
   runtime,
   currentStageNumber,
   nowMs,
@@ -21,6 +26,9 @@ export function StageGameplayPanel({
   onEndPrivateChat,
 }: {
   snapshot: RoomSnapshot;
+  initialChatMessages: ChatMessage[];
+  initialChatSource: LoadedChatMessages["source"];
+  chatEndpoint: string;
   runtime: LoadedGameRuntimeSnapshot;
   currentStageNumber?: number;
   nowMs?: number;
@@ -32,6 +40,11 @@ export function StageGameplayPanel({
   onEndPrivateChat?: (sessionId: string) => void;
 }) {
   const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
+  const stageTitle = snapshot.stage?.publicTitle ?? `스테이지 ${stageNumber}`;
+  const briefingCopy =
+    snapshot.stage?.status === "briefing"
+      ? "사건을 읽고 채팅으로 정리하는 시간입니다. 1분 뒤 질문방이 열립니다."
+      : "채팅, 질문방, 1:1 전화를 한 화면에서 이어서 진행하세요.";
 
   return (
     <section className="page-shell">
@@ -40,17 +53,17 @@ export function StageGameplayPanel({
         playerId={snapshot.me.playerId}
         stageNumber={stageNumber}
       />
-      <header className="page-header mt-game-header">
-        <div className="header-top-row">
-          <div>
-            <p className="eyebrow">Investigation</p>
-            <h2 className="page-title">스테이지 {stageNumber}</h2>
-            <div className="header-flow">
-              <p className="header-flow-line">사건 이미지와 단서를 확인한 뒤 채팅과 행동 패널을 사용하세요.</p>
-              <p className="header-flow-line" data-tone="action">현재 스테이지 · {stageNumber}</p>
-            </div>
+      <header className="gameplay-topbar">
+        <div className="gameplay-stage-copy">
+          <div className="gameplay-stage-meta">
+            <span className="status-badge" data-tone="live">S{stageNumber}</span>
+            <span className="status-badge">{snapshot.room.code}</span>
+            <span className="status-badge">{snapshot.me.teamSlotId ? snapshot.teamSlots.find((team) => team.id === snapshot.me.teamSlotId)?.label ?? "팀 미정" : "팀 미정"}</span>
           </div>
-          <div className="header-actions">
+          <h1 className="gameplay-stage-title">{stageTitle}</h1>
+          <p className="gameplay-stage-subtitle">{briefingCopy}</p>
+        </div>
+        <div className="header-actions gameplay-topbar-actions">
             <LeaveRoomButton
               roomId={snapshot.room.id}
               playerId={snapshot.me.playerId}
@@ -58,7 +71,6 @@ export function StageGameplayPanel({
               label="게임 나가기"
             />
             <RulebookLauncher label="룰북" compact scope="game" />
-          </div>
         </div>
       </header>
       <div className="gameplay-layout mt-gameplay-layout">
@@ -72,7 +84,12 @@ export function StageGameplayPanel({
         </section>
 
         <section className="gameplay-column gameplay-column-center">
-          <ChatRail snapshot={snapshot} />
+          <ChatRailClientShell
+            snapshot={snapshot}
+            initialMessages={initialChatMessages}
+            source={initialChatSource}
+            endpoint={chatEndpoint}
+          />
         </section>
 
         <section className="gameplay-column gameplay-column-right">

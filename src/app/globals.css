@@ -2116,23 +2116,23 @@ select {
 
 .mt-gameplay-layout,
 .gameplay-layout {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(280px, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(250px, 0.9fr);
+  gap: 14px;
   align-items: stretch;
 }
 
 .gameplay-left-layout {
-  grid-template-rows: minmax(320px, 1.25fr) minmax(220px, 0.85fr);
-  min-height: min(72vh, 760px);
+  grid-template-rows: minmax(280px, 1.15fr) minmax(190px, 0.8fr);
+  min-height: min(68vh, 700px);
 }
 
 .gameplay-case-image-slot {
-  max-height: min(46vh, 460px);
+  max-height: min(40vh, 380px);
 }
 
 .gameplay-case-image-slot .image-frame {
   height: 100%;
-  max-height: min(46vh, 460px);
+  max-height: min(40vh, 380px);
   aspect-ratio: 16 / 10;
 }
 
@@ -2167,6 +2167,137 @@ select {
     radial-gradient(circle at top, rgba(245, 158, 11, 0.18), transparent 28%),
     rgba(5, 5, 6, 0.86);
   backdrop-filter: blur(10px);
+}
+
+.gameplay-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.gameplay-stage-copy,
+.gameplay-stage-meta,
+.gameplay-topbar-actions,
+.case-summary-header,
+.case-summary-body {
+  display: grid;
+  gap: 8px;
+}
+
+.gameplay-stage-meta {
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 8px;
+}
+
+.gameplay-stage-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.gameplay-stage-subtitle {
+  margin: 0;
+  color: rgba(255, 248, 234, 0.72);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.gameplay-topbar-actions {
+  grid-auto-flow: column;
+  align-items: start;
+  gap: 8px;
+}
+
+.case-summary-panel {
+  gap: 10px;
+}
+
+.case-summary-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #fff8ea;
+  line-height: 1.35;
+}
+
+.case-summary-description {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.gameplay-layout .chat-main-panel,
+.gameplay-layout .chat-section,
+.gameplay-layout .panel,
+.gameplay-layout .score-card,
+.gameplay-layout .metric-card {
+  padding: 14px;
+}
+
+.gameplay-layout .panel-title,
+.gameplay-layout .chat-section h4,
+.gameplay-layout .panel h3,
+.gameplay-layout .panel h4 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.gameplay-layout .panel-copy,
+.gameplay-layout .message-note,
+.gameplay-layout .chat-meta,
+.gameplay-layout .utility-meta {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.gameplay-layout .message-note {
+  padding: 10px 12px;
+}
+
+.gameplay-layout .metric-label {
+  font-size: 0.68rem;
+}
+
+.gameplay-layout .metric-value {
+  font-size: 1.05rem;
+}
+
+.gameplay-layout .score-value {
+  font-size: 1.65rem;
+}
+
+.gameplay-layout .status-badge {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+}
+
+.gameplay-layout .chat-message {
+  padding: 10px 12px;
+}
+
+.gameplay-layout .chat-message p {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.gameplay-layout .composer-form {
+  gap: 10px;
+}
+
+.gameplay-layout .text-area {
+  min-height: 82px;
+}
+
+.gameplay-layout .button-primary,
+.gameplay-layout .button-secondary {
+  min-height: 40px;
 }
 
 .loading-card {

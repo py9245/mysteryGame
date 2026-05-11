@@ -101,9 +101,6 @@ export function ChatRailClientShell({
     { submittedPreview },
   );
   const myTeamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots);
-  const stageLabel = snapshot.stage
-    ? `스테이지 ${snapshot.stage.stageNumber} · ${snapshot.stage.publicTitle}`
-    : "대기 브리핑";
   const syncLabel =
     source === "api"
       ? isRealtimeConnected
@@ -165,9 +162,9 @@ export function ChatRailClientShell({
       <section className="chat-main-panel chat-primary-panel">
         <div className="composer-header">
           <div>
-            <h3 className="panel-title">채팅</h3>
+            <h3 className="panel-title">{isLobby ? "대기 채팅" : "전체 채팅"}</h3>
             <p className="panel-copy">
-              {isLobby ? "대기실 전체 대화" : "공개 대화"}
+              {isLobby ? "대기실 전체 대화" : "모든 플레이어에게 보이는 공개 대화"}
             </p>
           </div>
           <span
@@ -177,27 +174,32 @@ export function ChatRailClientShell({
             {syncLabel}
           </span>
         </div>
-        <GlobalChatPanel roomCode={snapshot.room.code} stageLabel={stageLabel} messages={globalMessages} />
+        <GlobalChatPanel messages={globalMessages} />
       </section>
 
       <section className="chat-secondary-grid gameplay-chat-bottom-grid">
-        <TeamChatPanel myNickname={snapshot.me.nickname} teamLabel={myTeamLabel} messages={teamMessages} />
+        <TeamChatPanel teamLabel={myTeamLabel} messages={teamMessages} />
         <section className="chat-section chat-support-panel">
-          <div className="composer-header">
-            <div>
-              <h4>{isLobby ? "메시지" : "시스템"}</h4>
-              <p className="panel-copy">
-                {isLobby ? "채널 선택 후 전송" : "최근 안내"}
-              </p>
+          {isLobby ? (
+            <div className="composer-header">
+              <div>
+                <h4>메시지 보내기</h4>
+                <p className="panel-copy">채널을 고르고 바로 대화를 시작하세요.</p>
+              </div>
+              <span className="status-badge">입력</span>
             </div>
-            <span className="status-badge">{isLobby ? "입력" : systemMessages.length > 0 ? "시스템" : "보조"}</span>
-          </div>
-          {isLobby ? null : (
-            <ChatMessageList
-              emptyMessage="아직 안내가 없습니다."
-              messages={systemMessages.length > 0 ? systemMessages : globalMessages.slice(-3)}
-            />
+          ) : (
+            <div className="composer-header">
+              <div>
+                <h4>메시지 보내기</h4>
+                <p className="panel-copy">채널을 고르고 바로 공유하면 됩니다.</p>
+              </div>
+              <span className="status-badge">{systemMessages.length > 0 ? "안내" : "입력"}</span>
+            </div>
           )}
+          {!isLobby && systemMessages.length > 0 ? (
+            <ChatMessageList emptyMessage="아직 안내가 없습니다." messages={systemMessages.slice(-2)} />
+          ) : null}
           <ChatComposer snapshot={snapshot} onSubmittedPreview={setSubmittedPreview} compact />
         </section>
       </section>

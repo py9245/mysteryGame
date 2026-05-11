@@ -22,9 +22,6 @@ export function ChatComposer({
 }) {
   const hasTeamChannel = snapshot.me.teamSlotId !== null;
   const teamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots) ?? "미배정";
-  const stageLabel = snapshot.stage
-    ? `스테이지 ${snapshot.stage.stageNumber} · ${snapshot.stage.publicTitle}`
-    : "대기 브리핑";
   const [channel, setChannel] = useState<ComposerChannel>(hasTeamChannel ? "team" : "global");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,9 +63,7 @@ export function ChatComposer({
   return (
     <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
       <h4>{compact ? "보내기" : "메시지 보내기"}</h4>
-      <p className="panel-copy">
-        {snapshot.me.nickname} · {teamLabel} · {stageLabel}
-      </p>
+      <p className="panel-copy">{channel === "team" ? `${teamLabel} 팀 대화로 보냅니다.` : "전체 채팅으로 보냅니다."}</p>
       <form className="composer-form" onSubmit={handleSubmit}>
         <div className="field">
           <label htmlFor="composer-channel">채널</label>

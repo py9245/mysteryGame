@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { RoomSnapshot } from "@/contracts/api";
+import type { ChatMessage } from "@/contracts/game";
+import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { useRoomRealtimeSnapshot } from "@/features/room-snapshot/use-room-realtime-snapshot";
 import { StageGameplayPanel } from "./StageGameplayPanel";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
@@ -13,10 +15,16 @@ import {
 
 export function GameplayClientShell({
   initialSnapshot,
+  initialChatMessages,
+  initialChatSource,
+  chatEndpoint,
   runtime,
   currentStageNumber,
 }: {
   initialSnapshot: RoomSnapshot;
+  initialChatMessages: ChatMessage[];
+  initialChatSource: LoadedChatMessages["source"];
+  chatEndpoint: string;
   runtime: LoadedGameRuntimeSnapshot;
   currentStageNumber?: number;
 }) {
@@ -124,6 +132,9 @@ export function GameplayClientShell({
   return (
     <StageGameplayPanel
       snapshot={snapshot}
+      initialChatMessages={initialChatMessages}
+      initialChatSource={initialChatSource}
+      chatEndpoint={chatEndpoint}
       runtime={runtimeSnapshot}
       currentStageNumber={currentStageNumber}
       nowMs={nowMs}
