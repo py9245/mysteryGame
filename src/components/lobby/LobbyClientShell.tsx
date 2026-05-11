@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
 import type { ChatMessage } from "@/contracts/game";
@@ -54,6 +54,29 @@ export function LobbyClientShell({
   function resolveCaseKey(stageNumber: number): string {
     return `case-${String(stageNumber).padStart(3, "0")}`;
   }
+
+  useEffect(() => {
+    const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
+
+    if (
+      snapshot.viewMode === "stage_briefing" ||
+      snapshot.viewMode === "stage_playing" ||
+      snapshot.viewMode === "investigation_active" ||
+      snapshot.viewMode === "solved_spectator"
+    ) {
+      router.replace(appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, snapshot));
+      return;
+    }
+
+    if (snapshot.viewMode === "stage_results") {
+      router.replace(appendRoomContextToHref(`/stage/${stageNumber}/results`, snapshot));
+      return;
+    }
+
+    if (snapshot.viewMode === "game_results") {
+      router.replace(appendRoomContextToHref(`/game/results`, snapshot));
+    }
+  }, [router, snapshot]);
 
   async function handleToggleReady() {
     if (isSubmitting) {
