@@ -5,8 +5,10 @@ import type {
   JoinRoomResponse,
 } from "@/contracts/api";
 import {
+  applyActiveRoomCookie,
   applyGuestProfileCookie,
   createGuestViewer,
+  getActiveRoomMembershipFromCookies,
   getCurrentViewerFromCookies,
 } from "@/server/auth-session";
 import { joinRoomInStore, RoomJoinError } from "@/server/live-store";
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
   }
 
   const viewer = await getCurrentViewerFromCookies();
+  const activeRoomMembership = await getActiveRoomMembershipFromCookies();
   const guestViewer = viewer ?? createGuestViewer();
   const resolvedNickname = guestViewer.nickname;
 
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
         resolvedNickname,
         viewer?.kind === "account" ? viewer.account.accountId : null,
         validated.roomPassword ?? null,
+        activeRoomMembership,
       );
       const payload = {
         ok: true,
@@ -135,6 +139,11 @@ export async function POST(request: Request) {
       if (!viewer || viewer.kind === "guest") {
         applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
       }
+      applyActiveRoomCookie(nextResponse, {
+        roomId: response.roomId,
+        playerId: response.playerId,
+        roomCode: response.snapshot.room.code,
+      });
       return nextResponse;
     } catch (error) {
       if (error instanceof RoomJoinError) {

@@ -3,9 +3,9 @@ import type { RoomSnapshot } from "@/contracts/api";
 export function StageStartCountdown({ snapshot }: { snapshot: RoomSnapshot }) {
   return (
     <article className="metric-card metric-card-emphasis">
-      <span className="metric-label">시작 전 카운트</span>
+      <span className="metric-label">질문방 열림까지</span>
       <strong className="metric-value">{snapshot.stage?.remainingSeconds ?? 0}s</strong>
-      <span className="metric-detail">브리핑 종료 후 조사 단계로 넘어갑니다.</span>
+      <span className="metric-detail">1분 브리핑이 끝나면 질문방과 시간 점수가 시작됩니다.</span>
     </article>
   );
 }

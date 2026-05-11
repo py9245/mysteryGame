@@ -1,4 +1,6 @@
+import { NextResponse } from "next/server";
 import type { ApiFailure, ApiResponse, LeaveRoomRequest, LeaveRoomResponse } from "@/contracts/api";
+import { clearActiveRoomCookie, getActiveRoomMembershipFromCookies } from "@/server/auth-session";
 import { LeaveRoomError, leaveRoomInStore } from "@/server/live-store";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
@@ -109,14 +111,23 @@ export async function POST(
 
   try {
     const response = await leaveRoomInStore(validated.roomId, validated.playerId);
-
-    return Response.json(
+    const activeRoomMembership = await getActiveRoomMembershipFromCookies();
+    const nextResponse = NextResponse.json(
       {
         ok: true,
         data: response,
       } satisfies ApiResponse<LeaveRoomResponse>,
       { status: 200 },
     );
+
+    if (
+      activeRoomMembership?.roomId === response.roomId &&
+      activeRoomMembership.playerId === response.playerId
+    ) {
+      clearActiveRoomCookie(nextResponse);
+    }
+
+    return nextResponse;
   } catch (error) {
     if (error instanceof LeaveRoomError) {
       return Response.json(

@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import { SampleFlowNavigation } from "@/components/navigation/SampleFlowNavigation";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { InvestigationDrawer } from "@/features/investigation/InvestigationDrawer";
 import { InvestigationLimitMeter } from "@/features/investigation/InvestigationLimitMeter";
 import { QuestionComposer } from "@/features/investigation/QuestionComposer";
@@ -99,6 +100,11 @@ export function InvestigationPanel({
 
   return (
     <section className="page-shell" id="investigation">
+      <RoomPresenceClient
+        roomId={snapshot.room.id}
+        playerId={snapshot.me.playerId}
+        stageNumber={snapshot.stage?.stageNumber}
+      />
       <header className="page-header">
         <div className="header-top-row">
           <div>

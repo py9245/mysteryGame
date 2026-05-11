@@ -1,4 +1,5 @@
 import type { RoomSnapshot } from "@/contracts/api";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { CaseImageFrame } from "@/components/stage/CaseImageFrame";
 import { CasePanel } from "@/components/stage/CasePanel";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
@@ -33,6 +34,11 @@ export function StageGameplayPanel({
 
   return (
     <section className="page-shell">
+      <RoomPresenceClient
+        roomId={snapshot.room.id}
+        playerId={snapshot.me.playerId}
+        stageNumber={stageNumber}
+      />
       <header className="page-header mt-game-header">
         <div className="header-top-row">
           <div>

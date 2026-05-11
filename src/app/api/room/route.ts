@@ -6,7 +6,13 @@ import type {
   CreateRoomResponse,
   ListRoomDirectoryResponse,
 } from "@/contracts/api";
-import { createGuestViewer, getCurrentViewerFromCookies, applyGuestProfileCookie } from "@/server/auth-session";
+import {
+  applyActiveRoomCookie,
+  applyGuestProfileCookie,
+  createGuestViewer,
+  getActiveRoomMembershipFromCookies,
+  getCurrentViewerFromCookies,
+} from "@/server/auth-session";
 import { createRoomInStore, listRoomDirectoryFromStore } from "@/server/live-store";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 
@@ -134,6 +140,7 @@ export async function POST(request: Request) {
   }
 
   const viewer = await getCurrentViewerFromCookies();
+  const activeRoomMembership = await getActiveRoomMembershipFromCookies();
   const guestViewer = viewer ?? createGuestViewer();
   const resolvedNickname = guestViewer.nickname;
 
@@ -158,6 +165,7 @@ export async function POST(request: Request) {
           stageCount: validated.stageCount,
           maxPlayers: validated.maxPlayers,
         },
+        activeRoomMembership,
       );
       const payload = {
         ok: true,
@@ -168,6 +176,11 @@ export async function POST(request: Request) {
       if (!viewer || viewer.kind === "guest") {
         applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
       }
+      applyActiveRoomCookie(nextResponse, {
+        roomId: response.roomId,
+        playerId: response.playerId,
+        roomCode: response.snapshot.room.code,
+      });
       return nextResponse;
     } catch (error) {
       const payload = createValidationFailure(

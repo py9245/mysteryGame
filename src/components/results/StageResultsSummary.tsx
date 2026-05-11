@@ -1,9 +1,12 @@
 import type { RoomSnapshot } from "@/contracts/api";
 
-function getEndReasonLabel(endReason: RoomSnapshot["stage"]["endReason"] | null | undefined) {
+function getEndReasonLabel(
+  endReason: RoomSnapshot["stage"]["endReason"] | null | undefined,
+  solvedCount: number,
+) {
   switch (endReason) {
     case "two_players_solved":
-      return "두 명의 정답 성공으로 종료";
+      return solvedCount <= 1 ? "한 명의 정답 성공으로 종료" : "두 명의 정답 성공으로 종료";
     case "timer_expired":
       return "시간 종료";
     case "admin_closed":
@@ -17,7 +20,7 @@ function getEndReasonLabel(endReason: RoomSnapshot["stage"]["endReason"] | null 
 
 export function StageResultsSummary({ snapshot }: { snapshot: RoomSnapshot }) {
   const solvedCount = snapshot.stage?.solvedPlayerIds.length ?? 0;
-  const endReasonLabel = getEndReasonLabel(snapshot.stage?.endReason);
+  const endReasonLabel = getEndReasonLabel(snapshot.stage?.endReason, solvedCount);
 
   return (
     <section className="panel panel-accent">
