@@ -84,6 +84,7 @@ import { hashPassword, verifyPassword } from "@/server/auth-password";
 import type { ActiveRoomMembership } from "@/server/auth-session";
 import { addSeconds, diffSeconds, hasExpired, nowUtcIso, remainingSeconds } from "@/server/time";
 import { createTextCompletion } from "@/lib/ai";
+import { generateImage } from "@/lib/ai";
 
 type DbRoomRow = {
   id: string;
@@ -298,6 +299,18 @@ type DbPrivateChatRequestRow = {
   updated_at: string;
 };
 
+type DbAdminLogRow = {
+  id: string;
+  room_id: string;
+  game_id: string | null;
+  stage_id: string | null;
+  actor_type: string;
+  actor_id: string;
+  action: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 type DbPrivateChatSessionRow = {
   id: string;
   stage_id: string;
@@ -324,6 +337,8 @@ const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
 const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
 const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
 const ROOM_PRESENCE_TTL_SECONDS = 15;
+const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
+const PRACTICE_GENERATED_CASE_PREFIX = "practice-generated-";
 
 type CaseSummary = {
   title: string;
@@ -352,6 +367,11 @@ type CaseFile = {
     publicText: string;
     internalNote: string;
   }>;
+};
+
+type GeneratedPracticeCasePayload = {
+  caseKey: string;
+  caseFile: CaseFile;
 };
 
 export class RoomJoinError extends Error {
@@ -502,6 +522,19 @@ export class PrivateChatError extends Error {
 
 function isUuidLike(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isPracticeGeneratedCaseKey(caseKey: string): boolean {
+  return caseKey.startsWith(PRACTICE_GENERATED_CASE_PREFIX);
+}
+
+function resolvePracticeGeneratedStageId(caseKey: string): string | null {
+  if (!isPracticeGeneratedCaseKey(caseKey)) {
+    return null;
+  }
+
+  const stageId = caseKey.slice(PRACTICE_GENERATED_CASE_PREFIX.length);
+  return isUuidLike(stageId) ? stageId : null;
 }
 
 function generateRoomCode(length = 4): string {
@@ -2188,6 +2221,10 @@ async function loadCaseSummary(caseKey: string): Promise<CaseSummary | null> {
 }
 
 async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
+  if (isPracticeGeneratedCaseKey(caseKey)) {
+    return loadPracticeGeneratedCaseFile(caseKey);
+  }
+
   try {
     const raw = await readFile(join(process.cwd(), "data/cases", `${caseKey}.json`), "utf8");
     const parsed = JSON.parse(raw) as {
@@ -2255,6 +2292,313 @@ async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
     };
   } catch {
     return null;
+  }
+}
+
+function isGeneratedPracticeCasePayload(value: unknown): value is GeneratedPracticeCasePayload {
+  if (!isRecord(value) || typeof value.caseKey !== "string" || !isRecord(value.caseFile)) {
+    return false;
+  }
+
+  const caseFile = value.caseFile;
+  return (
+    typeof caseFile.key === "string" &&
+    typeof caseFile.stageNumber === "number" &&
+    typeof caseFile.title === "string" &&
+    typeof caseFile.publicDescription === "string" &&
+    typeof caseFile.question === "string" &&
+    typeof caseFile.truth === "string" &&
+    Array.isArray(caseFile.requiredKeywords) &&
+    Array.isArray(caseFile.bonusKeywords) &&
+    typeof caseFile.acceptedAnswerSummary === "string" &&
+    Array.isArray(caseFile.hints)
+  );
+}
+
+async function loadPracticeGeneratedCaseFile(caseKey: string): Promise<CaseFile | null> {
+  const stageId = resolvePracticeGeneratedStageId(caseKey);
+  if (!stageId) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("admin_logs")
+    .select("*")
+    .eq("stage_id", stageId)
+    .eq("action", "practice_case_generated")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<DbAdminLogRow>();
+
+  if (error || !data || !isGeneratedPracticeCasePayload(data.payload)) {
+    return null;
+  }
+
+  return data.payload.caseFile;
+}
+
+function buildPracticeImageFallbackDataUrl(title: string, description: string): string {
+  const safeTitle = title.replace(/[<&>"]/g, "");
+  const safeDescription = description.replace(/[<&>"]/g, "");
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#09090b" />
+          <stop offset="55%" stop-color="#18181b" />
+          <stop offset="100%" stop-color="#27272a" />
+        </linearGradient>
+      </defs>
+      <rect width="1024" height="1024" fill="url(#bg)" />
+      <circle cx="788" cy="212" r="132" fill="#b91c1c" opacity="0.18" />
+      <circle cx="240" cy="792" r="160" fill="#f59e0b" opacity="0.14" />
+      <rect x="92" y="92" width="840" height="840" rx="44" fill="none" stroke="#f4f4f5" stroke-opacity="0.12" stroke-width="2" />
+      <text x="112" y="208" fill="#f4f4f5" font-size="54" font-family="Arial, sans-serif" font-weight="700">${safeTitle}</text>
+      <foreignObject x="112" y="272" width="800" height="520">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d4d4d8;font-size:31px;line-height:1.55;font-family:Arial,sans-serif;">
+          ${safeDescription}
+        </div>
+      </foreignObject>
+      <text x="112" y="902" fill="#f59e0b" font-size="24" font-family="Arial, sans-serif">Practice case fallback visual</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function toDataUrl(asset: { url: string | null; base64Data: string | null; mimeType: string | null }): string | null {
+  if (typeof asset.url === "string" && asset.url.length > 0) {
+    return asset.url;
+  }
+
+  if (typeof asset.base64Data === "string" && asset.base64Data.length > 0) {
+    return `data:${asset.mimeType ?? "image/png"};base64,${asset.base64Data}`;
+  }
+
+  return null;
+}
+
+function buildFallbackPracticeCase(stageId: string, stageNumber: number): CaseFile {
+  const key = `${PRACTICE_GENERATED_CASE_PREFIX}${stageId}`;
+  return {
+    key,
+    stageNumber,
+    title: "한밤중의 유리 온실",
+    publicDescription:
+      "온실 문은 안에서 잠겨 있었고 바닥에는 깨진 화분 조각만 남아 있었다. 새벽 공기 속에서 누군가는 급하게 흔적을 감추려 했다.",
+    imageUrl: buildPracticeImageFallbackDataUrl(
+      "한밤중의 유리 온실",
+      "온실 문은 안에서 잠겨 있었고 바닥에는 깨진 화분 조각만 남아 있었다. 새벽 공기 속에서 누군가는 급하게 흔적을 감추려 했다.",
+    ),
+    question: "피해자는 누구에게 어떤 방식으로 살해되었으며, 범인은 무엇을 숨기려 했는가?",
+    truth:
+      "범인은 공동 연구자다. 연구 결과를 빼앗기지 않기 위해 살충제를 탄 차를 건넸고, 깨진 화분과 잠긴 문을 이용해 사고처럼 꾸몄다.",
+    requiredKeywords: ["공동 연구자", "살충제", "차", "연구 결과", "화분"],
+    bonusKeywords: ["온실", "사고 위장"],
+    acceptedAnswerSummary:
+      "범인은 공동 연구자이며 연구 결과를 독점하기 위해 살충제를 탄 차를 건넸고, 깨진 화분과 잠긴 문으로 사고처럼 위장했다.",
+    hints: [
+      {
+        hintId: `${key}-hint-1`,
+        order: 1,
+        triggerType: "time_elapsed",
+        strength: "weak",
+        publicText: "현장은 누군가가 급히 방향을 틀어 놓은 듯 어색하다.",
+        internalNote: "사고 위장 가능성을 강화한다.",
+      },
+      {
+        hintId: `${key}-hint-2`,
+        order: 2,
+        triggerType: "time_elapsed",
+        strength: "medium",
+        publicText: "가장 중요한 단서는 식물보다 사람이 마신 것에 가깝다.",
+        internalNote: "음료 독살을 암시한다.",
+      },
+      {
+        hintId: `${key}-hint-3`,
+        order: 3,
+        triggerType: "stage_pressure",
+        strength: "strong",
+        publicText: "범인은 연구 성과를 잃고 싶지 않았던 가까운 협력자다.",
+        internalNote: "동기와 인물 축을 고정한다.",
+      },
+    ],
+  };
+}
+
+async function generatePracticeCaseFile(stageId: string, stageNumber: number): Promise<CaseFile> {
+  const caseKey = `${PRACTICE_GENERATED_CASE_PREFIX}${stageId}`;
+  const fallbackCase = buildFallbackPracticeCase(stageId, stageNumber);
+
+  try {
+    const completion = await createTextCompletion({
+      messages: [
+        {
+          role: "developer",
+          content:
+            "너는 미스터리 추리 웹게임의 사건 설계자다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문 금지. 한국어로 작성한다. 사건은 한 번에 추리 가능해야 하며, 질문/정답 판정에 쓰기 쉬운 구조로 만든다.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              target: "practice_mode_single_player_stage",
+              stageNumber,
+              requirements: {
+                title: "20자 내외 한국어 사건 제목",
+                publicDescription: "플레이어에게 공개될 2~3문장 요약",
+                question: "정답으로 찾아야 할 질문 한 문장",
+                truth: "사건의 실제 진실 2~4문장",
+                requiredKeywords: "정답 판정에 반드시 필요한 키워드 4~6개",
+                bonusKeywords: "보너스 키워드 1~3개",
+                acceptedAnswerSummary: "정답 공개 요약 1문장",
+                imagePrompt: "사건 장면을 그릴 영어 프롬프트 1문장",
+                hints: [
+                  {
+                    order: 1,
+                    triggerType: "time_elapsed",
+                    strength: "weak",
+                    publicText: "약한 힌트",
+                    internalNote: "운영 메모",
+                  },
+                  {
+                    order: 2,
+                    triggerType: "time_elapsed",
+                    strength: "medium",
+                    publicText: "중간 힌트",
+                    internalNote: "운영 메모",
+                  },
+                  {
+                    order: 3,
+                    triggerType: "stage_pressure",
+                    strength: "strong",
+                    publicText: "강한 힌트",
+                    internalNote: "운영 메모",
+                  },
+                ],
+              },
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    });
+
+    const parsed = extractJsonObject(completion.text);
+    if (!parsed) {
+      throw new Error("Practice case JSON parse failed.");
+    }
+
+    const title = typeof parsed.title === "string" && parsed.title.trim().length > 0 ? parsed.title.trim() : fallbackCase.title;
+    const publicDescription =
+      typeof parsed.publicDescription === "string" && parsed.publicDescription.trim().length > 0
+        ? parsed.publicDescription.trim()
+        : fallbackCase.publicDescription;
+    const question =
+      typeof parsed.question === "string" && parsed.question.trim().length > 0
+        ? parsed.question.trim()
+        : fallbackCase.question;
+    const truth =
+      typeof parsed.truth === "string" && parsed.truth.trim().length > 0 ? parsed.truth.trim() : fallbackCase.truth;
+    const requiredKeywords = asStringArray(parsed.requiredKeywords).filter((value) => value.trim().length > 0);
+    const bonusKeywords = asStringArray(parsed.bonusKeywords).filter((value) => value.trim().length > 0);
+    const acceptedAnswerSummary =
+      typeof parsed.acceptedAnswerSummary === "string" && parsed.acceptedAnswerSummary.trim().length > 0
+        ? parsed.acceptedAnswerSummary.trim()
+        : fallbackCase.acceptedAnswerSummary;
+    const hints =
+      Array.isArray(parsed.hints) && parsed.hints.length > 0
+        ? parsed.hints
+            .filter((hint): hint is Record<string, unknown> => isRecord(hint))
+            .map((hint, index) => ({
+              hintId: `${caseKey}-hint-${index + 1}`,
+              order: typeof hint.order === "number" ? hint.order : index + 1,
+              triggerType: typeof hint.triggerType === "string" ? hint.triggerType : index < 2 ? "time_elapsed" : "stage_pressure",
+              strength: typeof hint.strength === "string" ? hint.strength : index === 0 ? "weak" : index === 1 ? "medium" : "strong",
+              publicText:
+                typeof hint.publicText === "string" && hint.publicText.trim().length > 0
+                  ? hint.publicText.trim()
+                  : fallbackCase.hints[index]?.publicText ?? "단서를 다시 살펴보세요.",
+              internalNote:
+                typeof hint.internalNote === "string" && hint.internalNote.trim().length > 0
+                  ? hint.internalNote.trim()
+                  : fallbackCase.hints[index]?.internalNote ?? "generated practice hint",
+            }))
+        : fallbackCase.hints;
+
+    const imagePrompt =
+      typeof parsed.imagePrompt === "string" && parsed.imagePrompt.trim().length > 0
+        ? parsed.imagePrompt.trim()
+        : `Cinematic mystery crime scene illustration, ${title}, ${publicDescription}`;
+
+    let imageUrl: string | null = null;
+
+    try {
+      const generated = await generateImage({
+        provider: "openai_gpt_image",
+        prompt: imagePrompt,
+        n: 1,
+        size: "1024x1024",
+      });
+      imageUrl = toDataUrl(generated.assets[0] ?? { url: null, base64Data: null, mimeType: null });
+    } catch {
+      try {
+        const generated = await generateImage({
+          provider: "google_imagen",
+          prompt: imagePrompt,
+          sampleCount: 1,
+        });
+        imageUrl = toDataUrl(generated.assets[0] ?? { url: null, base64Data: null, mimeType: null });
+      } catch {
+        imageUrl = null;
+      }
+    }
+
+    return {
+      key: caseKey,
+      stageNumber,
+      title,
+      publicDescription,
+      imageUrl: imageUrl ?? buildPracticeImageFallbackDataUrl(title, publicDescription),
+      question,
+      truth,
+      requiredKeywords: requiredKeywords.length >= 4 ? requiredKeywords.slice(0, 6) : fallbackCase.requiredKeywords,
+      bonusKeywords: bonusKeywords.length >= 1 ? bonusKeywords.slice(0, 3) : fallbackCase.bonusKeywords,
+      acceptedAnswerSummary,
+      hints,
+    };
+  } catch {
+    return fallbackCase;
+  }
+}
+
+async function persistPracticeGeneratedCase(input: {
+  roomId: string;
+  gameId: string;
+  stageId: string;
+  requestedByPlayerId: string;
+  caseFile: CaseFile;
+}): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const nowIso = nowUtcIso();
+  const { error } = await supabase.from("admin_logs").insert({
+    room_id: input.roomId,
+    game_id: input.gameId,
+    stage_id: input.stageId,
+    actor_type: "system",
+    actor_id: input.requestedByPlayerId,
+    action: "practice_case_generated",
+    payload: {
+      caseKey: input.caseFile.key,
+      caseFile: input.caseFile,
+    },
+    created_at: nowIso,
+  });
+
+  if (error) {
+    throw new Error(`Failed to persist practice case payload: ${error.message}`);
   }
 }
 
@@ -3534,6 +3878,20 @@ export async function startStageInStore(
 
   const stage = stateBeforeStart.currentStage!;
   const game = stateBeforeStart.game!;
+  let resolvedCaseKey = caseKey;
+
+  if (resolveRoomMode(room) === "practice" && caseKey === PRACTICE_GENERATED_CASE_SENTINEL) {
+    const generatedCase = await generatePracticeCaseFile(stage.id, stage.stage_number);
+    await persistPracticeGeneratedCase({
+      roomId: room.id,
+      gameId: game.id,
+      stageId: stage.id,
+      requestedByPlayerId,
+      caseFile: generatedCase,
+    });
+    resolvedCaseKey = generatedCase.key;
+  }
+
   const nowIso = nowUtcIso();
   const resolvedDurationSeconds = durationSeconds > 0 ? durationSeconds : DEFAULT_STAGE_DURATION_SECONDS;
   const endsAt = addSeconds(nowIso, STAGE_BRIEFING_SECONDS + resolvedDurationSeconds);
@@ -3542,7 +3900,7 @@ export async function startStageInStore(
   const { data: updatedStage, error: stageUpdateError } = await supabase
     .from("stages")
     .update({
-      case_key: caseKey,
+      case_key: resolvedCaseKey,
       status: "briefing",
       briefing_started_at: nowIso,
       started_at: null,
@@ -3639,7 +3997,7 @@ export async function startStageInStore(
   }
 
   const state = await loadLobbyState(room.id);
-  const caseSummary = await loadCaseSummary(caseKey);
+  const caseSummary = await loadCaseSummary(resolvedCaseKey);
 
   return {
     game: toGame(updatedGame),

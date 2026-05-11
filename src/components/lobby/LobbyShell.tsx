@@ -34,6 +34,8 @@ export function LobbyShell({
   isHostActionSubmitting = false,
   errorMessage = null,
   statusMessage = null,
+  practiceLoadingMessage = null,
+  practiceLoadingDetail = null,
   onToggleReady,
   onStartGame,
 }: {
@@ -45,6 +47,8 @@ export function LobbyShell({
   isHostActionSubmitting?: boolean;
   errorMessage?: string | null;
   statusMessage?: string | null;
+  practiceLoadingMessage?: string | null;
+  practiceLoadingDetail?: string | null;
   onToggleReady?: () => void;
   onStartGame?: () => void;
 }) {
@@ -66,7 +70,7 @@ export function LobbyShell({
     snapshot.teamSlots.find((slot) => slot.id === snapshot.me.teamSlotId)?.label ?? "팀 배정 전";
   const nextStepMessage = isHost
     ? isPracticeMode
-      ? "연습방은 혼자 바로 플레이할 수 있습니다. 시작을 누르면 즉시 브리핑으로 넘어갑니다."
+      ? "연습방은 혼자 바로 플레이할 수 있습니다. 시작을 누르면 AI가 사건과 이미지를 준비한 뒤 바로 게임 화면으로 넘어갑니다."
       : canStartGame
         ? "모든 참가자가 준비를 마쳤습니다. 시작을 누르면 팀 배정 후 바로 브리핑으로 넘어갑니다."
         : "본인을 제외한 모든 참가자가 준비가 되면 시작 버튼이 활성화됩니다."
@@ -84,6 +88,24 @@ export function LobbyShell({
 
   return (
     <section className="page-shell lobby-screen">
+      {practiceLoadingMessage ? (
+        <div className="fullscreen-loading-overlay" role="status" aria-live="polite">
+          <div className="loading-card">
+            <span className="status-badge" data-tone="live">
+              연습 사건 준비 중
+            </span>
+            <h3 className="loading-title">{practiceLoadingMessage}</h3>
+            <p className="loading-copy">
+              {practiceLoadingDetail ?? "AI가 사건 설명과 이미지를 준비하는 동안 잠시만 기다려주세요."}
+            </p>
+            <div className="loading-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        </div>
+      ) : null}
       <section className="nav-strip lobby-summary-strip mt-lobby-summary">
         <div className="lobby-summary-main">
           <div>

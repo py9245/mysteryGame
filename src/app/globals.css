@@ -2145,6 +2145,78 @@ select {
     rgba(7, 8, 13, 0.74);
 }
 
+.fullscreen-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, rgba(245, 158, 11, 0.18), transparent 28%),
+    rgba(5, 5, 6, 0.86);
+  backdrop-filter: blur(10px);
+}
+
+.loading-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.5rem;
+  background: rgba(18, 18, 20, 0.94);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+}
+
+.loading-title {
+  margin: 0;
+  font-size: clamp(1.2rem, 1rem + 0.6vw, 1.6rem);
+  line-height: 1.2;
+  color: #fafaf9;
+}
+
+.loading-copy {
+  margin: 0;
+  color: rgba(228, 228, 231, 0.82);
+  line-height: 1.6;
+}
+
+.loading-dots {
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.loading-dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  animation: mystery-loading-bounce 1s infinite ease-in-out;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+@keyframes mystery-loading-bounce {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+
 .gameplay-utility-rail {
   top: 18px;
 }
