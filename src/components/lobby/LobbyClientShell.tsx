@@ -55,6 +55,15 @@ export function LobbyClientShell({
     return `case-${String(stageNumber).padStart(3, "0")}`;
   }
 
+  function navigateToHref(href: string) {
+    if (typeof window !== "undefined") {
+      window.location.assign(href);
+      return;
+    }
+
+    router.replace(href);
+  }
+
   useEffect(() => {
     const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
 
@@ -64,19 +73,19 @@ export function LobbyClientShell({
       snapshot.viewMode === "investigation_active" ||
       snapshot.viewMode === "solved_spectator"
     ) {
-      router.replace(appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, snapshot));
+      navigateToHref(appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, snapshot));
       return;
     }
 
     if (snapshot.viewMode === "stage_results") {
-      router.replace(appendRoomContextToHref(`/stage/${stageNumber}/results`, snapshot));
+      navigateToHref(appendRoomContextToHref(`/stage/${stageNumber}/results`, snapshot));
       return;
     }
 
     if (snapshot.viewMode === "game_results") {
-      router.replace(appendRoomContextToHref(`/game/results`, snapshot));
+      navigateToHref(appendRoomContextToHref(`/game/results`, snapshot));
     }
-  }, [router, snapshot]);
+  }, [snapshot]);
 
   async function handleToggleReady() {
     if (isSubmitting) {
@@ -173,9 +182,7 @@ export function LobbyClientShell({
           : "스테이지 브리핑이 시작되었습니다.",
       );
       setIsHostActionSubmitting(false);
-      router.push(
-        appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, result.snapshot),
-      );
+      navigateToHref(appendRoomContextToHref(`/stage/${stageNumber}/gameplay`, result.snapshot));
       return;
     }
 
