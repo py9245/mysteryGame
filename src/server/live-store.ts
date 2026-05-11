@@ -3067,12 +3067,43 @@ export async function getRoomSnapshotFromStore(
     await cleanupStalePlayersInRoom(room, viewerPlayerId);
   }
 
-  const state =
-    options.lightweight === true
-      ? await loadLobbyState(room.id)
-      : await loadSyncedLobbyState(room.id, {
-          cleanupPresence: options.cleanupPresence ?? !viewerPlayerId,
-        });
+  let state: SyncedLobbyState;
+
+  if (options.lightweight === true) {
+    state = await loadLobbyState(room.id);
+
+    const nowIso = nowUtcIso();
+    const activeStage = state.currentStage;
+    const hasExpiredBriefing =
+      activeStage?.status === "briefing" &&
+      Boolean(resolveStageBriefingEndsAt(activeStage)) &&
+      hasExpired(resolveStageBriefingEndsAt(activeStage), nowIso);
+    const hasExpiredStageTimer =
+      Boolean(activeStage?.ends_at) &&
+      (activeStage?.status === "briefing" || activeStage?.status === "in_progress") &&
+      hasExpired(activeStage.ends_at, nowIso);
+    const hasExpiredInvestigationLock =
+      Boolean(state.activeLock?.locked_by_player_id) &&
+      hasExpired(state.activeLock?.expires_at ?? null, nowIso);
+    const hasExpiredPrivateChatRequest = state.privateChatRequests.some(
+      (request) => request.status === "pending" && hasExpired(request.expires_at, nowIso),
+    );
+
+    if (
+      hasExpiredBriefing ||
+      hasExpiredStageTimer ||
+      hasExpiredInvestigationLock ||
+      hasExpiredPrivateChatRequest
+    ) {
+      await syncDerivedStageState(room.id);
+      state = await loadLobbyState(room.id);
+    }
+  } else {
+    state = await loadSyncedLobbyState(room.id, {
+      cleanupPresence: options.cleanupPresence ?? !viewerPlayerId,
+    });
+  }
+
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
   return buildSnapshotFromState(state, caseSummary, viewerPlayerId);
 }

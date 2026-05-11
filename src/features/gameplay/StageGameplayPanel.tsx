@@ -43,7 +43,7 @@ export function StageGameplayPanel({
   const stageTitle = snapshot.stage?.publicTitle ?? `스테이지 ${stageNumber}`;
   const briefingCopy =
     snapshot.stage?.status === "briefing"
-      ? "1분 동안 채팅으로 사건을 정리합니다. 이후 질문방이 열립니다."
+      ? `브리핑 ${snapshot.stage?.remainingSeconds ?? 0}초 · 지금은 채팅만 가능하고, 0초가 되면 질문방이 열립니다.`
       : "채팅과 행동 패널을 한 화면에서 바로 이어서 진행하세요.";
 
   return (
