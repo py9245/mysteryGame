@@ -15,6 +15,7 @@ export function GameplayUtilityRail({
   onRequestPrivateChat,
   onRespondPrivateChat,
   onEndPrivateChat,
+  onOpenInvestigationModal,
 }: {
   snapshot: RoomSnapshot;
   runtime: LoadedGameRuntimeSnapshot;
@@ -25,10 +26,11 @@ export function GameplayUtilityRail({
   onRequestPrivateChat?: (targetPlayerId: string) => void;
   onRespondPrivateChat?: (requestId: string, accept: boolean) => void;
   onEndPrivateChat?: (sessionId: string) => void;
+  onOpenInvestigationModal?: () => void;
 }) {
   return (
     <aside className="gameplay-utility-rail mt-utility-rail">
-      <PlayerActionPanel snapshot={snapshot} />
+      <PlayerActionPanel snapshot={snapshot} onOpenInvestigationModal={onOpenInvestigationModal} />
       <MyScoreCard snapshot={snapshot} />
       <InvestigationQueueBanner snapshot={snapshot} players={snapshot.players} nowMs={nowMs} />
       <PrivateChatBanner

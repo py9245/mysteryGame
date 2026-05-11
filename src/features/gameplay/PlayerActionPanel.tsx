@@ -61,7 +61,13 @@ function resolveActionCopy(snapshot: RoomSnapshot) {
   };
 }
 
-export function PlayerActionPanel({ snapshot }: { snapshot: RoomSnapshot }) {
+export function PlayerActionPanel({
+  snapshot,
+  onOpenInvestigationModal,
+}: {
+  snapshot: RoomSnapshot;
+  onOpenInvestigationModal?: () => void;
+}) {
   const action = resolveActionCopy(snapshot);
 
   return (
@@ -78,6 +84,10 @@ export function PlayerActionPanel({ snapshot }: { snapshot: RoomSnapshot }) {
       <div className="action-row">
         {action.disabled ? (
           <button className="button-secondary" type="button" disabled>
+            {action.label}
+          </button>
+        ) : onOpenInvestigationModal ? (
+          <button className="button-primary" type="button" onClick={onOpenInvestigationModal}>
             {action.label}
           </button>
         ) : (

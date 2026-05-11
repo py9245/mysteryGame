@@ -6,6 +6,18 @@ import type { ChatMessage } from "@/contracts/game";
 import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { normalizeRoomSnapshot } from "@/features/room-snapshot/room-snapshot-loader";
 import { useRoomRealtimeSnapshot } from "@/features/room-snapshot/use-room-realtime-snapshot";
+import {
+  submitAcquireInvestigationLock,
+  submitReleaseInvestigationLock,
+} from "@/features/investigation/investigation-lock-command";
+import {
+  submitJoinInvestigationQueue,
+  submitLeaveInvestigationQueue,
+} from "@/features/investigation/investigation-queue-command";
+import {
+  submitInvestigationAnswer,
+  submitInvestigationQuestion,
+} from "@/features/investigation/investigation-command";
 import { StageGameplayPanel } from "./StageGameplayPanel";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
 import {
@@ -13,6 +25,7 @@ import {
   submitPrivateChatRequest,
   submitPrivateChatResponse,
 } from "./private-chat-command";
+import { GameplayInvestigationModal } from "./GameplayInvestigationModal";
 
 export function GameplayClientShell({
   initialSnapshot,
@@ -37,6 +50,18 @@ export function GameplayClientShell({
   const [isSubmittingPrivateChat, setIsSubmittingPrivateChat] = useState(false);
   const [privateChatStatusMessage, setPrivateChatStatusMessage] = useState<string | null>(null);
   const [privateChatErrorMessage, setPrivateChatErrorMessage] = useState<string | null>(null);
+  const [isInvestigationOpen, setIsInvestigationOpen] = useState(false);
+  const [isSubmittingInvestigation, setIsSubmittingInvestigation] = useState(false);
+  const [isQuestionSubmitting, setIsQuestionSubmitting] = useState(false);
+  const [isAnswerSubmitting, setIsAnswerSubmitting] = useState(false);
+  const [investigationStatusMessage, setInvestigationStatusMessage] = useState<string | null>(null);
+  const [investigationErrorMessage, setInvestigationErrorMessage] = useState<string | null>(null);
+  const [questionFeedbackMessage, setQuestionFeedbackMessage] = useState<string | null>(null);
+  const [questionFeedbackTone, setQuestionFeedbackTone] = useState<"positive" | "negative" | "note">("note");
+  const [answerFeedbackMessage, setAnswerFeedbackMessage] = useState<string | null>(null);
+  const [answerFeedbackTone, setAnswerFeedbackTone] = useState<"positive" | "negative" | "note">("note");
+  const [questionDraft, setQuestionDraft] = useState("");
+  const [answerDraft, setAnswerDraft] = useState("");
   const [countdownSeed, setCountdownSeed] = useState(() => ({
     stageId: initialSnapshot.stage?.stageId ?? null,
     stageStatus: initialSnapshot.stage?.status ?? null,
@@ -91,6 +116,12 @@ export function GameplayClientShell({
       },
     };
   }, [countdownSeed, nowMs, snapshot]);
+
+  useEffect(() => {
+    if (displayedSnapshot.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId) {
+      setIsInvestigationOpen(true);
+    }
+  }, [displayedSnapshot.me.playerId, displayedSnapshot.stage?.investigation?.lockedByPlayerId]);
 
   useEffect(() => {
     async function refreshStageBoundarySnapshot() {
@@ -173,6 +204,233 @@ export function GameplayClientShell({
     setIsSubmittingPrivateChat(false);
   }
 
+  const investigation = displayedSnapshot.stage?.investigation ?? null;
+  const lockOwnerId = investigation?.lockedByPlayerId ?? null;
+  const isLockedByMe = lockOwnerId === displayedSnapshot.me.playerId;
+  const isLockedByOther = Boolean(lockOwnerId && lockOwnerId !== displayedSnapshot.me.playerId);
+  const queuePosition = investigation?.queuePosition ?? null;
+  const isQueued = queuePosition !== null;
+  const waitingPlayerCount = investigation?.waitingPlayerCount ?? 0;
+  const queueCooldownSeconds = (() => {
+    const cooldownEndsAt = investigation?.reentryCooldownEndsAt;
+    if (!cooldownEndsAt) {
+      return 0;
+    }
+
+    const cooldownMs = Date.parse(cooldownEndsAt);
+    if (!Number.isFinite(cooldownMs)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.ceil((cooldownMs - nowMs) / 1000));
+  })();
+  const hasStageContext = Boolean(displayedSnapshot.stage?.stageId);
+
+  async function handleAcquireLock() {
+    if (isSubmittingInvestigation || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmittingInvestigation(true);
+    setInvestigationErrorMessage(null);
+
+    const result = await submitAcquireInvestigationLock({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setInvestigationStatusMessage("질문방에 입장했습니다. 지금부터 질문과 정답 시도가 가능합니다.");
+      setIsInvestigationOpen(true);
+      setIsSubmittingInvestigation(false);
+      return;
+    }
+
+    setInvestigationErrorMessage(result.errorMessage ?? "질문방 입장에 실패했습니다.");
+    setInvestigationStatusMessage(null);
+    setIsSubmittingInvestigation(false);
+  }
+
+  async function handleJoinQueue() {
+    if (isSubmittingInvestigation || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmittingInvestigation(true);
+    setInvestigationErrorMessage(null);
+
+    const result = await submitJoinInvestigationQueue({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      const admitted = result.snapshot.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId;
+      setInvestigationStatusMessage(
+        admitted
+          ? "질문방이 비어 있어서 바로 입장했습니다."
+          : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 열립니다.",
+      );
+      setIsInvestigationOpen(true);
+      setIsSubmittingInvestigation(false);
+      return;
+    }
+
+    setInvestigationErrorMessage(result.errorMessage ?? "질문방 대기열에 참가하지 못했습니다.");
+    setInvestigationStatusMessage(null);
+    setIsSubmittingInvestigation(false);
+  }
+
+  async function handleLeaveQueue() {
+    if (isSubmittingInvestigation || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmittingInvestigation(true);
+    setInvestigationErrorMessage(null);
+
+    const result = await submitLeaveInvestigationQueue({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setInvestigationStatusMessage("질문방 대기열에서 빠졌습니다.");
+      setIsSubmittingInvestigation(false);
+      return;
+    }
+
+    setInvestigationErrorMessage(result.errorMessage ?? "질문방 대기열 취소에 실패했습니다.");
+    setInvestigationStatusMessage(null);
+    setIsSubmittingInvestigation(false);
+  }
+
+  async function handleReleaseLock() {
+    if (isSubmittingInvestigation || !displayedSnapshot.stage?.stageId) {
+      return;
+    }
+
+    setIsSubmittingInvestigation(true);
+    setInvestigationErrorMessage(null);
+
+    const result = await submitReleaseInvestigationLock({
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setInvestigationStatusMessage("질문방에서 나왔습니다. 다음 플레이어가 자동으로 이어받습니다.");
+      setIsSubmittingInvestigation(false);
+      return;
+    }
+
+    setInvestigationErrorMessage(result.errorMessage ?? "질문방 나가기에 실패했습니다.");
+    setInvestigationStatusMessage(null);
+    setIsSubmittingInvestigation(false);
+  }
+
+  async function handleSubmitQuestion() {
+    if (
+      isQuestionSubmitting ||
+      !displayedSnapshot.stage?.stageId ||
+      !isLockedByMe ||
+      !displayedSnapshot.me.teamSlotId
+    ) {
+      return;
+    }
+
+    setIsQuestionSubmitting(true);
+    setQuestionFeedbackMessage(null);
+    setQuestionFeedbackTone("note");
+
+    const result = await submitInvestigationQuestion({
+      type: "submit_question",
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+      teamSlotId: displayedSnapshot.me.teamSlotId,
+      content: questionDraft.trim(),
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setQuestionDraft("");
+      setQuestionFeedbackTone("positive");
+      setQuestionFeedbackMessage(
+        result.question?.judgement
+          ? `질문이 접수되었습니다. 공개 응답: ${result.question.judgement}`
+          : "질문이 접수되었습니다.",
+      );
+      setInvestigationStatusMessage("질문 결과가 반영되었습니다.");
+      setInvestigationErrorMessage(null);
+    } else {
+      setQuestionFeedbackTone("negative");
+      setQuestionFeedbackMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
+      setInvestigationErrorMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
+    }
+
+    setIsQuestionSubmitting(false);
+  }
+
+  async function handleSubmitAnswer() {
+    if (
+      isAnswerSubmitting ||
+      !displayedSnapshot.stage?.stageId ||
+      !isLockedByMe ||
+      !displayedSnapshot.me.teamSlotId
+    ) {
+      return;
+    }
+
+    setIsAnswerSubmitting(true);
+    setAnswerFeedbackMessage(null);
+    setAnswerFeedbackTone("note");
+
+    const result = await submitInvestigationAnswer({
+      type: "submit_answer",
+      roomId: displayedSnapshot.room.id,
+      stageId: displayedSnapshot.stage.stageId,
+      playerId: displayedSnapshot.me.playerId,
+      teamSlotId: displayedSnapshot.me.teamSlotId,
+      content: answerDraft.trim(),
+    });
+
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      const outcome = result.snapshot.stage?.lastAnswerResult;
+      const publicOutcome =
+        outcome && typeof outcome === "object" && "publicOutcome" in outcome
+          ? outcome.publicOutcome
+          : "needs_review";
+
+      setAnswerDraft("");
+      setAnswerFeedbackTone(publicOutcome === "correct" ? "positive" : publicOutcome === "wrong" ? "negative" : "note");
+      setAnswerFeedbackMessage(
+        publicOutcome === "correct"
+          ? "정답으로 인정되었습니다."
+          : publicOutcome === "wrong"
+            ? "정답이 인정되지 않았습니다."
+            : "운영자 확인이 필요합니다.",
+      );
+      setInvestigationStatusMessage("정답 제출 결과가 반영되었습니다.");
+      setInvestigationErrorMessage(null);
+    } else {
+      setAnswerFeedbackTone("negative");
+      setAnswerFeedbackMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
+      setInvestigationErrorMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
+    }
+
+    setIsAnswerSubmitting(false);
+  }
+
   async function handleRespondPrivateChat(requestId: string, accept: boolean) {
     if (isSubmittingPrivateChat) {
       return;
@@ -230,20 +488,56 @@ export function GameplayClientShell({
   }
 
   return (
-    <StageGameplayPanel
-      snapshot={displayedSnapshot}
-      initialChatMessages={initialChatMessages}
-      initialChatSource={initialChatSource}
-      chatEndpoint={chatEndpoint}
-      runtime={runtimeSnapshot}
-      currentStageNumber={currentStageNumber}
-      nowMs={nowMs}
-      isSubmittingPrivateChat={isSubmittingPrivateChat}
-      privateChatStatusMessage={privateChatStatusMessage}
-      privateChatErrorMessage={privateChatErrorMessage}
-      onRequestPrivateChat={handleRequestPrivateChat}
-      onRespondPrivateChat={handleRespondPrivateChat}
-      onEndPrivateChat={handleEndPrivateChat}
-    />
+    <>
+      <StageGameplayPanel
+        snapshot={displayedSnapshot}
+        initialChatMessages={initialChatMessages}
+        initialChatSource={initialChatSource}
+        chatEndpoint={chatEndpoint}
+        runtime={runtimeSnapshot}
+        currentStageNumber={currentStageNumber}
+        nowMs={nowMs}
+        isSubmittingPrivateChat={isSubmittingPrivateChat}
+        privateChatStatusMessage={privateChatStatusMessage}
+        privateChatErrorMessage={privateChatErrorMessage}
+        onRequestPrivateChat={handleRequestPrivateChat}
+        onRespondPrivateChat={handleRespondPrivateChat}
+        onEndPrivateChat={handleEndPrivateChat}
+        onOpenInvestigationModal={() => setIsInvestigationOpen(true)}
+      />
+      <GameplayInvestigationModal
+        snapshot={displayedSnapshot}
+        isOpen={isInvestigationOpen}
+        onClose={() => setIsInvestigationOpen(false)}
+        isSubmitting={isSubmittingInvestigation}
+        errorMessage={investigationErrorMessage}
+        statusMessage={investigationStatusMessage}
+        onAcquireLock={handleAcquireLock}
+        onReleaseLock={handleReleaseLock}
+        onJoinQueue={handleJoinQueue}
+        onLeaveQueue={handleLeaveQueue}
+        canAcquireLock={hasStageContext && !isLockedByMe && !isLockedByOther}
+        canReleaseLock={hasStageContext && isLockedByMe}
+        canJoinQueue={hasStageContext && !isLockedByMe && !isQueued && queueCooldownSeconds === 0}
+        canLeaveQueue={hasStageContext && isQueued}
+        isQueued={isQueued}
+        queuePosition={queuePosition}
+        waitingPlayerCount={waitingPlayerCount}
+        queueCooldownSeconds={queueCooldownSeconds}
+        onSubmitQuestion={handleSubmitQuestion}
+        onSubmitAnswer={handleSubmitAnswer}
+        questionFeedbackMessage={questionFeedbackMessage}
+        questionFeedbackTone={questionFeedbackTone}
+        answerFeedbackMessage={answerFeedbackMessage}
+        answerFeedbackTone={answerFeedbackTone}
+        isQuestionSubmitting={isQuestionSubmitting}
+        isAnswerSubmitting={isAnswerSubmitting}
+        questionDraft={questionDraft}
+        onQuestionDraftChange={setQuestionDraft}
+        answerDraft={answerDraft}
+        onAnswerDraftChange={setAnswerDraft}
+        isDraftEditable={isLockedByMe}
+      />
+    </>
   );
 }

@@ -24,6 +24,7 @@ export function StageGameplayPanel({
   onRequestPrivateChat,
   onRespondPrivateChat,
   onEndPrivateChat,
+  onOpenInvestigationModal,
 }: {
   snapshot: RoomSnapshot;
   initialChatMessages: ChatMessage[];
@@ -38,6 +39,7 @@ export function StageGameplayPanel({
   onRequestPrivateChat?: (targetPlayerId: string) => void;
   onRespondPrivateChat?: (requestId: string, accept: boolean) => void;
   onEndPrivateChat?: (sessionId: string) => void;
+  onOpenInvestigationModal?: () => void;
 }) {
   const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
   const stageTitle = snapshot.stage?.publicTitle ?? `스테이지 ${stageNumber}`;
@@ -96,6 +98,7 @@ export function StageGameplayPanel({
             onRequestPrivateChat={onRequestPrivateChat}
             onRespondPrivateChat={onRespondPrivateChat}
             onEndPrivateChat={onEndPrivateChat}
+            onOpenInvestigationModal={onOpenInvestigationModal}
           />
         </section>
 

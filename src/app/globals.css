@@ -2428,6 +2428,34 @@ select {
   box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.38);
 }
 
+.gameplay-investigation-modal {
+  width: min(1120px, calc(100vw - 28px));
+  max-height: min(88vh, 920px);
+  overflow: auto;
+}
+
+.gameplay-investigation-header {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.gameplay-investigation-title {
+  margin: 0;
+  font-size: clamp(1.18rem, 1.8vw, 1.7rem);
+  line-height: 1.08;
+}
+
+.gameplay-investigation-grid {
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.9fr);
+  gap: 12px;
+}
+
+.gameplay-investigation-main,
+.gameplay-investigation-side {
+  display: grid;
+  gap: 12px;
+}
+
 @media (max-width: 1080px) {
   .lobby-summary-strip,
   .mt-lobby-summary,
