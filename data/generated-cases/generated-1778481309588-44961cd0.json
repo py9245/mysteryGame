@@ -1,0 +1,52 @@
+{
+  "id": "generated-1778481309588-44961cd0",
+  "key": "generated-1778481309588-44961cd0",
+  "stageNumber": 3,
+  "title": "야근 후 화장실의 에너지캔",
+  "publicDescription": "한 연구원이 야근 도중 사무실 화장실에서 의식을 잃은 채 발견되었습니다. 외상이나 싸움의 흔적은 없었고, 주변에는 빈 음료 캔이 놓여 있었습니다. 표면은 평범한 업무 중 사고처럼 보입니다.",
+  "question": "사건의 전말은 무엇인가?",
+  "truth": "지훈 연구원은 임상자료 조작을 은폐하려던 동료가 에너지음료에 독을 타서 살해당했다. 동료는 조작 사실이 발각될 것을 우려해 음료에 독을 혼합해 사무실 냉장고에 넣어두었고, 지훈이 이를 마신 뒤 화장실에서 쓰러졌다. 결정적 증거는 빈 캔에 붙어 있던 실험실용 표식과 CCTV에서 해당 동료가 사건 전 캔을 냉장고에 넣는 장면이 확인된 것이다.",
+  "requiredKeywords": [
+    "독살",
+    "연구원",
+    "임상자료 은폐",
+    "에너지음료",
+    "CCTV 증거"
+  ],
+  "bonusKeywords": [
+    "회식",
+    "사무실 냉장고",
+    "실험실 라벨"
+  ],
+  "acceptedAnswerSummary": "지훈 연구원은 임상자료 조작을 은폐하려던 동료에게 에너지음료에 독을 타여 살해당했고, 빈 캔의 실험실 표식과 CCTV가 범행을 밝힌다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481309588-44961cd0-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "현장에는 외상이나 싸움의 흔적이 보이지 않습니다.",
+      "internalNote": "외력에 의한 직접적인 폭력 가능성을 낮추어 사고·중독 가능성으로 수사 방향을 유도."
+    },
+    {
+      "hintId": "generated-1778481309588-44961cd0-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "피해자 옆에는 사무실 냉장고에서 자주 꺼내 마시는 음료 빈 캔이 있었습니다.",
+      "internalNote": "음료 섭취와 관련된 사고·중독 가능성으로 수사 초점을 좁히도록 설계."
+    },
+    {
+      "hintId": "generated-1778481309588-44961cd0-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "빈 캔의 라벨이 실험실 표식과 일치하고, CCTV 시간대에서 한 동료가 사건 전 캔을 냉장고에 넣는 장면이 확인되었습니다.",
+      "internalNote": "라벨과 CCTV가 범행의 방법·행위자를 연결하는 결정적 단서임을 명확히 제시하여 추리를 확정짓도록 설계."
+    }
+  ],
+  "reviewNotes": "검수 결과 전반적으로 체크리스트를 충족합니다. 공개 설명만으로는 정답이 직접적으로 드러나지 않으며(truth는 별도), truth는 범인·방법·동기·위장(임상자료 은폐와 냉장고에 넣음)을 일관되게 연결합니다. requiredKeywords는 진실을 복원하는 최소 단위로 적절합니다. 힌트는 3개로 약→중→강의 점층 구조이며 단계별로 수사 방향을 좁히도록 설계되어 있습니다. imagePrompt는 현장과 가시적 단서(라벨 존재)를 보여주되 읽을 수 있는 내용이나 범인을 노출하지 않도록 스포일러 안전성을 확보했습니다.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481309588-44961cd0.png"
+}

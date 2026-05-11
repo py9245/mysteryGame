@@ -73,7 +73,29 @@ export async function GET() {
       { status: 200 },
     );
 
-    applyGuestProfileCookie(response, { nickname: guestViewer.nickname });
+    applyGuestProfileCookie(response, {
+      guestId: guestViewer.guest.guestId,
+      nickname: guestViewer.nickname,
+    });
+    return response;
+  }
+
+  if (viewer.kind === "guest" && !viewer.guest.guestId) {
+    const repairedGuestViewer = createGuestViewer(viewer.nickname);
+    const response = NextResponse.json(
+      {
+        ok: true,
+        data: {
+          viewer: repairedGuestViewer,
+        },
+      } satisfies ApiResponse<CurrentViewerResponse>,
+      { status: 200 },
+    );
+
+    applyGuestProfileCookie(response, {
+      guestId: repairedGuestViewer.guest.guestId,
+      nickname: repairedGuestViewer.nickname,
+    });
     return response;
   }
 

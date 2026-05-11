@@ -1,0 +1,52 @@
+{
+  "id": "generated-1778481227347-ecd91e1d",
+  "key": "generated-1778481227347-ecd91e1d",
+  "stageNumber": 2,
+  "title": "파티의 빈 주사기",
+  "publicDescription": "회식이 끝난 뒤 재무팀 주임 미나가 회사 화장실에서 쓰러져 사망한 채 발견되었다. 현장에는 파티 케이크 조각과 열린 응급약통, 사무용품이 어지럽게 놓여 있었다.",
+  "question": "사건의 전말은 무엇인가?",
+  "truth": "미나는 심한 음식 알레르기가 있어 평소 에피펜을 휴대하던 직원이었다. 미나는 회사 내 횡령 의혹을 조사하고 있었고, 이를 덮으려던 재무팀장 준은 그녀를 제거할 결심을 한다. 준은 파티에서 먹은 케이크에 알레르기 반응을 유발할 물질을 몰래 넣고, 미나의 에피펜을 빼내어 무력화한 뒤 미나가 급격한 알레르기 쇼크로 사망하도록 만들었다. 결정적 단서는 미나가 조사하던 횡령 관련 파일이 담긴 USB와 출입기록이 준을 가리킨다는 점이다.",
+  "requiredKeywords": [
+    "알레르기",
+    "에피펜",
+    "케이크(알레르겐)",
+    "횡령",
+    "USB 증거"
+  ],
+  "bonusKeywords": [
+    "회식",
+    "재무팀",
+    "화장실"
+  ],
+  "acceptedAnswerSummary": "재무팀장 준은 횡령을 덮기 위해 미나의 에피펜을 무력화하고 파티 케이크에 알레르기 유발 물질을 넣어 미나를 살해했으며, USB와 출입기록이 그의 범행을 입증한다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481227347-ecd91e1d-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "미나는 평소 알레르기 약을 늘 휴대했습니다.",
+      "internalNote": "초기 관찰 힌트: 피해자의 평소 습관(에피펜 소지)을 제시해 가능성을 넓게 열어둠."
+    },
+    {
+      "hintId": "generated-1778481227347-ecd91e1d-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "화장실에서 열린 응급약통과 파티의 음식 사이에 연결점이 있습니다.",
+      "internalNote": "중간 힌트: 에피펜의 상태와 파티 음식이 사건과 연결되었음을 암시하여 원인 방향을 좁힘."
+    },
+    {
+      "hintId": "generated-1778481227347-ecd91e1d-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "출입기록과 사무실에 남은 작은 저장장치의 파일이 한 사람을 가리킵니다.",
+      "internalNote": "강한 힌트: 결정적 단서(USB 내용, 출입 로그)가 특정 용의자를 지목한다는 점을 명확히 해서 정답 축을 고정."
+    }
+  ],
+  "reviewNotes": "검토 결과: 전반적으로 논리성과 힌트 구성이 적절함. 공개 설명만으로는 확정적 정답이 드러나지 않으며(truth와 연결고리는 힌트와 필수 키워드를 통해 재구성되어야 함), truth는 범인·방법·동기·위장이 일관되게 연결되어 있음. requiredKeywords는 진실을 복원하는 최소 단위로 적절함. 힌트는 총 3개로 약→중→강으로 점층되어 있고 각 트리거 타입도 적절하다. 다만 원문 이미지 프롬프트는 'empty epipen case' 등 방법을 직접적으로 노출할 여지가 있어 스포일러 위험이 있어 수정했음(현장과 눈에 띄는 단서들만 묘사하되, 에피펜의 부재를 직접적으로 명시하지 않음). 수정사항은 이미지 프롬프트 교체뿐이며, 그 외 항목은 유지함.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481227347-ecd91e1d.png"
+}

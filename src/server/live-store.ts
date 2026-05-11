@@ -79,6 +79,7 @@ import {
   replayScoreEvents,
 } from "@/server/game/scoring";
 import { getSupabaseAdminClient } from "@/server/supabase-admin";
+import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { upsertAccountGameResults } from "@/server/account-store";
 import { hashPassword, verifyPassword } from "@/server/auth-password";
 import type { ActiveRoomMembership } from "@/server/auth-session";
@@ -103,6 +104,7 @@ type DbPlayerRow = {
   id: string;
   room_id: string;
   account_id?: string | null;
+  guest_identity?: string | null;
   nickname: string;
   role: PlayerRole;
   is_ready: boolean;
@@ -311,6 +313,41 @@ type DbAdminLogRow = {
   created_at: string;
 };
 
+type DbCaseLibraryRow = {
+  case_key: string;
+  stage_number: number;
+  title: string;
+  public_description: string;
+  image_url: string | null;
+  image_data_url: string | null;
+  question: string;
+  truth: string;
+  required_keywords: string[];
+  bonus_keywords: string[];
+  accepted_answer_summary: string;
+  hints: unknown;
+  is_practice_pool: boolean;
+  origin: string;
+  review_notes: string | null;
+  version: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DbPlayerCaseHistoryRow = {
+  id: string;
+  identity_key: string;
+  account_id: string | null;
+  guest_identity: string | null;
+  case_key: string;
+  first_seen_at: string;
+  last_played_at: string;
+  play_count: number;
+  solved_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
 type DbPrivateChatSessionRow = {
   id: string;
   stage_id: string;
@@ -339,6 +376,10 @@ const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
 const ROOM_PRESENCE_TTL_SECONDS = 15;
 const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
 const PRACTICE_GENERATED_CASE_PREFIX = "practice-generated-";
+const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
+const CASE_REPLENISH_THRESHOLD = 10;
+const CASE_REPLENISH_COUNT = 10;
+const CASE_BATCH_GENERATION_CONCURRENCY = 4;
 
 type CaseSummary = {
   title: string;
@@ -638,6 +679,11 @@ function isLegacyMissingRoomColumnsError(error: { message?: string } | null | un
     message.includes("Could not find the 'password_hash' column of 'rooms'") ||
     message.includes("Could not find the 'stage_count' column of 'rooms'")
   );
+}
+
+function isLegacyMissingGuestIdentityColumnError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message ?? "";
+  return message.includes("Could not find the 'guest_identity' column of 'players'");
 }
 
 function toRoomSettings(row: DbRoomRow): RoomSettingsView {
@@ -2221,79 +2267,260 @@ async function loadCaseSummary(caseKey: string): Promise<CaseSummary | null> {
   };
 }
 
+function parseCaseHints(
+  caseKey: string,
+  rawHints: unknown,
+): CaseFile["hints"] {
+  if (!Array.isArray(rawHints)) {
+    return [];
+  }
+
+  return rawHints
+    .filter((hint): hint is Record<string, unknown> => typeof hint === "object" && hint !== null)
+    .map((hint, index) => ({
+      hintId:
+        typeof hint.hintId === "string" && hint.hintId.trim().length > 0
+          ? hint.hintId.trim()
+          : `${caseKey}-hint-${index + 1}`,
+      order: typeof hint.order === "number" ? hint.order : index + 1,
+      triggerType: typeof hint.triggerType === "string" ? hint.triggerType : index < 2 ? "time_elapsed" : "stage_pressure",
+      strength: typeof hint.strength === "string" ? hint.strength : index === 0 ? "weak" : index === 1 ? "medium" : "strong",
+      publicText: typeof hint.publicText === "string" ? hint.publicText : "",
+      internalNote: typeof hint.internalNote === "string" ? hint.internalNote : "",
+    }))
+    .filter((hint) => hint.publicText.trim().length > 0);
+}
+
+function parseCaseFilePayload(
+  fallbackKey: string,
+  parsed: Record<string, unknown>,
+): CaseFile | null {
+  const resolvedKey =
+    typeof parsed.key === "string"
+      ? parsed.key
+      : typeof parsed.id === "string"
+        ? parsed.id
+        : fallbackKey;
+
+  if (
+    typeof resolvedKey !== "string" ||
+    typeof parsed.stageNumber !== "number" ||
+    typeof parsed.title !== "string" ||
+    typeof parsed.publicDescription !== "string" ||
+    typeof parsed.question !== "string" ||
+    typeof parsed.truth !== "string" ||
+    !Array.isArray(parsed.requiredKeywords) ||
+    !Array.isArray(parsed.bonusKeywords) ||
+    typeof parsed.acceptedAnswerSummary !== "string"
+  ) {
+    return null;
+  }
+
+  const hints = parseCaseHints(resolvedKey, parsed.hints);
+  if (hints.length === 0) {
+    return null;
+  }
+
+  return {
+    key: resolvedKey,
+    stageNumber: parsed.stageNumber,
+    title: parsed.title,
+    publicDescription: parsed.publicDescription,
+    imageUrl:
+      typeof parsed.imageUrl === "string" && parsed.imageUrl.trim().length > 0
+        ? parsed.imageUrl.trim()
+        : `/case-images/${resolvedKey}.svg`,
+    question: parsed.question,
+    truth: parsed.truth,
+    requiredKeywords: parsed.requiredKeywords.filter((value): value is string => typeof value === "string"),
+    bonusKeywords: parsed.bonusKeywords.filter((value): value is string => typeof value === "string"),
+    acceptedAnswerSummary: parsed.acceptedAnswerSummary,
+    hints,
+  };
+}
+
+function isCaseCatalogUnavailableError(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "42P01";
+}
+
+let seededCaseCatalogPromise: Promise<void> | null = null;
+
+async function loadIndexedCaseFiles(indexPath: string, baseDir: string): Promise<CaseFile[]> {
+  try {
+    const rawIndex = await readFile(indexPath, "utf8");
+    const parsedIndex = JSON.parse(rawIndex) as { cases?: Array<{ id?: string; file?: string }> };
+    const entries = Array.isArray(parsedIndex.cases) ? parsedIndex.cases : [];
+    const cases = await Promise.all(
+      entries.map(async (entry) => {
+        if (typeof entry.id !== "string" || typeof entry.file !== "string") {
+          return null;
+        }
+
+        try {
+          const rawFile = await readFile(join(baseDir, entry.file.replace("./", "")), "utf8");
+          const parsed = JSON.parse(rawFile) as Record<string, unknown>;
+          return parseCaseFilePayload(entry.id, parsed);
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    return cases.filter((caseFile): caseFile is CaseFile => caseFile !== null);
+  } catch {
+    return [];
+  }
+}
+
+async function loadLocalCatalogCases(): Promise<CaseFile[]> {
+  const [seedCases, generatedCases] = await Promise.all([
+    loadIndexedCaseFiles(join(process.cwd(), "data/cases", "index.json"), join(process.cwd(), "data/cases")),
+    loadIndexedCaseFiles(
+      join(process.cwd(), "data/generated-cases", "index.json"),
+      join(process.cwd(), "data/generated-cases"),
+    ),
+  ]);
+
+  return [...seedCases, ...generatedCases];
+}
+
+async function ensureCaseCatalogSeeded(): Promise<void> {
+  if (seededCaseCatalogPromise) {
+    return seededCaseCatalogPromise;
+  }
+
+  seededCaseCatalogPromise = (async () => {
+    if (!isSupabaseEnabled()) {
+      return;
+    }
+
+    const supabase = getSupabaseAdminClient();
+    const cases = await loadLocalCatalogCases();
+    if (cases.length === 0) {
+      return;
+    }
+
+    const payload = cases.map((caseFile, index) => ({
+      case_key: caseFile.key,
+      stage_number: caseFile.stageNumber,
+      title: caseFile.title,
+      public_description: caseFile.publicDescription,
+      image_url: caseFile.imageUrl,
+      image_data_url: null,
+      question: caseFile.question,
+      truth: caseFile.truth,
+      required_keywords: caseFile.requiredKeywords,
+      bonus_keywords: caseFile.bonusKeywords,
+      accepted_answer_summary: caseFile.acceptedAnswerSummary,
+      hints: caseFile.hints,
+      is_practice_pool: index < 3,
+      origin: "seeded_local",
+      review_notes: "Local reference fixture",
+      version: "1.0.0",
+      updated_at: nowUtcIso(),
+    }));
+
+    const { error } = await supabase.from("case_library").upsert(payload, {
+      onConflict: "case_key",
+    });
+
+    if (error && !isCaseCatalogUnavailableError(error)) {
+      throw new Error(`Failed to seed case catalog: ${error.message}`);
+    }
+  })()
+    .catch((error) => {
+      seededCaseCatalogPromise = null;
+      throw error;
+    });
+
+  return seededCaseCatalogPromise;
+}
+
+function mapCaseLibraryRowToCaseFile(row: DbCaseLibraryRow): CaseFile | null {
+  const hints = parseCaseHints(row.case_key, row.hints);
+  if (hints.length === 0) {
+    return null;
+  }
+
+  return {
+    key: row.case_key,
+    stageNumber: row.stage_number,
+    title: row.title,
+    publicDescription: row.public_description,
+    imageUrl: row.image_data_url
+      ? `/api/case-image/${encodeURIComponent(row.case_key)}`
+      : row.image_url && row.image_url.trim().length > 0
+        ? row.image_url.trim()
+        : `/case-images/${row.case_key}.svg`,
+    question: row.question,
+    truth: row.truth,
+    requiredKeywords: row.required_keywords ?? [],
+    bonusKeywords: row.bonus_keywords ?? [],
+    acceptedAnswerSummary: row.accepted_answer_summary,
+    hints,
+  };
+}
+
+async function loadCaseLibraryCaseFile(caseKey: string): Promise<CaseFile | null> {
+  if (!isSupabaseEnabled()) {
+    return null;
+  }
+
+  await ensureCaseCatalogSeeded();
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("case_library")
+    .select("*")
+    .eq("case_key", caseKey)
+    .maybeSingle<DbCaseLibraryRow>();
+
+  if (error) {
+    if (isCaseCatalogUnavailableError(error)) {
+      return null;
+    }
+
+    throw new Error(`Failed to load case catalog row: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapCaseLibraryRowToCaseFile(data);
+}
+
+async function loadLocalCaseFile(caseKey: string): Promise<CaseFile | null> {
+  for (const candidatePath of [
+    join(process.cwd(), "data/cases", `${caseKey}.json`),
+    join(process.cwd(), "data/generated-cases", `${caseKey}.json`),
+  ]) {
+    try {
+      const raw = await readFile(candidatePath, "utf8");
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const caseFile = parseCaseFilePayload(caseKey, parsed);
+      if (caseFile) {
+        return caseFile;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
   if (isPracticeGeneratedCaseKey(caseKey)) {
     return loadPracticeGeneratedCaseFile(caseKey);
   }
 
-  try {
-    const raw = await readFile(join(process.cwd(), "data/cases", `${caseKey}.json`), "utf8");
-    const parsed = JSON.parse(raw) as {
-      id?: unknown;
-      key?: unknown;
-      stageNumber?: unknown;
-      title?: unknown;
-      publicDescription?: unknown;
-      imageUrl?: unknown;
-      question?: unknown;
-      truth?: unknown;
-      requiredKeywords?: unknown;
-      bonusKeywords?: unknown;
-      acceptedAnswerSummary?: unknown;
-      hints?: unknown;
-    };
-
-    const resolvedKey =
-      typeof parsed.key === "string"
-        ? parsed.key
-        : typeof parsed.id === "string"
-          ? parsed.id
-          : null;
-
-    if (
-      typeof resolvedKey !== "string" ||
-      typeof parsed.stageNumber !== "number" ||
-      typeof parsed.title !== "string" ||
-      typeof parsed.publicDescription !== "string" ||
-      typeof parsed.question !== "string" ||
-      typeof parsed.truth !== "string" ||
-      !Array.isArray(parsed.requiredKeywords) ||
-      !Array.isArray(parsed.bonusKeywords) ||
-      typeof parsed.acceptedAnswerSummary !== "string" ||
-      !Array.isArray(parsed.hints)
-    ) {
-      return null;
-    }
-
-    return {
-      key: resolvedKey,
-      stageNumber: parsed.stageNumber,
-      title: parsed.title,
-      publicDescription: parsed.publicDescription,
-      imageUrl:
-        typeof parsed.imageUrl === "string" && parsed.imageUrl.trim().length > 0
-          ? parsed.imageUrl.trim()
-          : `/case-images/${resolvedKey}.svg`,
-      question: parsed.question,
-      truth: parsed.truth,
-      requiredKeywords: parsed.requiredKeywords.filter((value): value is string => typeof value === "string"),
-      bonusKeywords: parsed.bonusKeywords.filter((value): value is string => typeof value === "string"),
-      acceptedAnswerSummary: parsed.acceptedAnswerSummary,
-      hints: parsed.hints
-        .filter((hint): hint is Record<string, unknown> => typeof hint === "object" && hint !== null)
-        .map((hint) => ({
-          hintId: typeof hint.hintId === "string" ? hint.hintId : "",
-          order: typeof hint.order === "number" ? hint.order : 0,
-          triggerType: typeof hint.triggerType === "string" ? hint.triggerType : "",
-          strength: typeof hint.strength === "string" ? hint.strength : "",
-          publicText: typeof hint.publicText === "string" ? hint.publicText : "",
-          internalNote: typeof hint.internalNote === "string" ? hint.internalNote : "",
-        }))
-        .filter((hint) => hint.hintId.length > 0 && hint.publicText.length > 0),
-    };
-  } catch {
-    return null;
+  const catalogCase = await loadCaseLibraryCaseFile(caseKey);
+  if (catalogCase) {
+    return catalogCase;
   }
+
+  return loadLocalCaseFile(caseKey);
 }
 
 function isGeneratedPracticeCasePayload(value: unknown): value is GeneratedPracticeCasePayload {
@@ -2625,6 +2852,669 @@ async function persistPracticeGeneratedCase(input: {
   }
 }
 
+function hasConfiguredGmsRuntime(): boolean {
+  return typeof process.env.GMS_KEY === "string" && process.env.GMS_KEY.trim().length > 0;
+}
+
+function shuffleArray<T>(items: T[]): T[] {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+}
+
+function resolvePlayerIdentityKey(player: DbPlayerRow): string | null {
+  if (typeof player.account_id === "string" && player.account_id.length > 0) {
+    return `account:${player.account_id}`;
+  }
+
+  if (typeof player.guest_identity === "string" && player.guest_identity.length > 0) {
+    return `guest:${player.guest_identity}`;
+  }
+
+  if (typeof player.nickname === "string" && player.nickname.trim().length > 0) {
+    return `nickname:${player.nickname.trim().toLowerCase()}`;
+  }
+
+  return null;
+}
+
+async function listCaseLibraryRows(input: {
+  includePracticePool?: boolean;
+  practiceOnly?: boolean;
+  stageNumber?: number | null;
+} = {}): Promise<DbCaseLibraryRow[]> {
+  if (!isSupabaseEnabled()) {
+    return [];
+  }
+
+  await ensureCaseCatalogSeeded();
+  const supabase = getSupabaseAdminClient();
+
+  let query = supabase.from("case_library").select("*");
+  if (input.practiceOnly === true) {
+    query = query.eq("is_practice_pool", true);
+  } else if (input.includePracticePool !== true) {
+    query = query.eq("is_practice_pool", false);
+  }
+
+  if (typeof input.stageNumber === "number" && Number.isFinite(input.stageNumber)) {
+    query = query.eq("stage_number", input.stageNumber);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: true }).returns<DbCaseLibraryRow[]>();
+  if (error) {
+    if (isCaseCatalogUnavailableError(error)) {
+      return [];
+    }
+
+    throw new Error(`Failed to list case catalog rows: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+async function listPlayerCaseHistoryRows(identityKeys: string[]): Promise<DbPlayerCaseHistoryRow[]> {
+  if (!isSupabaseEnabled() || identityKeys.length === 0) {
+    return [];
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("player_case_history")
+    .select("*")
+    .in("identity_key", identityKeys)
+    .returns<DbPlayerCaseHistoryRow[]>();
+
+  if (error) {
+    if (isCaseCatalogUnavailableError(error)) {
+      const { data: fallbackLogs, error: fallbackError } = await supabase
+        .from("admin_logs")
+        .select("*")
+        .eq("action", "player_case_played")
+        .in("actor_id", identityKeys)
+        .returns<DbAdminLogRow[]>();
+
+      if (fallbackError) {
+        return [];
+      }
+
+      return (fallbackLogs ?? [])
+        .map((log) => {
+          const caseKey =
+            typeof log.payload.caseKey === "string" && log.payload.caseKey.length > 0
+              ? log.payload.caseKey
+              : null;
+          if (!caseKey) {
+            return null;
+          }
+
+          return {
+            id: log.id,
+            identity_key: log.actor_id,
+            account_id:
+              typeof log.payload.accountId === "string" && log.payload.accountId.length > 0
+                ? log.payload.accountId
+                : null,
+            guest_identity:
+              typeof log.payload.guestIdentity === "string" && log.payload.guestIdentity.length > 0
+                ? log.payload.guestIdentity
+                : null,
+            case_key: caseKey,
+            first_seen_at: log.created_at,
+            last_played_at: log.created_at,
+            play_count: 1,
+            solved_count: 0,
+            created_at: log.created_at,
+            updated_at: log.created_at,
+          } satisfies DbPlayerCaseHistoryRow;
+        })
+        .filter((row): row is DbPlayerCaseHistoryRow => row !== null);
+    }
+
+    throw new Error(`Failed to read player case history: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+async function recordCaseHistoryForPlayers(
+  players: DbPlayerRow[],
+  caseKey: string,
+  context?: { roomId?: string | null; gameId?: string | null; stageId?: string | null },
+): Promise<void> {
+  if (!isSupabaseEnabled()) {
+    return;
+  }
+
+  const records = players
+    .map((player) => {
+      const identityKey = resolvePlayerIdentityKey(player);
+      if (!identityKey) {
+        return null;
+      }
+
+      return {
+        player,
+        identityKey,
+      };
+    })
+    .filter((value): value is { player: DbPlayerRow; identityKey: string } => value !== null);
+
+  if (records.length === 0) {
+    return;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const existingRows = await listPlayerCaseHistoryRows(records.map((record) => record.identityKey));
+  const existingByIdentity = new Map(
+    existingRows
+      .filter((row) => row.case_key === caseKey)
+      .map((row) => [row.identity_key, row] as const),
+  );
+  const nowIso = nowUtcIso();
+
+  for (const record of records) {
+    const existing = existingByIdentity.get(record.identityKey);
+
+    if (!existing) {
+      const { error } = await supabase.from("player_case_history").insert({
+        identity_key: record.identityKey,
+        account_id: record.player.account_id ?? null,
+        guest_identity: record.player.guest_identity ?? null,
+        case_key: caseKey,
+        first_seen_at: nowIso,
+        last_played_at: nowIso,
+        play_count: 1,
+        solved_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+
+      if (error && !isCaseCatalogUnavailableError(error)) {
+        throw new Error(`Failed to insert player case history: ${error.message}`);
+      }
+
+      if (error && isCaseCatalogUnavailableError(error)) {
+        const { error: fallbackError } = await supabase.from("admin_logs").insert({
+          room_id: context?.roomId ?? record.player.room_id,
+          game_id: context?.gameId ?? null,
+          stage_id: context?.stageId ?? null,
+          actor_type: "player",
+          actor_id: record.identityKey,
+          action: "player_case_played",
+          payload: {
+            caseKey,
+            accountId: record.player.account_id ?? null,
+            guestIdentity: record.player.guest_identity ?? null,
+          },
+          created_at: nowIso,
+        });
+
+        if (fallbackError) {
+          throw new Error(`Failed to insert fallback case history log: ${fallbackError.message}`);
+        }
+      }
+
+      continue;
+    }
+
+    const { error } = await supabase
+      .from("player_case_history")
+      .update({
+        last_played_at: nowIso,
+        play_count: existing.play_count + 1,
+        updated_at: nowIso,
+      })
+      .eq("id", existing.id);
+
+    if (error && !isCaseCatalogUnavailableError(error)) {
+      throw new Error(`Failed to update player case history: ${error.message}`);
+    }
+  }
+}
+
+function buildCatalogImagePrompt(input: {
+  title: string;
+  publicDescription: string;
+  visibleClues: string[];
+  sceneStyle?: string;
+}): string {
+  const clueText = input.visibleClues.slice(0, 3).join(", ");
+  return [
+    "Cinematic Korean mystery webgame illustration, no text, no split panels, no suspect portrait montage.",
+    `Scene title: ${input.title}.`,
+    `Visible aftermath scene: ${input.publicDescription}`,
+    `Include only spoiler-safe clues that a player could notice at a glance: ${clueText}.`,
+    "Show a tense indoor environment after the incident, realistic props, readable silhouette, dramatic but grounded lighting.",
+    "Do not depict the killer committing the act. Do not reveal the solution explicitly.",
+    input.sceneStyle ?? "Moody detective drama key art, sharp composition, realistic proportions, subtle clue emphasis.",
+  ].join(" ");
+}
+
+async function generateCatalogCaseDefinition(input: {
+  stageNumber: number;
+  attemptLabel: string;
+}): Promise<{
+  caseFile: CaseFile;
+  imagePrompt: string;
+  reviewNotes: string;
+}> {
+  const creation = await createTextCompletion({
+    messages: [
+      {
+        role: "developer",
+        content:
+          "너는 추리 게임 사건 설계자다. 반드시 JSON 객체만 반환한다. 사건은 일상적 표면 상황에서 출발하지만 숨겨진 인과관계가 드러나는 구조여야 한다. 3개의 힌트는 weak -> medium -> strong 순서로 점점 구체화되어야 한다. 메인 키워드는 4~5개, 추가 키워드는 2~3개다. 이미지 프롬프트는 스포일러 없이 현장과 visible clue만 보여주는 영어 한 문장이어야 한다.",
+      },
+      {
+        role: "user",
+        content: JSON.stringify(
+          {
+            referencePatterns: [
+              "일상적 상황 + 뒤늦게 드러나는 반전 동기",
+              "정답은 범인, 방법, 동기, 결정적 단서가 한 번에 연결되어야 함",
+              "힌트는 공개 설명을 반복하지 말고, 관찰 포인트를 조금씩 좁혀야 함",
+              "이미지는 사건 직후의 현장만 보여주고 범행 장면이나 범인의 얼굴은 직접 보여주지 않음",
+            ],
+            round: input.attemptLabel,
+            stageNumber: input.stageNumber,
+            outputSchema: {
+              title: "20자 내외 한국어 제목",
+              publicDescription: "2~3문장 공개 설명",
+              question: "사건의 전말을 묻는 한 문장",
+              truth: "3~5문장 진실",
+              requiredKeywords: ["핵심 키워드 4~5개"],
+              bonusKeywords: ["추가 키워드 2~3개"],
+              acceptedAnswerSummary: "정답 요약 1문장",
+              imagePrompt: "영문 이미지 프롬프트 1문장",
+              hints: [
+                { order: 1, triggerType: "time_elapsed", strength: "weak", publicText: "약한 힌트", internalNote: "운영 메모" },
+                { order: 2, triggerType: "time_elapsed", strength: "medium", publicText: "중간 힌트", internalNote: "운영 메모" },
+                { order: 3, triggerType: "stage_pressure", strength: "strong", publicText: "강한 힌트", internalNote: "운영 메모" },
+              ],
+              reviewNotes: "사건 구조 설명 1~2문장",
+            },
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  });
+
+  const created = extractJsonObject(creation.text);
+  if (!created) {
+    throw new Error("Generated case JSON parse failed.");
+  }
+
+  const validation = await createTextCompletion({
+    messages: [
+      {
+        role: "developer",
+        content:
+          "너는 추리 게임 사건 검수자다. 반드시 JSON 객체만 반환한다. 입력 사건을 검수해 한 번에 추리 가능한지, 메인 키워드와 사건의 진실이 일치하는지, 힌트 3개가 weak/medium/strong으로 점층하는지, 이미지 프롬프트가 spoiler-safe인지 확인하고 필요하면 수정한다.",
+      },
+      {
+        role: "user",
+        content: JSON.stringify(
+          {
+            checklist: [
+              "공개 설명만 읽어서는 정답이 보이지 않아야 한다",
+              "truth는 인물, 방법, 동기, 위장 요소가 연결되어야 한다",
+              "requiredKeywords는 truth를 복원하는 최소 단위여야 한다",
+              "hints는 3개만 유지하고 점점 더 구체적이어야 한다",
+              "imagePrompt는 범행 장면이나 범인 정체를 직접 노출하지 말아야 한다",
+            ],
+            candidate: created,
+            outputSchema: {
+              title: "string",
+              publicDescription: "string",
+              question: "string",
+              truth: "string",
+              requiredKeywords: ["string"],
+              bonusKeywords: ["string"],
+              acceptedAnswerSummary: "string",
+              imagePrompt: "string",
+              hints: [
+                { order: 1, triggerType: "time_elapsed", strength: "weak", publicText: "string", internalNote: "string" },
+                { order: 2, triggerType: "time_elapsed", strength: "medium", publicText: "string", internalNote: "string" },
+                { order: 3, triggerType: "stage_pressure", strength: "strong", publicText: "string", internalNote: "string" },
+              ],
+              reviewNotes: "string",
+            },
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  });
+
+  const validated = extractJsonObject(validation.text) ?? created;
+  const title =
+    typeof validated.title === "string" && validated.title.trim().length > 0
+      ? validated.title.trim()
+      : "새로운 사건";
+  const publicDescription =
+    typeof validated.publicDescription === "string" && validated.publicDescription.trim().length > 0
+      ? validated.publicDescription.trim()
+      : "현장의 표면 정보만 공개된 상태입니다. 채팅과 질문으로 단서를 모아 사건의 전말을 추리해야 합니다.";
+  const question =
+    typeof validated.question === "string" && validated.question.trim().length > 0
+      ? validated.question.trim()
+      : "사건의 전말은 무엇인가?";
+  const truth =
+    typeof validated.truth === "string" && validated.truth.trim().length > 0
+      ? validated.truth.trim()
+      : "진실 정보가 누락되었습니다.";
+  const requiredKeywords = asStringArray(validated.requiredKeywords).filter((value) => value.trim().length > 0).slice(0, 5);
+  const bonusKeywords = asStringArray(validated.bonusKeywords).filter((value) => value.trim().length > 0).slice(0, 3);
+  const acceptedAnswerSummary =
+    typeof validated.acceptedAnswerSummary === "string" && validated.acceptedAnswerSummary.trim().length > 0
+      ? validated.acceptedAnswerSummary.trim()
+      : truth;
+  const caseKey = `catalog-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const hints = parseCaseHints(caseKey, validated.hints);
+  const reviewNotes =
+    typeof validated.reviewNotes === "string" && validated.reviewNotes.trim().length > 0
+      ? validated.reviewNotes.trim()
+      : "레퍼런스 패턴을 반영해 검수한 자동 생성 사건";
+  const imagePrompt =
+    typeof validated.imagePrompt === "string" && validated.imagePrompt.trim().length > 0
+      ? validated.imagePrompt.trim()
+      : buildCatalogImagePrompt({
+          title,
+          publicDescription,
+          visibleClues: hints.map((hint) => hint.publicText),
+        });
+
+  if (requiredKeywords.length < 4 || hints.length !== 3) {
+    throw new Error("Generated case quality validation failed.");
+  }
+
+  return {
+    caseFile: {
+      key: caseKey,
+      stageNumber: input.stageNumber,
+      title,
+      publicDescription,
+      imageUrl: null,
+      question,
+      truth,
+      requiredKeywords,
+      bonusKeywords,
+      acceptedAnswerSummary,
+      hints,
+    },
+    imagePrompt,
+    reviewNotes,
+  };
+}
+
+async function generateCatalogCaseAsset(input: {
+  stageNumber: number;
+  attemptLabel: string;
+}): Promise<{
+  caseFile: CaseFile;
+  imageDataUrl: string | null;
+  reviewNotes: string;
+}> {
+  const definition = await generateCatalogCaseDefinition(input);
+  const fallbackPrompt = buildCatalogImagePrompt({
+    title: definition.caseFile.title,
+    publicDescription: definition.caseFile.publicDescription,
+    visibleClues: definition.caseFile.hints.map((hint) => hint.publicText),
+  });
+  const resolvedPrompt = definition.imagePrompt || fallbackPrompt;
+
+  let imageDataUrl: string | null = null;
+  try {
+    const generated = await generateImage({
+      provider: "openai_gpt_image",
+      prompt: resolvedPrompt,
+      n: 1,
+      size: "1024x1024",
+    });
+    imageDataUrl = toDataUrl(generated.assets[0] ?? { url: null, base64Data: null, mimeType: null });
+  } catch {
+    try {
+      const generated = await generateImage({
+        provider: "google_imagen",
+        prompt: resolvedPrompt,
+        sampleCount: 1,
+      });
+      imageDataUrl = toDataUrl(generated.assets[0] ?? { url: null, base64Data: null, mimeType: null });
+    } catch {
+      imageDataUrl = buildPracticeImageFallbackDataUrl(
+        definition.caseFile.title,
+        definition.caseFile.publicDescription,
+      );
+    }
+  }
+
+  return {
+    caseFile: definition.caseFile,
+    imageDataUrl,
+    reviewNotes: definition.reviewNotes,
+  };
+}
+
+async function insertCatalogCase(input: {
+  caseFile: CaseFile;
+  imageDataUrl: string | null;
+  origin: string;
+  reviewNotes: string;
+  isPracticePool?: boolean;
+}): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase.from("case_library").upsert(
+    {
+      case_key: input.caseFile.key,
+      stage_number: input.caseFile.stageNumber,
+      title: input.caseFile.title,
+      public_description: input.caseFile.publicDescription,
+      image_url: null,
+      image_data_url: input.imageDataUrl,
+      question: input.caseFile.question,
+      truth: input.caseFile.truth,
+      required_keywords: input.caseFile.requiredKeywords,
+      bonus_keywords: input.caseFile.bonusKeywords,
+      accepted_answer_summary: input.caseFile.acceptedAnswerSummary,
+      hints: input.caseFile.hints,
+      is_practice_pool: input.isPracticePool === true,
+      origin: input.origin,
+      review_notes: input.reviewNotes,
+      version: "gms-1.0",
+      updated_at: nowUtcIso(),
+    },
+    { onConflict: "case_key" },
+  );
+
+  if (error) {
+    if (isCaseCatalogUnavailableError(error)) {
+      throw new Error("case_library table is not available. Run the latest Supabase migrations first.");
+    }
+
+    throw new Error(`Failed to store generated case: ${error.message}`);
+  }
+}
+
+async function generateAndStoreCaseBatch(input: {
+  count: number;
+  origin: string;
+  stageNumberHint?: number | null;
+}): Promise<number> {
+  if (!hasConfiguredGmsRuntime() || input.count <= 0) {
+    return 0;
+  }
+
+  try {
+    const tasks = Array.from({ length: input.count }, (_, index) => async () => {
+      const stageNumber = ((input.stageNumberHint ?? 1) + index) % 3 || 3;
+      const generated = await generateCatalogCaseAsset({
+        stageNumber,
+        attemptLabel: `${input.origin}-${index + 1}`,
+      });
+      await insertCatalogCase({
+        caseFile: generated.caseFile,
+        imageDataUrl: generated.imageDataUrl,
+        origin: input.origin,
+        reviewNotes: generated.reviewNotes,
+      });
+      return 1;
+    });
+
+    let completed = 0;
+    for (let offset = 0; offset < tasks.length; offset += CASE_BATCH_GENERATION_CONCURRENCY) {
+      const results = await Promise.all(tasks.slice(offset, offset + CASE_BATCH_GENERATION_CONCURRENCY).map((task) => task()));
+      completed += results.reduce((sum, value) => sum + value, 0);
+    }
+
+    return completed;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("case_library table is not available")) {
+      return 0;
+    }
+
+    throw error;
+  }
+}
+
+async function choosePracticePoolCaseKey(): Promise<string> {
+  const practiceRows = await listCaseLibraryRows({ practiceOnly: true });
+  const practiceKeys = practiceRows.map((row) => row.case_key);
+
+  if (practiceKeys.length >= 3) {
+    return shuffleArray(practiceKeys)[0] ?? "case-001";
+  }
+
+  const localCases = await loadLocalCatalogCases();
+  const localKeys = localCases.slice(0, 3).map((caseFile) => caseFile.key);
+  return shuffleArray(localKeys)[0] ?? "case-001";
+}
+
+async function chooseSharedUnseenCatalogCaseKey(input: {
+  players: DbPlayerRow[];
+  stageNumber: number;
+}): Promise<string> {
+  await ensureCaseCatalogSeeded();
+
+  let rows = await listCaseLibraryRows({ stageNumber: input.stageNumber });
+  if (rows.length === 0) {
+    rows = await listCaseLibraryRows();
+  }
+
+  if (rows.length === 0) {
+    if (hasConfiguredGmsRuntime()) {
+      await generateAndStoreCaseBatch({
+        count: CASE_REPLENISH_COUNT,
+        origin: "runtime_bootstrap",
+        stageNumberHint: input.stageNumber,
+      });
+      rows = await listCaseLibraryRows({ stageNumber: input.stageNumber });
+      if (rows.length === 0) {
+        rows = await listCaseLibraryRows();
+      }
+    }
+  }
+
+  const identityKeys = Array.from(
+    new Set(
+      input.players
+        .map((player) => resolvePlayerIdentityKey(player))
+        .filter((value): value is string => value !== null),
+    ),
+  );
+  const historyRows = await listPlayerCaseHistoryRows(identityKeys);
+  const seenByIdentity = new Map<string, Set<string>>();
+  for (const row of historyRows) {
+    const bucket = seenByIdentity.get(row.identity_key) ?? new Set<string>();
+    bucket.add(row.case_key);
+    seenByIdentity.set(row.identity_key, bucket);
+  }
+
+  if (rows.length === 0) {
+    const localCatalogCases = (await loadLocalCatalogCases()).filter(
+      (caseFile) => !["case-001", "case-002", "case-003"].includes(caseFile.key),
+    );
+    const stageMatchedLocalCases =
+      localCatalogCases.filter((caseFile) => caseFile.stageNumber === input.stageNumber);
+    const localSelection = stageMatchedLocalCases.length > 0 ? stageMatchedLocalCases : localCatalogCases;
+    const localUnseen = localSelection.filter((caseFile) =>
+      identityKeys.every((identityKey) => !(seenByIdentity.get(identityKey)?.has(caseFile.key) ?? false)),
+    );
+    const pickedLocal = shuffleArray(localUnseen.length > 0 ? localUnseen : localSelection)[0];
+    if (pickedLocal) {
+      return pickedLocal.key;
+    }
+  }
+
+  let unseenCandidates = rows.filter((row) =>
+    identityKeys.every((identityKey) => !(seenByIdentity.get(identityKey)?.has(row.case_key) ?? false)),
+  );
+
+  const minRemainingUnseen =
+    identityKeys.length === 0
+      ? Number.POSITIVE_INFINITY
+      : Math.min(
+          ...identityKeys.map((identityKey) =>
+            rows.filter((row) => !(seenByIdentity.get(identityKey)?.has(row.case_key) ?? false)).length,
+          ),
+        );
+
+  if (minRemainingUnseen <= CASE_REPLENISH_THRESHOLD && hasConfiguredGmsRuntime()) {
+    await generateAndStoreCaseBatch({
+      count: CASE_REPLENISH_COUNT,
+      origin: "runtime_topup",
+      stageNumberHint: input.stageNumber,
+    });
+
+    rows = await listCaseLibraryRows({ stageNumber: input.stageNumber });
+    if (rows.length === 0) {
+      rows = await listCaseLibraryRows();
+    }
+    unseenCandidates = rows.filter((row) =>
+      identityKeys.every((identityKey) => !(seenByIdentity.get(identityKey)?.has(row.case_key) ?? false)),
+    );
+  }
+
+  const selectionPool = unseenCandidates.length > 0 ? unseenCandidates : rows;
+  const picked = shuffleArray(selectionPool)[0];
+
+  if (!picked) {
+    const fallbackKey = `case-${String(input.stageNumber).padStart(3, "0")}`;
+    return (await loadLocalCaseFile(fallbackKey))?.key ?? "case-001";
+  }
+
+  return picked.case_key;
+}
+
+export async function getCaseImageDataUrlFromStore(caseKey: string): Promise<string | null> {
+  if (!isSupabaseEnabled()) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("case_library")
+    .select("image_data_url")
+    .eq("case_key", caseKey)
+    .maybeSingle<{ image_data_url: string | null }>();
+
+  if (error) {
+    if (isCaseCatalogUnavailableError(error)) {
+      return null;
+    }
+
+    throw new Error(`Failed to load case image: ${error.message}`);
+  }
+
+  return data?.image_data_url ?? null;
+}
+
 async function getCaseFileOrThrow(caseKey: string): Promise<CaseFile> {
   const caseFile = await loadCaseFile(caseKey);
   if (!caseFile) {
@@ -2686,6 +3576,7 @@ async function createUniqueRoom(input: {
 export async function createRoomInStore(
   hostNickname: string,
   accountId?: string | null,
+  guestIdentity?: string | null,
   settings?: {
     roomMode?: RoomMode;
     roomTitle?: string;
@@ -2728,11 +3619,12 @@ export async function createRoomInStore(
     throw new Error(`Failed to create game row: ${gameError?.message ?? "unknown error"}`);
   }
 
-  const { data: player, error: playerError } = await supabase
+  let { data: player, error: playerError } = await supabase
     .from("players")
     .insert({
       room_id: room.id,
       account_id: accountId ?? null,
+      guest_identity: guestIdentity ?? null,
       nickname: hostNickname,
       role: "host",
       is_ready: false,
@@ -2744,6 +3636,25 @@ export async function createRoomInStore(
     })
     .select("*")
     .single<DbPlayerRow>();
+
+  if (playerError && isLegacyMissingGuestIdentityColumnError(playerError)) {
+    ({ data: player, error: playerError } = await supabase
+      .from("players")
+      .insert({
+        room_id: room.id,
+        account_id: accountId ?? null,
+        nickname: hostNickname,
+        role: "host",
+        is_ready: false,
+        connection_status: "connected",
+        total_score: 0,
+        solved_count: 0,
+        bonus_keyword_count: 0,
+        last_seen_at: nowUtcIso(),
+      })
+      .select("*")
+      .single<DbPlayerRow>());
+  }
 
   if (playerError || !player) {
     throw new Error(`Failed to create host player: ${playerError?.message ?? "unknown error"}`);
@@ -2836,6 +3747,7 @@ export async function joinRoomInStore(
   roomCode: string,
   nickname: string,
   accountId?: string | null,
+  guestIdentity?: string | null,
   roomPassword?: string | null,
   currentMembership?: ActiveRoomMembership | null,
 ): Promise<JoinRoomResponse> {
@@ -2877,6 +3789,21 @@ export async function joinRoomInStore(
     }
   }
 
+  if (guestIdentity) {
+    const existingGuestPlayer = stateBeforeJoin.players.find(
+      (player) => player.guest_identity === guestIdentity,
+    );
+
+    if (existingGuestPlayer) {
+      return {
+        roomId: room.id,
+        playerId: existingGuestPlayer.id,
+        settings: toRoomSettings(stateBeforeJoin.room),
+        snapshot: buildSnapshotFromState(stateBeforeJoin, null, existingGuestPlayer.id),
+      };
+    }
+  }
+
   await cleanupViewerRoomMemberships({
     accountId,
     currentMembership,
@@ -2896,11 +3823,12 @@ export async function joinRoomInStore(
   }
 
   const supabase = getSupabaseAdminClient();
-  const { data: player, error: playerError } = await supabase
+  let { data: player, error: playerError } = await supabase
     .from("players")
     .insert({
       room_id: room.id,
       account_id: accountId ?? null,
+      guest_identity: guestIdentity ?? null,
       nickname,
       role: "player",
       is_ready: false,
@@ -2912,6 +3840,25 @@ export async function joinRoomInStore(
     })
     .select("*")
     .single<DbPlayerRow>();
+
+  if (playerError && isLegacyMissingGuestIdentityColumnError(playerError)) {
+    ({ data: player, error: playerError } = await supabase
+      .from("players")
+      .insert({
+        room_id: room.id,
+        account_id: accountId ?? null,
+        nickname,
+        role: "player",
+        is_ready: false,
+        connection_status: "connected",
+        total_score: 0,
+        solved_count: 0,
+        bonus_keyword_count: 0,
+        last_seen_at: nowUtcIso(),
+      })
+      .select("*")
+      .single<DbPlayerRow>());
+  }
 
   if (playerError || !player) {
     if (playerError?.code === "23505") {
@@ -3934,17 +4881,17 @@ export async function startStageInStore(
   const game = stateBeforeStart.game!;
   let resolvedCaseKey = caseKey;
 
-  if (resolveRoomMode(room) === "practice" && caseKey === PRACTICE_GENERATED_CASE_SENTINEL) {
-    const generatedCase = await generatePracticeCaseFile(stage.id, stage.stage_number);
-    await persistPracticeGeneratedCase({
-      roomId: room.id,
-      gameId: game.id,
-      stageId: stage.id,
-      requestedByPlayerId,
-      caseFile: generatedCase.caseFile,
-      imageDataUrl: generatedCase.imageDataUrl,
-    });
-    resolvedCaseKey = generatedCase.caseFile.key;
+  if (
+    caseKey === AUTO_CASE_SELECTION_SENTINEL ||
+    (resolveRoomMode(room) === "practice" && caseKey === PRACTICE_GENERATED_CASE_SENTINEL)
+  ) {
+    resolvedCaseKey =
+      resolveRoomMode(room) === "practice"
+        ? await choosePracticePoolCaseKey()
+        : await chooseSharedUnseenCatalogCaseKey({
+            players: stateBeforeStart.players,
+            stageNumber: stage.stage_number,
+          });
   }
 
   const nowIso = nowUtcIso();
@@ -4050,6 +4997,12 @@ export async function startStageInStore(
   if (upsertLockError) {
     throw new Error(`Failed to initialize investigation lock: ${upsertLockError.message}`);
   }
+
+  await recordCaseHistoryForPlayers(stateBeforeStart.players, resolvedCaseKey, {
+    roomId: room.id,
+    gameId: game.id,
+    stageId: stage.id,
+  });
 
   const state = await loadLobbyState(room.id);
   const caseSummary = await loadCaseSummary(resolvedCaseKey);

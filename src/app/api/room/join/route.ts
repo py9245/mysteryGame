@@ -109,8 +109,11 @@ export async function POST(request: Request) {
 
   const viewer = await getCurrentViewerFromCookies();
   const activeRoomMembership = await getActiveRoomMembershipFromCookies();
-  const guestViewer = viewer ?? createGuestViewer();
+  const guestViewer =
+    viewer && viewer.kind === "guest" ? viewer : createGuestViewer();
   const resolvedNickname = guestViewer.nickname;
+  const guestIdentity =
+    guestViewer.guest.guestId ?? createGuestViewer().guest.guestId;
 
   if (!resolvedNickname) {
     return Response.json(
@@ -127,6 +130,7 @@ export async function POST(request: Request) {
         validated.roomCode,
         resolvedNickname,
         viewer?.kind === "account" ? viewer.account.accountId : null,
+        guestIdentity,
         validated.roomPassword ?? null,
         activeRoomMembership,
       );
@@ -137,7 +141,10 @@ export async function POST(request: Request) {
 
       const nextResponse = NextResponse.json(payload, { status: 200 });
       if (!viewer || viewer.kind === "guest") {
-        applyGuestProfileCookie(nextResponse, { nickname: resolvedNickname });
+        applyGuestProfileCookie(nextResponse, {
+          guestId: guestIdentity,
+          nickname: resolvedNickname,
+        });
       }
       applyActiveRoomCookie(nextResponse, {
         roomId: response.roomId,

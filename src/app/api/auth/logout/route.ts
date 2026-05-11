@@ -30,6 +30,7 @@ export async function POST() {
                 kind: "guest",
                 nickname: viewer.nickname,
                 guest: {
+                  guestId: null,
                   nickname: viewer.nickname,
                   updatedAt: new Date().toISOString(),
                 },

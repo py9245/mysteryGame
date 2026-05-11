@@ -56,6 +56,7 @@ export interface AccountViewerResponse {
 }
 
 export interface GuestProfileView {
+  guestId: string | null;
   nickname: string;
   updatedAt: IsoTimestamp | null;
 }

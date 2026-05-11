@@ -6,7 +6,7 @@ import type {
 import type { ChatMessage } from "@/contracts/game";
 import type { ChatSnapshot } from "./chat-ui-types";
 
-export type ComposerChannel = Extract<SendChatMessageRequest["channel"], "global" | "team">;
+export type ComposerChannel = Extract<SendChatMessageRequest["channel"], "global" | "team" | "private">;
 
 export interface SubmitChatMessageOptions {
   request: SendChatMessageRequest;
@@ -92,7 +92,7 @@ export function buildSendChatMessageRequest({
     roomId: snapshot.room.id,
     stageId: snapshot.stage?.stageId ?? null,
     playerId: snapshot.me.playerId,
-    teamSlotId: snapshot.me.teamSlotId ?? null,
+    teamSlotId: channel === "team" ? snapshot.me.teamSlotId ?? null : null,
     channel,
     content: content.trim(),
   };

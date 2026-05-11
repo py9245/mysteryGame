@@ -11,7 +11,9 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:worker": "node scripts/cloudflare-deploy-with-retry.mjs",
     "deploy": "opennextjs-cloudflare build && npm run deploy:worker",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "generate:cases": "node scripts/generate-case-batch.mjs 20",
+    "generate:cases:smoke": "node scripts/generate-case-batch.mjs 1"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.19.8",

@@ -40,17 +40,13 @@ export default async function GameplayPage({
   const chatMessages =
     isSupabaseEnabled()
       ? {
-          messages: (await listChatMessagesFromStore(
-            snapshot.room.id,
-            snapshot.stage?.stageId ?? null,
-          )).messages,
+          messages: (await listChatMessagesFromStore(snapshot.room.id)).messages,
           source: "api" as const,
           endpoint: `/api/chat/${encodeURIComponent(snapshot.room.id)}`,
         }
       : await loadChatMessages({
           roomId: snapshot.room.id,
           playerId: snapshot.me.playerId,
-          stageId: snapshot.stage?.stageId ?? null,
         });
 
   const runtime =

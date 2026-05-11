@@ -1,0 +1,52 @@
+{
+  "id": "generated-1778481109264-bd7f3aa3",
+  "key": "generated-1778481109264-bd7f3aa3",
+  "stageNumber": 3,
+  "title": "회의실의 보온병",
+  "publicDescription": "영업부장이 주간 회의 도중 갑자기 쓰러져 사망했다. 현장은 외부 침입 흔적이 없어 처음엔 심장마비로 보였으나 조사로 의문이 커졌다.",
+  "question": "사건의 전말은 무엇인가?",
+  "truth": "영업부장은 회의 중에 갑자기 의식을 잃고 사망했으나 부검에서 소량의 빠르게 작용하는 독극물이 검출되었다. 조사 결과 누군가가 회의 전에 그의 보온병을 몰래 교체해 독을 섞은 것이 확인되었다. 범행 동기는 피해자가 비서의 횡령 사실을 알게 되어 폭로하려 했기 때문이며, 범인은 이를 막기 위해 살해를 결행했다. 보온병 뚜껑에서 채취된 지문이 비서의 물건에서 채취된 지문과 일치해 비서의 범행이 확정되었다.",
+  "requiredKeywords": [
+    "독살",
+    "보온병 교체",
+    "횡령 은폐",
+    "비서",
+    "지문"
+  ],
+  "bonusKeywords": [
+    "개인 약통",
+    "CCTV",
+    "출입기록"
+  ],
+  "acceptedAnswerSummary": "비서는 횡령이 발각될 위기에 처하자 피해자의 보온병을 교체해 독을 섞어 살해했고, 보온병 뚜껑의 지문이 범행을 입증한다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481109264-bd7f3aa3-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "피해자는 평소와 다름없이 회의에 참석했고, 회의실에는 외부 침입 흔적이 없습니다.",
+      "internalNote": "표면은 자연사처럼 보인다는 인상을 주어 내부자 가능성으로 유도."
+    },
+    {
+      "hintId": "generated-1778481109264-bd7f3aa3-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "피해자 자리 옆의 보온병이 평소와 다른 컵으로 교체된 흔적이 있고, 그의 개인 소지품 일부가 회의실에 보이지 않습니다.",
+      "internalNote": "컵(보온병) 교체와 분실된 개인물품으로 관찰 범위를 좁혀 교체·조작 의심을 강화."
+    },
+    {
+      "hintId": "generated-1778481109264-bd7f3aa3-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "보온병 뚜껑에서 채취된 지문이 같은 층의 비서실에서 사용되는 물건의 지문과 일치합니다.",
+      "internalNote": "지문 일치로 내부자(비서)의 범행을 특정하게 유도—정답 축 고정용 단서."
+    }
+  ],
+  "reviewNotes": "전체적으로 한 번에 추리 가능하도록 구성되어 있다. publicDescription은 정답을 직접 드러내지 않으며 truth는 범인, 방법(보온병 교체 및 독), 동기(횡령 은폐), 위장(자연사/심장마비 위장) 요소들이 유기적으로 연결된다. requiredKeywords는 진실을 복원하는 최소 단위로 적절하다. 힌트는 정확히 3개이며 약→중→강으로 점층한다. 이미지 프롬프트는 현장과 눈에 보이는 단서(보온병 등)만 제시하고 지문·독 등 스포일러가 될 요소는 명시적으로 배제해 스포일러 안전성도 확보했다.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481109264-bd7f3aa3.png"
+}

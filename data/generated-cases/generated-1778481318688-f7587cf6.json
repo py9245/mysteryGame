@@ -1,0 +1,51 @@
+{
+  "id": "generated-1778481318688-f7587cf6",
+  "key": "generated-1778481318688-f7587cf6",
+  "stageNumber": 1,
+  "title": "브레이크룸의 설탕병",
+  "publicDescription": "작은 마케팅 회사의 아침 회의 직후, 직원 준호가 브레이크룸에서 커피를 마신 채 쓰러진 채 발견되었다. 초기에는 급성 심정지로 의심되었지만 현장과 영상에서 의문의 단서들이 포착되었다.",
+  "question": "누가, 어떻게, 왜 준호를 죽였는가?",
+  "truth": "준호는 아침 회의 도중 브레이크룸에서 커피를 마신 뒤 곧바로 쓰러져 사망했다. 현장 조사에서 설탕통 상태와 쓰레기통에서 나온 작은 플라스틱 뚜껑, 그리고 CCTV 영상에 찍힌 행위가 연결되어, 동료 미영이 회사비용 횡령이 들통날 것을 우려해 설탕통에 숨겨둔 독성물질을 커피에 섞어 독살한 것으로 결론났다. 설탕통 내부와 피살자의 컵에서 동일한 화학적 잔여물이 검출되었다.",
+  "requiredKeywords": [
+    "독살",
+    "설탕통",
+    "횡령",
+    "CCTV",
+    "브레이크룸"
+  ],
+  "bonusKeywords": [
+    "영수증",
+    "쓰레기통"
+  ],
+  "acceptedAnswerSummary": "미영이 횡령을 숨기려 준호의 커피에 설탕통에 숨겨둔 독을 타 살해했으며, 쓰레기통의 뚜껑, CCTV 장면, 설탕통과 컵에서 검출된 동일한 잔여물이 범행을 입증했다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481318688-f7587cf6-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "테이블 위에 컵과 설탕통이 함께 놓여 있었고, 컵은 비스듬히 엎어져 있었습니다.",
+      "internalNote": "초기 장면 관찰 유도 — 표면적 단서 제공"
+    },
+    {
+      "hintId": "generated-1778481318688-f7587cf6-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "회의 시작 전 브레이크룸 CCTV에는 한 사람이 잠깐 들어와 설탕통을 만지는 장면이 찍혀 있습니다.",
+      "internalNote": "타임라인 전환 지시 — 단서의 행위자 가능성 제시"
+    },
+    {
+      "hintId": "generated-1778481318688-f7587cf6-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "쓰레기통에서 작은 플라스틱 뚜껑이 나왔고, 설탕통 내부와 컵에서 동일한 흰색 잔여물이 검출되었습니다.",
+      "internalNote": "결정적 물증 공개 — 방법과 연결되는 증거 제시"
+    }
+  ],
+  "reviewNotes": "검수 결과: 한 번에 추리 가능한 구성이다(현장 단서, CCTV, 잔여물의 연결로 범인·방법·동기가 복원된다). truth는 범인·방법·동기·위장 요소가 일관되게 연결되어 있다. requiredKeywords는 진실을 복원하는 최소 단위로 적절하다. 힌트는 정확히 3개이며 weak→medium→strong으로 점층한다. 원본 imagePrompt는 설탕통이 열려 있는 점이 다소 스포일러가 될 수 있어 '잔여물이나 작은 뚜껑의 근접 촬영'을 피하도록 문구를 수정했다. 추가 권장사항: 공개 설명과 힌트는 플레이어 경험을 위해 지금 상태로 유지하고, 증거(잔여물 분석 결과)의 구체적 수치는 내부적 진술로만 남겨두라.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481318688-f7587cf6.png"
+}

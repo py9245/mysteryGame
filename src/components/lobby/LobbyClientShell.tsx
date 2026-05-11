@@ -14,19 +14,11 @@ import {
 import { submitSetReady } from "@/features/lobby/set-ready-command";
 import { LobbyShell } from "./LobbyShell";
 
-const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
+const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
 const PRACTICE_LOADING_STEPS = [
   {
-    message: "사건 구조를 설계하고 있습니다.",
-    detail: "AI가 용의자, 동기, 핵심 단서를 연결해 이번 연습 사건의 뼈대를 짜는 중입니다.",
-  },
-  {
-    message: "공개 설명과 정답 키워드를 정리하고 있습니다.",
-    detail: "게임 화면에 바로 보일 사건 요약과 정답 판정용 키워드를 다듬고 있습니다.",
-  },
-  {
-    message: "사건 이미지를 생성하고 있습니다.",
-    detail: "사건 분위기에 맞는 이미지를 만들고 있습니다. 준비가 끝나면 바로 플레이 화면으로 들어갑니다.",
+    message: "사건과 스테이지를 준비하고 있습니다.",
+    detail: "연습모드는 준비된 사건 풀에서 바로 고르고, 일반방은 아직 안 해본 사건을 우선 골라 게임 화면으로 넘깁니다.",
   },
 ] as const;
 
@@ -50,10 +42,6 @@ export function LobbyClientShell({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [practiceLoadingStepIndex, setPracticeLoadingStepIndex] = useState<number | null>(null);
-
-  function resolveCaseKey(stageNumber: number): string {
-    return `case-${String(stageNumber).padStart(3, "0")}`;
-  }
 
   function navigateToHref(href: string) {
     if (typeof window !== "undefined") {
@@ -126,7 +114,6 @@ export function LobbyClientShell({
     setErrorMessage(null);
     setStatusMessage(null);
 
-    const stageNumber = snapshot.game?.currentStageNumber ?? 1;
     const isPracticeMode = snapshot.room.maxPlayers === 1 && snapshot.teamSlots.length === 1;
     let nextSnapshot = snapshot;
 
@@ -151,21 +138,12 @@ export function LobbyClientShell({
     let loadingInterval: ReturnType<typeof window.setInterval> | null = null;
     if (isPracticeMode && typeof window !== "undefined") {
       setPracticeLoadingStepIndex(0);
-      loadingInterval = window.setInterval(() => {
-        setPracticeLoadingStepIndex((current) => {
-          if (current === null) {
-            return 0;
-          }
-
-          return Math.min(current + 1, PRACTICE_LOADING_STEPS.length - 1);
-        });
-      }, 2600);
     }
 
     const result = await submitStartStage({
       roomId: nextSnapshot.room.id,
       requestedByPlayerId: nextSnapshot.me.playerId,
-      caseKey: isPracticeMode ? PRACTICE_GENERATED_CASE_SENTINEL : resolveCaseKey(stageNumber),
+      caseKey: AUTO_CASE_SELECTION_SENTINEL,
       durationSeconds: 15 * 60,
     });
 
@@ -178,7 +156,7 @@ export function LobbyClientShell({
       setSnapshot(result.snapshot);
       setStatusMessage(
         isPracticeMode
-          ? "AI가 사건 준비를 마쳤습니다. 게임 화면으로 이동합니다."
+          ? "사건을 골랐습니다. 게임 화면으로 이동합니다."
           : "스테이지 브리핑이 시작되었습니다.",
       );
       setIsHostActionSubmitting(false);

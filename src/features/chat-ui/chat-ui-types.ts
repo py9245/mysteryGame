@@ -13,4 +13,5 @@ export interface ChatSnapshot {
   players: ChatParticipant[];
   teamSlots: TeamSlot[];
   stage: ChatStageContext | null;
+  privateChat?: RoomViewSnapshot["privateChat"] | null;
 }

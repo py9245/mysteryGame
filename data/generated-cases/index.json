@@ -1,0 +1,110 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "generated-1778480974140-ff861018",
+      "stageNumber": 1,
+      "file": "./generated-1778480974140-ff861018.json"
+    },
+    {
+      "id": "generated-1778481108587-42060c51",
+      "stageNumber": 1,
+      "file": "./generated-1778481108587-42060c51.json"
+    },
+    {
+      "id": "generated-1778481109264-bd7f3aa3",
+      "stageNumber": 3,
+      "file": "./generated-1778481109264-bd7f3aa3.json"
+    },
+    {
+      "id": "generated-1778481110746-d3072791",
+      "stageNumber": 2,
+      "file": "./generated-1778481110746-d3072791.json"
+    },
+    {
+      "id": "generated-1778481118624-e52ebd47",
+      "stageNumber": 1,
+      "file": "./generated-1778481118624-e52ebd47.json"
+    },
+    {
+      "id": "generated-1778481206955-c85a340d",
+      "stageNumber": 2,
+      "file": "./generated-1778481206955-c85a340d.json"
+    },
+    {
+      "id": "generated-1778481209696-d17d9778",
+      "stageNumber": 1,
+      "file": "./generated-1778481209696-d17d9778.json"
+    },
+    {
+      "id": "generated-1778481215714-b31031a2",
+      "stageNumber": 3,
+      "file": "./generated-1778481215714-b31031a2.json"
+    },
+    {
+      "id": "generated-1778481227347-ecd91e1d",
+      "stageNumber": 2,
+      "file": "./generated-1778481227347-ecd91e1d.json"
+    },
+    {
+      "id": "generated-1778481309588-44961cd0",
+      "stageNumber": 3,
+      "file": "./generated-1778481309588-44961cd0.json"
+    },
+    {
+      "id": "generated-1778481318688-f7587cf6",
+      "stageNumber": 1,
+      "file": "./generated-1778481318688-f7587cf6.json"
+    },
+    {
+      "id": "generated-1778481326283-34e3b718",
+      "stageNumber": 2,
+      "file": "./generated-1778481326283-34e3b718.json"
+    },
+    {
+      "id": "generated-1778481346667-cc5e1530",
+      "stageNumber": 3,
+      "file": "./generated-1778481346667-cc5e1530.json"
+    },
+    {
+      "id": "generated-1778481410067-040d9190",
+      "stageNumber": 1,
+      "file": "./generated-1778481410067-040d9190.json"
+    },
+    {
+      "id": "generated-1778481431789-5d06d1d4",
+      "stageNumber": 3,
+      "file": "./generated-1778481431789-5d06d1d4.json"
+    },
+    {
+      "id": "generated-1778481437246-2ceca29e",
+      "stageNumber": 2,
+      "file": "./generated-1778481437246-2ceca29e.json"
+    },
+    {
+      "id": "generated-1778481463222-07934ec3",
+      "stageNumber": 1,
+      "file": "./generated-1778481463222-07934ec3.json"
+    },
+    {
+      "id": "generated-1778481520442-e4f43555",
+      "stageNumber": 2,
+      "file": "./generated-1778481520442-e4f43555.json"
+    },
+    {
+      "id": "generated-1778481539061-ecb6db5f",
+      "stageNumber": 3,
+      "file": "./generated-1778481539061-ecb6db5f.json"
+    },
+    {
+      "id": "generated-1778481544760-aa53e4fc",
+      "stageNumber": 1,
+      "file": "./generated-1778481544760-aa53e4fc.json"
+    },
+    {
+      "id": "generated-1778481561315-383b3057",
+      "stageNumber": 2,
+      "file": "./generated-1778481561315-383b3057.json"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "generated-1778481544760-aa53e4fc",
+  "key": "generated-1778481544760-aa53e4fc",
+  "stageNumber": 1,
+  "title": "도시락이 바뀐 날",
+  "publicDescription": "평범한 사무실 점심 시간, 택배기사 한 명이 휴게실에서 도시락을 먹고 쓰러져 사망했다. 처음에는 음식 문제처럼 보였지만 현장에는 이름표가 달린 봉투와 누군가 서둘러 떠난 흔적이 남아 있다.",
+  "question": "사건의 전말은 무엇인가?",
+  "truth": "사건은 우발적 식중독이 아니라 특정인을 겨냥한 고의적 독살이었다. 회사의 한 관리자가 내부고발자였던 직원의 도시락에 독을 넣어 이를 식중독으로 위장하려 했고, 그 도시락에는 원래 이름표가 붙어 있었다. 우연히 그 도시락을 대신 먹은 택배기사가 중독으로 숨졌으며, 결정적 단서는 이름표가 붙은 봉투와 휴게실 CCTV 및 출입기록으로서, CCTV는 누군가 봉투를 옮기고 만지는 장면을, 출입기록은 해당 관리자의 이동과 피해자·관리자 사이의 갈등을 연결해 준다.",
+  "requiredKeywords": [
+    "독살",
+    "도시락 교환",
+    "내부고발",
+    "이름표 단서",
+    "결정적 CCTV"
+  ],
+  "bonusKeywords": [
+    "택배기사",
+    "휴게실"
+  ],
+  "acceptedAnswerSummary": "회사의 관리자가 내부고발자를 침묵시키기 위해 그의 이름표가 붙은 도시락에 독을 넣어 식중독으로 위장하려 했으나, 우연히 그 도시락을 대신 먹은 택배기사가 죽었으며 결정적 단서는 이름표가 붙은 봉투와 CCTV·출입기록이다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481544760-aa53e4fc-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "같은 시간대에 함께 식사한 동료들은 대부분 아무 이상이 없었다.",
+      "internalNote": "초기 관찰로 '범행이 무작위가 아니라 특정 대상 선택' 가능성 제시"
+    },
+    {
+      "hintId": "generated-1778481544760-aa53e4fc-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "현장에는 피해자 것과 다른 이름표가 붙은 도시락 봉투가 남아 있었다.",
+      "internalNote": "이름표가 교환·대상 지정 단서임을 유도—누군가 특정 봉투를 목표로 했을 가능성"
+    },
+    {
+      "hintId": "generated-1778481544760-aa53e4fc-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "CCTV와 출입기록은 특정 직원이 그 봉투를 만지고 자리를 비운 뒤 피해자가 그 봉투를 먹게 된 정황을 보여준다.",
+      "internalNote": "관리자의 고의적 개입과 내부고발 은폐 동기를 확정짓는 증거로 사용"
+    }
+  ],
+  "reviewNotes": "수정 사항: 공개 설명에서 '교환된 듯한' 등의 확정적 표현을 완화해 공개만으로 정답이 바로 드러나지 않도록 조정함. truth에 '식중독으로 위장' 요소를 명시해 범인/방법/동기/위장 요소가 명확히 연결되도록 보강함. requiredKeywords에 '식중독 위장'을 추가해 위장 요소를 복원 가능한 최소 단위로 포함시킴. imagePrompt는 현장과 눈에 보이는 단서(이름표 봉투, 택배 점퍼 등)만 묘사하고 CCTV 화면이나 범인의 모습 등 스포일러 요소는 제외하도록 명확히 수정함. 힌트는 3개로 유지되며 약→중→강으로 점층하도록 배치됨.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481544760-aa53e4fc.png"
+}

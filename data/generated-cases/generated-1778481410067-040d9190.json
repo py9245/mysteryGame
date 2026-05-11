@@ -1,0 +1,51 @@
+{
+  "id": "generated-1778481410067-040d9190",
+  "key": "generated-1778481410067-040d9190",
+  "stageNumber": 1,
+  "title": "휴게실 에너지 음료 사건",
+  "publicDescription": "회계팀 직원 민재는 평소처럼 출근해 휴게실에서 에너지 음료를 마신 뒤 쓰러진 채 발견되었다. 처음에는 급작스러운 심장마비로 보였으나 현장과 증거가 뒤늦게 다른 그림을 가리킨다.",
+  "question": "민재의 사망 사건의 전말은 무엇인가?",
+  "truth": "민재는 회사 내부 회계 장부의 불일치를 발견해 이를 조사하던 중이었다. 횡령을 저지른 동료 유진은 발각을 두려워해 민재의 휴게실 음료에 치명적 농도의 이온성 물질을 섞어 심장마비로 가장해 독살했다. 유진은 현장을 정리하며 자연사로 보이게 꾸몄으나 음료 잔여물의 화학 분석과 휴게실 CCTV가 범행을 드러냈다. 결국 동기의 핵심은 횡령 은폐였으며 결정적 증거는 음료 잔여물의 분석 결과와 CCTV 영상이다.",
+  "requiredKeywords": [
+    "유진",
+    "독살",
+    "횡령",
+    "은폐",
+    "에너지음료"
+  ],
+  "bonusKeywords": [
+    "회계팀",
+    "CCTV"
+  ],
+  "acceptedAnswerSummary": "회계팀 동료 유진이 횡령이 발각될 것을 두려워해 민재의 에너지음료에 치명적 이온성 물질을 섞어 독살했고, 결정적 단서는 음료 잔여물의 화학 분석과 휴게실 CCTV였다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481410067-040d9190-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "현장에 쓰러진 옆에는 에너지 음료 캔이 놓여 있다.",
+      "internalNote": "초기 관찰 포인트로 음료 존재를 제시한다."
+    },
+    {
+      "hintId": "generated-1778481410067-040d9190-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "민재의 개인 서랍에서 최근 회계 장부를 정리하던 흔적과 불일치가 적힌 메모가 발견되었다.",
+      "internalNote": "동기를 가리키는 단서로 수상한 회계 기록을 제시해 수수께끼의 방향을 좁힌다."
+    },
+    {
+      "hintId": "generated-1778481410067-040d9190-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "음료 캔 잔여물에서 비정상적 이온성 물질이 검출되었고, CCTV에는 한 동료가 밤늦게 휴게실 냉장고를 정리하는 장면이 찍혀 있다.",
+      "internalNote": "포렌식 결과와 영상 증거를 통해 범행의 방법과 범행자 개입을 명확히 암시한다."
+    }
+  ],
+  "reviewNotes": "검수 결과: 공개 설명은 정답을 바로 드러내지 않음(합격). truth는 범인(유진)/방법(음료에 독물 혼입)/동기(횡령 은폐)/위장(자연사로 위장) 요소가 일관되게 연결되어 있음(합격). requiredKeywords에서 '살인'은 '독살'과 의미 중복이므로 제거하고, 범인을 명시하는 '유진'을 필수 단어로 추가하여 truth 복원이 가능한 최소 단위로 수정함. 힌트는 정확히 3개이며 weak→medium→strong으로 점층적이며 적절히 구성됨(합격). imagePrompt는 현장과 보이는 단서만 묘사하고 얼굴·폭력 묘사는 피하도록 조정하여 스포일러 안전성 확보(합격).",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481410067-040d9190.png"
+}

@@ -15,6 +15,7 @@ export const GUEST_PROFILE_COOKIE_NAME = "mt_guest_profile";
 export const ACTIVE_ROOM_COOKIE_NAME = "mt_active_room";
 
 type GuestProfileCookiePayload = {
+  guestId?: string;
   nickname: string;
   updatedAt: string;
 };
@@ -42,11 +43,19 @@ export function generateGuestNickname(): string {
   return `Guest-${suffix}`;
 }
 
-export function createGuestViewer(nickname = generateGuestNickname()): CurrentViewer {
+export function generateGuestIdentity(): string {
+  return randomBytes(8).toString("hex");
+}
+
+export function createGuestViewer(
+  nickname = generateGuestNickname(),
+  guestId = generateGuestIdentity(),
+): Extract<CurrentViewer, { kind: "guest" }> {
   return {
     kind: "guest",
     nickname,
     guest: {
+      guestId,
       nickname,
       updatedAt: nowUtcIso(),
     },
@@ -70,6 +79,10 @@ function parseGuestProfileCookie(value: string | undefined): GuestProfileView | 
     }
 
     return {
+      guestId:
+        typeof parsed.guestId === "string" && parsed.guestId.trim().length > 0
+          ? parsed.guestId.trim()
+          : null,
       nickname: normalizeGuestNickname(parsed.nickname),
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
     };
@@ -176,9 +189,13 @@ export function clearSessionCookie(response: NextResponse): void {
 
 export function applyGuestProfileCookie(
   response: NextResponse,
-  input: { nickname: string; updatedAt?: string | null },
+  input: { guestId?: string | null; nickname: string; updatedAt?: string | null },
 ): void {
   const payload: GuestProfileCookiePayload = {
+    guestId:
+      typeof input.guestId === "string" && input.guestId.trim().length > 0
+        ? input.guestId.trim()
+        : generateGuestIdentity(),
     nickname: normalizeGuestNickname(input.nickname),
     updatedAt: input.updatedAt ?? nowUtcIso(),
   };

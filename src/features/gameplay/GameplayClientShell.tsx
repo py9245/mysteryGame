@@ -68,6 +68,12 @@ export function GameplayClientShell({
     remainingSeconds: initialSnapshot.stage?.remainingSeconds ?? 0,
     capturedAtMs: Date.now(),
   }));
+  const [lockCountdownSeed, setLockCountdownSeed] = useState(() => ({
+    stageId: initialSnapshot.stage?.stageId ?? null,
+    lockOwnerId: initialSnapshot.stage?.investigation?.lockedByPlayerId ?? null,
+    remainingSeconds: initialSnapshot.stage?.investigation?.remainingSeconds ?? 0,
+    capturedAtMs: Date.now(),
+  }));
   const lastBoundaryRefreshAtMsRef = useRef(0);
 
   useEffect(() => {
@@ -89,6 +95,19 @@ export function GameplayClientShell({
     });
   }, [snapshot.stage?.stageId, snapshot.stage?.status, snapshot.stage?.remainingSeconds]);
 
+  useEffect(() => {
+    setLockCountdownSeed({
+      stageId: snapshot.stage?.stageId ?? null,
+      lockOwnerId: snapshot.stage?.investigation?.lockedByPlayerId ?? null,
+      remainingSeconds: snapshot.stage?.investigation?.remainingSeconds ?? 0,
+      capturedAtMs: Date.now(),
+    });
+  }, [
+    snapshot.stage?.stageId,
+    snapshot.stage?.investigation?.lockedByPlayerId,
+    snapshot.stage?.investigation?.remainingSeconds,
+  ]);
+
   const displayedSnapshot = useMemo(() => {
     if (!snapshot.stage) {
       return snapshot;
@@ -108,14 +127,27 @@ export function GameplayClientShell({
     const elapsedSeconds = Math.max(0, Math.floor((nowMs - countdownSeed.capturedAtMs) / 1000));
     const remainingSeconds = Math.max(0, countdownSeed.remainingSeconds - elapsedSeconds);
 
+    const elapsedLockSeconds = Math.max(0, Math.floor((nowMs - lockCountdownSeed.capturedAtMs) / 1000));
+    const lockRemainingSeconds =
+      lockCountdownSeed.stageId === snapshot.stage.stageId &&
+      lockCountdownSeed.lockOwnerId === snapshot.stage.investigation?.lockedByPlayerId
+        ? Math.max(0, lockCountdownSeed.remainingSeconds - elapsedLockSeconds)
+        : snapshot.stage.investigation?.remainingSeconds ?? 0;
+
     return {
       ...snapshot,
       stage: {
         ...snapshot.stage,
         remainingSeconds,
+        investigation: snapshot.stage.investigation
+          ? {
+              ...snapshot.stage.investigation,
+              remainingSeconds: lockRemainingSeconds,
+            }
+          : snapshot.stage.investigation,
       },
     };
-  }, [countdownSeed, nowMs, snapshot]);
+  }, [countdownSeed, lockCountdownSeed, nowMs, snapshot]);
 
   useEffect(() => {
     if (displayedSnapshot.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId) {

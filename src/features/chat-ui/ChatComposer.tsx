@@ -15,21 +15,59 @@ export function ChatComposer({
   snapshot,
   onSubmittedPreview,
   compact = false,
+  forcedChannel,
+  title,
+  description,
+  placeholder,
+  submitLabel,
+  disabled = false,
+  disabledMessage,
 }: {
   snapshot: ChatSnapshot;
   onSubmittedPreview?: (preview: SubmittedChatPreview) => void;
   compact?: boolean;
+  forcedChannel?: ComposerChannel;
+  title?: string;
+  description?: string;
+  placeholder?: string;
+  submitLabel?: string;
+  disabled?: boolean;
+  disabledMessage?: string;
 }) {
   const hasTeamChannel = snapshot.me.teamSlotId !== null;
   const teamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots) ?? "미배정";
-  const [channel, setChannel] = useState<ComposerChannel>(hasTeamChannel ? "team" : "global");
+  const [channel, setChannel] = useState<ComposerChannel>(
+    forcedChannel ?? (hasTeamChannel ? "team" : "global"),
+  );
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedPreview, setSubmittedPreview] = useState<SubmittedChatPreview | null>(null);
   const previewViewModel = submittedPreview
     ? buildChatMessageViewModels([submittedPreview.message], snapshot, { submittedPreview })[0] ?? null
     : null;
-  const canSubmit = content.trim().length > 0 && !isSubmitting && (channel !== "team" || hasTeamChannel);
+  const canSubmit =
+    content.trim().length > 0 &&
+    !isSubmitting &&
+    !disabled &&
+    (channel !== "team" || hasTeamChannel);
+
+  const heading =
+    title ?? (compact ? "보내기" : "메시지 보내기");
+  const copy =
+    description ??
+    (channel === "team"
+      ? `${teamLabel} 팀 대화로 보냅니다.`
+      : channel === "private"
+        ? "현재 연결된 1:1 대화로 보냅니다."
+        : "전체 채팅으로 보냅니다.");
+  const resolvedPlaceholder =
+    placeholder ??
+    (channel === "team"
+      ? `${teamLabel} 팀에게 공유할 단서를 입력하세요.`
+      : channel === "private"
+        ? "1:1 대화 상대에게 보낼 내용을 입력하세요."
+        : "전체 플레이어에게 공유할 내용을 입력하세요.");
+  const resolvedSubmitLabel = submitLabel ?? "메시지 보내기";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,23 +100,26 @@ export function ChatComposer({
 
   return (
     <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
-      <h4>{compact ? "보내기" : "메시지 보내기"}</h4>
-      <p className="panel-copy">{channel === "team" ? `${teamLabel} 팀 대화로 보냅니다.` : "전체 채팅으로 보냅니다."}</p>
+      <h4>{heading}</h4>
+      <p className="panel-copy">{copy}</p>
       <form className="composer-form" onSubmit={handleSubmit}>
-        <div className="field">
-          <label htmlFor="composer-channel">채널</label>
-          <select
-            id="composer-channel"
-            className="select-input"
-            value={channel}
-            onChange={(event) => setChannel(event.target.value as ComposerChannel)}
-          >
-            <option value="team" disabled={!hasTeamChannel}>
-              {hasTeamChannel ? `${teamLabel} 팀` : "팀 채널 없음"}
-            </option>
-            <option value="global">전체</option>
-          </select>
-        </div>
+        {forcedChannel ? null : (
+          <div className="field">
+            <label htmlFor="composer-channel">채널</label>
+            <select
+              id="composer-channel"
+              className="select-input"
+              value={channel}
+              onChange={(event) => setChannel(event.target.value as ComposerChannel)}
+            >
+              <option value="team" disabled={!hasTeamChannel}>
+                {hasTeamChannel ? `${teamLabel} 팀` : "팀 채널 없음"}
+              </option>
+              <option value="global">전체</option>
+              <option value="private">1:1</option>
+            </select>
+          </div>
+        )}
         <div className="field">
           <label htmlFor="composer-message">메시지</label>
           <textarea
@@ -87,17 +128,14 @@ export function ChatComposer({
             rows={compact ? 2 : 3}
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder={
-              channel === "team"
-                ? `${teamLabel} 팀에게 공유할 단서를 입력하세요.`
-                : "전체 플레이어에게 공유할 내용을 입력하세요."
-            }
+            placeholder={resolvedPlaceholder}
           />
         </div>
         <button className="button-primary" type="submit" disabled={!canSubmit}>
-          {isSubmitting ? "전송 중..." : "메시지 보내기"}
+          {isSubmitting ? "전송 중..." : resolvedSubmitLabel}
         </button>
       </form>
+      {disabled && disabledMessage ? <p className="message-note">{disabledMessage}</p> : null}
       {submittedPreview === null ? (
         <p className="message-note">{compact ? "보낼 채널을 고른 뒤 짧게 공유하세요." : "가장 최근 전송 결과가 여기에 표시됩니다."}</p>
       ) : compact ? (

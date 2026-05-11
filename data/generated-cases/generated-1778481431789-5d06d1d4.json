@@ -1,0 +1,51 @@
+{
+  "id": "generated-1778481431789-5d06d1d4",
+  "key": "generated-1778481431789-5d06d1d4",
+  "stageNumber": 3,
+  "title": "휴게실의 쓴 커피",
+  "publicDescription": "아침 팀 미팅을 마친 직후, 한 직원이 회사 휴게실에서 쓰러진 채 발견된다. 겉으로는 갑작스러운 심정지로 보였지만 주변 물건과 사라진 서류가 수상하다.",
+  "question": "이 사건의 전말은 무엇인가?",
+  "truth": "재무팀장 이준호는 내부감사 결과를 임원에게 제출하려 했고, 그날 아침 회의 후 휴게실에서 커피를 마시다가 쓰러져 사망했다. 수사 결과 그는 독이 섞인 음료를 마셔 급작스러운 심정지로 사망한 것으로 확인되었다. 같은 부서 동료 박성호는 감사로 인해 불리한 금전적·직위상의 손실을 피해야 할 동기가 있었고, 휴게실에서 이준호의 컵에 독을 넣은 혐의를 받는다. 결정적 단서는 쓰레기통에서 발견된 찢긴 재무보고서 조각과 그 조각에 남아 있던 박성호의 지문 및 컵에서 검출된 독성 잔류물이다.",
+  "requiredKeywords": [
+    "독살",
+    "내부감사",
+    "재무팀",
+    "휴게실",
+    "지문"
+  ],
+  "bonusKeywords": [
+    "커피컵",
+    "찢긴보고서"
+  ],
+  "acceptedAnswerSummary": "재무팀 동료 박성호는 내부감사로 불리해질 것을 막기 위해 이준호의 커피에 독을 타 살해했고, 찢긴 재무보고서 조각과 박성호의 지문·컵의 독성 잔류물이 결정적 단서다.",
+  "hints": [
+    {
+      "hintId": "generated-1778481431789-5d06d1d4-hint-1",
+      "order": 1,
+      "triggerType": "time_elapsed",
+      "strength": "weak",
+      "publicText": "사건은 오전 팀 미팅 직후 소규모 휴게실에서 발생했습니다.",
+      "internalNote": "장소와 시간대 고정, 초기 관찰 유도"
+    },
+    {
+      "hintId": "generated-1778481431789-5d06d1d4-hint-2",
+      "order": 2,
+      "triggerType": "time_elapsed",
+      "strength": "medium",
+      "publicText": "피해자 옆에는 커피 컵이 있었고, 그의 소지품에서는 원래 있던 서류 봉투 일부가 사라져 있었습니다.",
+      "internalNote": "관찰 범위를 개인 소지품과 음료로 좁히기"
+    },
+    {
+      "hintId": "generated-1778481431789-5d06d1d4-hint-3",
+      "order": 3,
+      "triggerType": "stage_pressure",
+      "strength": "strong",
+      "publicText": "쓰레기통에서 찢긴 재무보고서 조각이 나왔고, 그 조각과 휴게실 컵에서 각각 특정 동료의 지문과 독성 잔류물이 확인되었습니다.",
+      "internalNote": "결정적 단서로 용의자와 방법을 좁혀 정답 유도"
+    }
+  ],
+  "reviewNotes": "표면적으로는 갑작스러운 심정지처럼 보이는 사건이지만, 사라진 보고서와 휴게실 음료의 증거가 결합되어 내부감사 은폐 목적의 독살이라는 숨겨진 인과관계가 드러난다.",
+  "status": "approved",
+  "version": "gms-1.0",
+  "imageUrl": "/generated-case-images/generated-1778481431789-5d06d1d4.png"
+}
