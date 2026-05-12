@@ -13,23 +13,27 @@ function resolveRemainingSeconds(expiresAt: string | null | undefined, fallback:
 
 export function InvestigationQueueBanner({
   snapshot,
-  players = snapshot.players,
   nowMs,
+  isSubmitting = false,
+  onOpenInvestigationModal,
+  onJoinQueue,
+  onLeaveQueue,
 }: {
   snapshot: RoomSnapshot;
-  players?: RoomSnapshot["players"];
   nowMs?: number;
+  isSubmitting?: boolean;
+  onOpenInvestigationModal?: () => void;
+  onJoinQueue?: () => void;
+  onLeaveQueue?: () => void;
 }) {
   const isBriefing = snapshot.stage?.status === "briefing";
+  const isInProgress = snapshot.stage?.status === "in_progress";
   const investigation = snapshot.stage?.investigation;
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLocked = Boolean(lockOwnerId);
   const isLockedByMe = lockOwnerId === snapshot.me.playerId;
   const queuePosition = investigation?.queuePosition ?? null;
   const waitingPlayerCount = investigation?.waitingPlayerCount ?? 0;
-  const lockOwnerNickname =
-    players.find((player) => player.playerId === lockOwnerId)?.nickname ??
-    (isLockedByMe ? snapshot.me.nickname : "다른 플레이어");
   const remainingSeconds = resolveRemainingSeconds(
     investigation?.expiresAt ?? null,
     investigation?.remainingSeconds,
@@ -40,17 +44,30 @@ export function InvestigationQueueBanner({
     undefined,
     nowMs,
   );
+  const action =
+    isLockedByMe
+      ? {
+          label: "질문방 열기",
+          onClick: onOpenInvestigationModal,
+          disabled: false,
+        }
+      : queuePosition
+        ? {
+            label: "대기열 취소",
+            onClick: onLeaveQueue,
+            disabled: false,
+          }
+        : {
+            label: queueCooldownSeconds > 0 ? `재진입 ${queueCooldownSeconds}초` : "질문방 줄서기",
+            onClick: onJoinQueue,
+            disabled: isBriefing || !isInProgress || queueCooldownSeconds > 0,
+          };
 
   return (
-    <section className="panel panel-muted utility-card">
+    <section className="panel panel-muted utility-card investigation-status-card">
       <div className="composer-header">
         <div>
           <h3 className="panel-title">질문방 상태</h3>
-          <p className="panel-copy">
-            {isBriefing
-              ? "브리핑 1분 동안은 잠시 닫혀 있습니다."
-              : "대기열에 들어가면 순서가 왔을 때 자동으로 질문방이 열립니다."}
-          </p>
         </div>
         <span className="status-badge" data-tone={isBriefing ? "alert" : !isLocked || isLockedByMe ? "live" : "alert"}>
           {isBriefing
@@ -62,27 +79,19 @@ export function InvestigationQueueBanner({
                 : "바로 입장 가능"}
         </span>
       </div>
-      {!isBriefing ? (
-        <div className="utility-chip-row">
-          <span className="status-badge">대기열 {waitingPlayerCount}명</span>
-          {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
-          {queueCooldownSeconds > 0 ? <span className="status-badge">재진입 {queueCooldownSeconds}초</span> : null}
-          {isLocked ? <span className="status-badge">남은 시간 {remainingSeconds}초</span> : null}
-        </div>
-      ) : null}
-      <p className="message-note">
-        {isBriefing
-          ? "지금은 채팅으로 사건을 정리하는 시간입니다. 브리핑이 끝나면 질문방과 시간 점수가 동시에 열립니다."
-          : isLockedByMe
-          ? "지금은 내가 질문방을 점유하고 있습니다."
-          : queuePosition
-            ? `현재 질문방 대기열 ${queuePosition}번입니다. 차례가 오면 자동으로 입장합니다.`
-            : isLocked
-            ? `${lockOwnerNickname}님이 질문방을 사용 중입니다. 끝나면 다음 플레이어가 자동으로 입장합니다.`
-            : queueCooldownSeconds > 0
-              ? "방금 질문방에서 나왔습니다. 5초 뒤 다시 대기열에 들어갈 수 있습니다."
-              : "지금 대기열에 참가하면 바로 질문방으로 넘어갈 수 있습니다."}
-      </p>
+      <div className="utility-chip-row">
+        <span className="status-badge">대기열 {waitingPlayerCount}명</span>
+        {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
+        {isLocked ? <span className="status-badge">남은 시간 {remainingSeconds}초</span> : null}
+      </div>
+      <button
+        className="button-primary investigation-queue-action"
+        type="button"
+        onClick={action.onClick}
+        disabled={isSubmitting || action.disabled || !action.onClick}
+      >
+        {isSubmitting ? "처리 중..." : action.label}
+      </button>
     </section>
   );
 }

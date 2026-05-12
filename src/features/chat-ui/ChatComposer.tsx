@@ -54,12 +54,14 @@ export function ChatComposer({
   const heading =
     title ?? (compact ? "보내기" : "메시지 보내기");
   const copy =
-    description ??
-    (channel === "team"
-      ? `${teamLabel} 팀 대화로 보냅니다.`
-      : channel === "private"
-        ? "현재 연결된 1:1 대화로 보냅니다."
-        : "전체 채팅으로 보냅니다.");
+    description === ""
+      ? ""
+      : description ??
+        (channel === "team"
+          ? `${teamLabel} 팀 대화로 보냅니다.`
+          : channel === "private"
+            ? "현재 연결된 1:1 대화로 보냅니다."
+            : "전체 채팅으로 보냅니다.");
   const resolvedPlaceholder =
     placeholder ??
     (channel === "team"
@@ -101,7 +103,7 @@ export function ChatComposer({
   return (
     <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
       <h4>{heading}</h4>
-      <p className="panel-copy">{copy}</p>
+      {copy ? <p className="panel-copy">{copy}</p> : null}
       <form className="composer-form" onSubmit={handleSubmit}>
         {forcedChannel ? null : (
           <div className="field">
@@ -137,7 +139,7 @@ export function ChatComposer({
       </form>
       {disabled && disabledMessage ? <p className="message-note">{disabledMessage}</p> : null}
       {submittedPreview === null ? (
-        <p className="message-note">{compact ? "보낼 채널을 고른 뒤 짧게 공유하세요." : "가장 최근 전송 결과가 여기에 표시됩니다."}</p>
+        !compact ? <p className="message-note">가장 최근 전송 결과가 여기에 표시됩니다.</p> : null
       ) : compact ? (
         <p className={submittedPreview.status === "success" ? "message-positive" : "message-note"}>
           {submittedPreview.notice}

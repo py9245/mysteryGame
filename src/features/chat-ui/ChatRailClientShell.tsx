@@ -5,8 +5,6 @@ import type { ChatMessage } from "@/contracts/game";
 import { getSupabaseBrowserClient, hasSupabaseBrowserEnv } from "@/lib/supabase-browser";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
-import { GlobalChatPanel } from "./GlobalChatPanel";
-import { TeamChatPanel } from "./TeamChatPanel";
 import { buildChatMessageViewModels, resolveChatTeamLabel } from "./chat-message-view-model";
 import type { LoadedChatMessages } from "./chat-messages-loader";
 import type { SubmittedChatPreview } from "./send-chat-message";
@@ -111,11 +109,6 @@ export function ChatRailClientShell({
     snapshot,
     { submittedPreview },
   );
-  const systemMessages = buildChatMessageViewModels(
-    visibleMessages.filter((message) => message.channel === "system"),
-    snapshot,
-    { submittedPreview },
-  );
   const teamMessages = buildChatMessageViewModels(
     visibleMessages.filter(
       (message) => message.channel === "team" && message.teamSlotId === snapshot.me.teamSlotId,
@@ -197,9 +190,6 @@ export function ChatRailClientShell({
         <div className="composer-header">
           <div>
             <h3 className="panel-title">{isLobby ? "대기 채팅" : "전체 채팅"}</h3>
-            <p className="panel-copy">
-              {isLobby ? "대기실 전체 대화" : "모든 플레이어에게 보이는 공개 대화"}
-            </p>
           </div>
           <span
             className="status-badge"
@@ -208,19 +198,34 @@ export function ChatRailClientShell({
             {syncLabel}
           </span>
         </div>
-        <GlobalChatPanel messages={globalMessages} />
+        <ChatMessageList emptyMessage="아직 공개 채팅이 없습니다." messages={globalMessages} />
+        <ChatComposer
+          snapshot={snapshot}
+          onSubmittedPreview={setSubmittedPreview}
+          compact
+          forcedChannel="global"
+          title="전체 채팅 보내기"
+          description=""
+          submitLabel="전체 전송"
+        />
       </section>
 
       <section className="chat-secondary-grid gameplay-chat-bottom-grid">
         <section className="chat-section chat-support-panel">
-          <TeamChatPanel teamLabel={myTeamLabel} messages={teamMessages} />
+          <div className="composer-header">
+            <div>
+              <h4>{myTeamLabel ?? "미배정"} 팀 채팅</h4>
+            </div>
+            <span className="status-badge">팀</span>
+          </div>
+          <ChatMessageList emptyMessage="아직 팀 채팅이 없습니다." messages={teamMessages} />
           <ChatComposer
             snapshot={snapshot}
             onSubmittedPreview={setSubmittedPreview}
             compact
             forcedChannel="team"
             title="팀 채팅 보내기"
-            description={myTeamLabel ? `${myTeamLabel} 팀에게만 보입니다.` : "팀이 배정되면 팀 채팅을 보낼 수 있습니다."}
+            description=""
             submitLabel="팀 채팅 전송"
             disabled={!snapshot.me.teamSlotId}
             disabledMessage="팀이 배정되면 팀 채팅 입력이 열립니다."
@@ -230,11 +235,6 @@ export function ChatRailClientShell({
           <div className="composer-header">
             <div>
               <h4>1:1 대화</h4>
-              <p className="panel-copy">
-                {canUsePrivateChat
-                  ? "현재 연결된 1:1 상대와 주고받은 대화를 여기에 계속 표시합니다."
-                  : "1:1 대화가 연결되면 여기에서만 별도로 주고받습니다."}
-              </p>
             </div>
             <span className="status-badge">{canUsePrivateChat ? "연결됨" : "미연결"}</span>
           </div>
@@ -248,34 +248,12 @@ export function ChatRailClientShell({
             compact
             forcedChannel="private"
             title="1:1 대화 보내기"
-            description="연결된 상대에게만 보입니다."
+            description=""
             submitLabel="1:1 전송"
             disabled={!canUsePrivateChat}
             disabledMessage="1:1 대화가 연결되면 이 입력창이 열립니다."
           />
-          {!isLobby && systemMessages.length > 0 ? (
-            <ChatMessageList emptyMessage="아직 안내가 없습니다." messages={systemMessages.slice(-2)} />
-          ) : null}
         </section>
-      </section>
-
-      <section className="chat-section chat-support-panel">
-        <div className="composer-header">
-          <div>
-            <h4>전체 채팅 보내기</h4>
-            <p className="panel-copy">{isLobby ? "대기실 전체에 바로 보입니다." : "같은 방 전체 플레이어에게 보입니다."}</p>
-          </div>
-          <span className="status-badge">전체</span>
-        </div>
-        <ChatComposer
-          snapshot={snapshot}
-          onSubmittedPreview={setSubmittedPreview}
-          compact
-          forcedChannel="global"
-          title="전체 채팅 보내기"
-          description={isLobby ? "대기실 전체 대화로 보냅니다." : "현재 방 전체 채팅으로 보냅니다."}
-          submitLabel="전체 전송"
-        />
       </section>
     </aside>
   );

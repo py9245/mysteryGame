@@ -167,7 +167,6 @@ export function PrivateChatBanner({
       <div className="composer-header">
         <div>
           <h3 className="panel-title">1:1 전화</h3>
-          <p className="panel-copy">다른 팀 플레이어에게만 요청할 수 있고, 수신자는 15초 안에 한 명을 골라 응답합니다.</p>
         </div>
         <span className="status-badge" data-tone={statusTone}>
           {statusLabel}
@@ -210,7 +209,7 @@ export function PrivateChatBanner({
                 </span>
               </div>
               <p className="message-note">
-                지금 수락하면 나머지 대기 요청은 자동으로 정리됩니다.
+                수락하면 나머지 요청은 자동 정리됩니다.
               </p>
               <div className="action-row">
                 <button
@@ -243,7 +242,7 @@ export function PrivateChatBanner({
               {resolveRemainingSeconds(outgoingPendingRequest.expiresAt, nowMs) ?? 0}초 남음
             </span>
           </div>
-          <p className="message-note">상대가 고르면 바로 연결되고, 다른 요청이 먼저 연결되면 자동으로 바쁨 처리됩니다.</p>
+          <p className="message-note">상대 응답을 기다리는 중입니다.</p>
         </div>
       ) : null}
 
@@ -255,7 +254,6 @@ export function PrivateChatBanner({
         <div className="composer-header">
           <div>
             <h4 className="panel-title">신청 가능한 플레이어</h4>
-            <p className="panel-copy">같은 팀, 연결 중인 플레이어, 정답 확정 관전자에게는 신청할 수 없습니다.</p>
           </div>
         </div>
         {requestablePlayers.length > 0 ? (

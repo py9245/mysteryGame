@@ -58,7 +58,7 @@ export function StageGameplayPanel({
         : "스테이지";
 
   return (
-    <section className="page-shell">
+    <section className="page-shell gameplay-page-shell">
       <RoomPresenceClient
         roomId={snapshot.room.id}
         playerId={snapshot.me.playerId}

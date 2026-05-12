@@ -5641,6 +5641,7 @@ export async function submitQuestionInStore(
 
   return {
     question: createQuestionRecord({
+      id: questionRow.id,
       stageId,
       playerId,
       teamSlotId: resolvedTeamSlotId,
@@ -5731,6 +5732,7 @@ function assertAnswerSubmissionState(input: {
 }
 
 function createQuestionRecord(input: {
+  id: string;
   stageId: string;
   playerId: string;
   teamSlotId: string;
@@ -5740,7 +5742,7 @@ function createQuestionRecord(input: {
   createdAt: string;
 }): Question {
   return {
-    id: `question-${input.createdAt}-${input.playerId}`,
+    id: input.id,
     stageId: input.stageId,
     playerId: input.playerId,
     teamSlotId: input.teamSlotId,
@@ -5753,6 +5755,7 @@ function createQuestionRecord(input: {
 }
 
 function createAnswerAttemptRecord(input: {
+  id: string;
   stageId: string;
   playerId: string;
   teamSlotId: string;
@@ -5766,7 +5769,7 @@ function createAnswerAttemptRecord(input: {
   createdAt: string;
 }): AnswerAttempt {
   return {
-    id: `answer-${input.createdAt}-${input.playerId}`,
+    id: input.id,
     stageId: input.stageId,
     playerId: input.playerId,
     teamSlotId: input.teamSlotId,
@@ -5981,7 +5984,7 @@ async function persistJudgementRecord(input: {
   createdAt: string;
 }): Promise<{ judgementId: string; reviewId: string | null }> {
   const supabase = getSupabaseAdminClient();
-  const judgementId = `${input.kind}-${input.stageId}-${input.playerId}-${input.createdAt}`;
+  const judgementId = crypto.randomUUID();
   const envelope = createJudgementEnvelope({
     judgementId,
     manualReviewRequired: input.manualReviewRequired,
@@ -6957,6 +6960,7 @@ export async function submitAnswerInStore(
 
   return {
     attempt: createAnswerAttemptRecord({
+      id: answerRow.id,
       stageId,
       playerId,
       teamSlotId: resolvedTeamSlotId,

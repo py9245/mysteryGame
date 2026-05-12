@@ -35,6 +35,43 @@ function futureIso(seconds: number): string {
   return new Date(Date.now() + seconds * 1000).toISOString();
 }
 
+function resolveQuestionReply(snapshot: RoomSnapshot): string {
+  const judgement = snapshot.stage?.lastQuestionJudgement;
+  if (judgement && typeof judgement === "object" && "publicReply" in judgement) {
+    return String(judgement.publicReply);
+  }
+
+  return "응답을 확인했습니다.";
+}
+
+function resolveAnswerReply(snapshot: RoomSnapshot): {
+  text: string;
+  tone: "positive" | "negative" | "note";
+} {
+  const result = snapshot.stage?.lastAnswerResult;
+  if (result && typeof result === "object" && "publicOutcome" in result) {
+    const publicOutcome = result.publicOutcome;
+    const publicSummary =
+      "publicSummary" in result && typeof result.publicSummary === "string"
+        ? result.publicSummary
+        : null;
+
+    if (publicOutcome === "correct") {
+      return { text: publicSummary ?? "정답으로 인정되었습니다.", tone: "positive" };
+    }
+
+    if (publicOutcome === "incorrect" || publicOutcome === "wrong") {
+      return { text: publicSummary ?? "정답이 인정되지 않았습니다.", tone: "negative" };
+    }
+
+    if (publicOutcome === "ambiguous") {
+      return { text: publicSummary ?? "정답이 애매합니다. 더 구체적으로 입력하세요.", tone: "note" };
+    }
+  }
+
+  return { text: "운영자 확인이 필요합니다.", tone: "note" };
+}
+
 export function GameplayClientShell({
   initialSnapshot,
   initialChatMessages,
@@ -68,8 +105,17 @@ export function GameplayClientShell({
   const [questionFeedbackTone, setQuestionFeedbackTone] = useState<"positive" | "negative" | "note">("note");
   const [answerFeedbackMessage, setAnswerFeedbackMessage] = useState<string | null>(null);
   const [answerFeedbackTone, setAnswerFeedbackTone] = useState<"positive" | "negative" | "note">("note");
-  const [questionDraft, setQuestionDraft] = useState("");
-  const [answerDraft, setAnswerDraft] = useState("");
+  const [investigationDraft, setInvestigationDraft] = useState("");
+  const [investigationHistory, setInvestigationHistory] = useState<
+    Array<{
+      id: string;
+      type: "question" | "answer";
+      content: string;
+      response: string | null;
+      tone: "positive" | "negative" | "note";
+      createdAt: number;
+    }>
+  >([]);
   const [countdownSeed, setCountdownSeed] = useState(() => ({
     stageId: initialSnapshot.stage?.stageId ?? null,
     stageStatus: initialSnapshot.stage?.status ?? null,
@@ -339,6 +385,7 @@ export function GameplayClientShell({
     setInvestigationErrorMessage(null);
     setInvestigationStatusMessage("질문방에 입장 중입니다.");
     setIsInvestigationOpen(true);
+    setInvestigationHistory([]); // Clear history on new entry
     updateInvestigationOptimistically((current) => {
       const wasQueued = current.queuedPlayerIds.includes(displayedSnapshot.me.playerId);
 
@@ -401,6 +448,11 @@ export function GameplayClientShell({
         ? "질문방이 비어 있어 바로 입장합니다."
         : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 열립니다.",
     );
+
+    if (shouldEnterImmediately) {
+      setInvestigationHistory([]);
+    }
+
     updateInvestigationOptimistically((current) => {
       if (shouldEnterImmediately) {
         return {
@@ -457,6 +509,7 @@ export function GameplayClientShell({
       );
       if (admitted) {
         setIsInvestigationOpen(true);
+        setInvestigationHistory([]);
       }
       setIsSubmittingInvestigation(false);
       return;
@@ -523,6 +576,7 @@ export function GameplayClientShell({
     setInvestigationErrorMessage(null);
     setInvestigationStatusMessage("질문방에서 나왔습니다. 다음 플레이어가 자동으로 이어받습니다.");
     setIsInvestigationOpen(false);
+    setInvestigationHistory([]);
     updateInvestigationOptimistically((current) => ({
       ...current,
       lockedByPlayerId: null,
@@ -558,7 +612,7 @@ export function GameplayClientShell({
     setIsSubmittingInvestigation(false);
   }
 
-  async function handleSubmitQuestion() {
+  async function handleSubmitQuestion(directContent?: string) {
     if (
       isQuestionSubmitting ||
       !displayedSnapshot.stage?.stageId ||
@@ -567,6 +621,9 @@ export function GameplayClientShell({
     ) {
       return;
     }
+
+    const content = directContent ?? investigationDraft.trim();
+    if (!content) return;
 
     setIsQuestionSubmitting(true);
     setQuestionFeedbackMessage(null);
@@ -578,21 +635,42 @@ export function GameplayClientShell({
       stageId: displayedSnapshot.stage.stageId,
       playerId: displayedSnapshot.me.playerId,
       teamSlotId: displayedSnapshot.me.teamSlotId,
-      content: questionDraft.trim(),
+      content,
     });
 
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
-      setQuestionDraft("");
+      setInvestigationDraft("");
+      const publicReply = resolveQuestionReply(result.snapshot);
+
+      setInvestigationHistory(prev => [
+        ...prev,
+        {
+          id: result.question?.id ?? Math.random().toString(),
+          type: "question",
+          content,
+          response: publicReply,
+          tone: "positive",
+          createdAt: Date.now(),
+        }
+      ]);
+
       setQuestionFeedbackTone("positive");
-      setQuestionFeedbackMessage(
-        result.question?.judgement
-          ? `질문이 접수되었습니다. 공개 응답: ${result.question.judgement}`
-          : "질문이 접수되었습니다.",
-      );
+      setQuestionFeedbackMessage(publicReply);
       setInvestigationStatusMessage("질문 결과가 반영되었습니다.");
       setInvestigationErrorMessage(null);
     } else {
+      setInvestigationHistory((prev) => [
+        ...prev,
+        {
+          id: `question-error-${Date.now()}`,
+          type: "question",
+          content,
+          response: result.errorMessage ?? "질문 제출에 실패했습니다.",
+          tone: "negative",
+          createdAt: Date.now(),
+        },
+      ]);
       setQuestionFeedbackTone("negative");
       setQuestionFeedbackMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
       setInvestigationErrorMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
@@ -601,7 +679,7 @@ export function GameplayClientShell({
     setIsQuestionSubmitting(false);
   }
 
-  async function handleSubmitAnswer() {
+  async function handleSubmitAnswer(directContent?: string) {
     if (
       isAnswerSubmitting ||
       !displayedSnapshot.stage?.stageId ||
@@ -610,6 +688,9 @@ export function GameplayClientShell({
     ) {
       return;
     }
+
+    const content = directContent ?? investigationDraft.trim();
+    if (!content) return;
 
     setIsAnswerSubmitting(true);
     setAnswerFeedbackMessage(null);
@@ -621,29 +702,42 @@ export function GameplayClientShell({
       stageId: displayedSnapshot.stage.stageId,
       playerId: displayedSnapshot.me.playerId,
       teamSlotId: displayedSnapshot.me.teamSlotId,
-      content: answerDraft.trim(),
+      content,
     });
 
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
-      const outcome = result.snapshot.stage?.lastAnswerResult;
-      const publicOutcome =
-        outcome && typeof outcome === "object" && "publicOutcome" in outcome
-          ? outcome.publicOutcome
-          : "needs_review";
+      setInvestigationDraft("");
+      const answerReply = resolveAnswerReply(result.snapshot);
 
-      setAnswerDraft("");
-      setAnswerFeedbackTone(publicOutcome === "correct" ? "positive" : publicOutcome === "wrong" ? "negative" : "note");
-      setAnswerFeedbackMessage(
-        publicOutcome === "correct"
-          ? "정답으로 인정되었습니다."
-          : publicOutcome === "wrong"
-            ? "정답이 인정되지 않았습니다."
-            : "운영자 확인이 필요합니다.",
-      );
+      setInvestigationHistory(prev => [
+        ...prev,
+        {
+          id: result.attempt?.id ?? Math.random().toString(),
+          type: "answer",
+          content,
+          response: answerReply.text,
+          tone: answerReply.tone,
+          createdAt: Date.now(),
+        }
+      ]);
+
+      setAnswerFeedbackTone(answerReply.tone);
+      setAnswerFeedbackMessage(answerReply.text);
       setInvestigationStatusMessage("정답 제출 결과가 반영되었습니다.");
       setInvestigationErrorMessage(null);
     } else {
+      setInvestigationHistory((prev) => [
+        ...prev,
+        {
+          id: `answer-error-${Date.now()}`,
+          type: "answer",
+          content,
+          response: result.errorMessage ?? "정답 제출에 실패했습니다.",
+          tone: "negative",
+          createdAt: Date.now(),
+        },
+      ]);
       setAnswerFeedbackTone("negative");
       setAnswerFeedbackMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
       setInvestigationErrorMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
@@ -756,10 +850,9 @@ export function GameplayClientShell({
         answerFeedbackTone={answerFeedbackTone}
         isQuestionSubmitting={isQuestionSubmitting}
         isAnswerSubmitting={isAnswerSubmitting}
-        questionDraft={questionDraft}
-        onQuestionDraftChange={setQuestionDraft}
-        answerDraft={answerDraft}
-        onAnswerDraftChange={setAnswerDraft}
+        investigationDraft={investigationDraft}
+        onInvestigationDraftChange={setInvestigationDraft}
+        investigationHistory={investigationHistory}
         isDraftEditable={isLockedByMe}
       />
     </>

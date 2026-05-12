@@ -2,7 +2,6 @@ import type { RoomSnapshot } from "@/contracts/api";
 import { PrivateChatBanner } from "@/components/chat-ui/PrivateChatBanner";
 import { InvestigationQueueBanner } from "@/components/investigation/InvestigationQueueBanner";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
-import { PlayerActionPanel } from "./PlayerActionPanel";
 
 export function GameplayUtilityRail({
   snapshot,
@@ -35,15 +34,14 @@ export function GameplayUtilityRail({
 }) {
   return (
     <aside className="gameplay-utility-rail mt-utility-rail">
-      <PlayerActionPanel
+      <InvestigationQueueBanner
         snapshot={snapshot}
         nowMs={nowMs}
         isSubmitting={isSubmittingInvestigation}
         onOpenInvestigationModal={onOpenInvestigationModal}
-        onJoinInvestigationQueue={onJoinInvestigationQueue}
-        onLeaveInvestigationQueue={onLeaveInvestigationQueue}
+        onJoinQueue={onJoinInvestigationQueue}
+        onLeaveQueue={onLeaveInvestigationQueue}
       />
-      <InvestigationQueueBanner snapshot={snapshot} players={snapshot.players} nowMs={nowMs} />
       <PrivateChatBanner
         snapshot={snapshot}
         nowMs={nowMs}

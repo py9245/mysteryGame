@@ -803,6 +803,7 @@ code, pre {
 
 /* ── 16. Image frames ─────────────────────────────────────── */
 .image-frame {
+  position: relative;
   min-height: 240px;
   display: grid;
   place-items: center;
@@ -814,6 +815,22 @@ code, pre {
     rgba(7, 8, 13, 0.74);
 }
 
+.case-image-frame {
+  isolation: isolate;
+}
+
+.case-image-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, transparent 52%, rgba(0, 0, 0, 0.62)),
+    radial-gradient(circle at 24% 12%, rgba(240, 195, 106, 0.12), transparent 28%);
+}
+
 .case-image {
   width: 100%;
   height: 100%;
@@ -822,8 +839,32 @@ code, pre {
   border-radius: calc(var(--radius-md) - 4px);
 }
 
+.case-image-fallback {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 9px;
+  max-width: 72%;
+  text-align: center;
+  color: rgba(255, 248, 234, 0.84);
+}
+
+.case-image-fallback strong {
+  font-size: 1.1rem;
+  line-height: 1.2;
+  color: #fff8ea;
+}
+
+.case-image-fallback p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(255, 248, 234, 0.62);
+}
+
 .image-caption {
   position: absolute;
+  z-index: 2;
   left: 12px;
   bottom: 12px;
   margin: 0;
@@ -1448,6 +1489,249 @@ code, pre {
 .gameplay-layout .button-primary,
 .gameplay-layout .button-secondary { min-height: 36px; }
 
+.gameplay-page-shell {
+  width: min(calc(100% - 24px), 1780px);
+  gap: 8px;
+  padding: 10px 0 18px;
+}
+
+.gameplay-page-shell .gameplay-topbar {
+  gap: 8px;
+  margin: 0;
+}
+
+.gameplay-page-shell .gameplay-stage-copy {
+  gap: 3px;
+}
+
+.gameplay-page-shell .gameplay-stage-meta {
+  gap: 4px;
+}
+
+.gameplay-page-shell .gameplay-stage-title {
+  font-size: clamp(0.9rem, 1vw, 1.05rem);
+  letter-spacing: -0.035em;
+}
+
+.gameplay-page-shell .gameplay-stage-subtitle {
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.gameplay-page-shell .gameplay-topbar .status-badge {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 0.68rem;
+}
+
+.gameplay-page-shell .gameplay-topbar-actions .button-primary,
+.gameplay-page-shell .gameplay-topbar-actions .button-secondary {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.gameplay-page-shell .gameplay-score-card {
+  width: min(270px, 30vw);
+  gap: 4px;
+  padding: 5px 7px;
+  border-radius: 13px;
+}
+
+.gameplay-page-shell .gameplay-score-card > .metric-label {
+  display: none;
+}
+
+.gameplay-page-shell .gameplay-score-card .metric-grid {
+  gap: 4px;
+}
+
+.gameplay-page-shell .gameplay-score-card .metric-card {
+  padding: 4px 7px;
+  border-radius: 10px;
+}
+
+.gameplay-page-shell .gameplay-score-card .metric-label {
+  font-size: 0.57rem;
+  line-height: 1.1;
+}
+
+.gameplay-page-shell .gameplay-score-card .metric-value {
+  font-size: 0.88rem;
+  line-height: 1.05;
+}
+
+.gameplay-page-shell .gameplay-layout,
+.gameplay-page-shell .mt-gameplay-layout {
+  gap: 10px;
+  min-height: calc(100vh - 92px);
+}
+
+.gameplay-page-shell .gameplay-column {
+  gap: 8px;
+}
+
+.gameplay-page-shell .gameplay-story-card {
+  height: calc(100vh - 96px);
+  min-height: 560px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.gameplay-page-shell .gameplay-story-media .image-frame {
+  max-height: none;
+  min-height: 0;
+  height: 52%;
+  aspect-ratio: auto;
+}
+
+.gameplay-page-shell .gameplay-story-summary {
+  min-height: 0;
+  overflow: auto;
+}
+
+.gameplay-page-shell .gameplay-utility-rail {
+  gap: 8px;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+}
+
+.gameplay-page-shell .utility-card {
+  gap: 8px;
+  padding: 10px;
+}
+
+.gameplay-page-shell .utility-chip-row {
+  gap: 5px;
+}
+
+.gameplay-page-shell .investigation-status-card .composer-header {
+  align-items: center;
+}
+
+.gameplay-page-shell .investigation-status-card .panel-title {
+  margin: 0;
+}
+
+.gameplay-page-shell .investigation-queue-action {
+  width: 100%;
+  min-height: 34px;
+  font-size: 0.78rem;
+}
+
+.gameplay-page-shell .chat-rail-layout {
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  height: calc(100vh - 96px);
+  min-height: 560px;
+  gap: 10px;
+}
+
+.gameplay-page-shell .chat-primary-panel {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+}
+
+.gameplay-page-shell .gameplay-chat-bottom-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 0;
+}
+
+.gameplay-page-shell .gameplay-chat-bottom-grid .chat-support-panel {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  min-height: 0;
+}
+
+.gameplay-page-shell .gameplay-chat-bottom-grid .chat-support-panel:first-child {
+  border-color: rgba(158, 103, 72, 0.36);
+  background:
+    linear-gradient(180deg, rgba(158, 103, 72, 0.16), rgba(255, 255, 255, 0.024)),
+    rgba(9, 11, 17, 0.80);
+}
+
+.gameplay-page-shell .gameplay-chat-bottom-grid .chat-support-panel:last-child {
+  border-color: rgba(241, 117, 188, 0.32);
+  background:
+    linear-gradient(180deg, rgba(241, 117, 188, 0.13), rgba(255, 255, 255, 0.022)),
+    rgba(9, 11, 17, 0.80);
+}
+
+.gameplay-page-shell .chat-message-list {
+  min-height: 0;
+  overflow: auto;
+}
+
+.gameplay-page-shell .chat-message {
+  padding: 6px 8px;
+}
+
+.gameplay-page-shell .chat-author {
+  font-size: 0.7rem;
+  line-height: 1.1;
+}
+
+.gameplay-page-shell .chat-meta {
+  font-size: 0.62rem;
+}
+
+.gameplay-page-shell .chat-message p {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  line-height: 1.32;
+}
+
+.gameplay-page-shell .chat-composer-compact {
+  gap: 5px;
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.gameplay-page-shell .chat-composer-compact h4 {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.gameplay-page-shell .chat-composer-compact .composer-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+}
+
+.gameplay-page-shell .chat-composer-compact .field {
+  min-width: 0;
+}
+
+.gameplay-page-shell .chat-composer-compact .field label {
+  display: none;
+}
+
+.gameplay-page-shell .chat-composer-compact .text-area {
+  height: 42px;
+  min-height: 42px;
+  padding: 9px 10px;
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.gameplay-page-shell .chat-composer-compact .button-primary {
+  min-height: 42px;
+  padding: 0 12px;
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+
+.gameplay-page-shell .chat-composer-compact .message-note,
+.gameplay-page-shell .chat-composer-compact .message-positive,
+.gameplay-page-shell .chat-composer-compact .message-negative {
+  margin: 0;
+  padding: 5px 7px;
+  font-size: 0.66rem;
+}
+
 /* ── 25. Investigation modal ──────────────────────────────── */
 .investigation-main,
 .investigation-side,
@@ -1466,9 +1750,9 @@ code, pre {
 .investigation-meter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .gameplay-investigation-modal {
-  width: min(1120px, calc(100vw - 28px));
-  max-height: min(88vh, 920px);
-  overflow: auto;
+  width: min(860px, calc(100vw - 28px));
+  max-height: min(88vh, 820px);
+  overflow: hidden;
 }
 
 .gameplay-investigation-header {
@@ -1491,6 +1775,105 @@ code, pre {
 
 .gameplay-investigation-main,
 .gameplay-investigation-side { display: grid; gap: 12px; }
+
+.gameplay-investigation-chat-modal {
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr) auto;
+  gap: 10px;
+  padding: 14px;
+}
+
+.gameplay-investigation-chat-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.gameplay-investigation-meter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.gameplay-investigation-meter-strip .status-badge {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 0.68rem;
+}
+
+.gameplay-investigation-chat-body {
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(240, 195, 106, 0.08), transparent 30%),
+    rgba(2, 4, 10, 0.35);
+}
+
+.gameplay-investigation-empty,
+.gameplay-investigation-chat-list,
+.gameplay-investigation-chat-turn {
+  display: grid;
+  gap: 10px;
+}
+
+.gameplay-investigation-empty {
+  min-height: 240px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.gameplay-investigation-empty code {
+  display: block;
+  max-width: min(100%, 520px);
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 248, 234, 0.84);
+  white-space: normal;
+}
+
+.gameplay-investigation-chat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gameplay-investigation-chat-turn {
+  margin-bottom: 10px;
+}
+
+.gameplay-investigation-chat-turn .chat-message {
+  max-width: min(86%, 560px);
+}
+
+.gameplay-investigation-chat-turn .chat-message-mine {
+  justify-self: end;
+  border-color: rgba(240, 195, 106, 0.22);
+  background: rgba(240, 195, 106, 0.10);
+}
+
+.gameplay-investigation-chat-turn .chat-message-system {
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.gameplay-investigation-chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.gameplay-investigation-chat-input {
+  min-height: 58px;
+  resize: none;
+}
 
 /* ── 26. Briefing ─────────────────────────────────────────── */
 .briefing-main,
