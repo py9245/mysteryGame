@@ -141,7 +141,7 @@ export function InvestigationDrawer({
                 ? "대기열 진입 중..."
                 : queueCooldownSeconds > 0
                   ? `재진입 대기 ${queueCooldownSeconds}초`
-                  : "대기열 참가"}
+                  : "질문방 줄서기"}
           </button>
         )}
         <button

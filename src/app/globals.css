@@ -1291,27 +1291,27 @@ code, pre {
 .gameplay-case-summary-slot .panel { height: 100%; min-height: 0; }
 
 .gameplay-topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 4px;
-  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 6px;
 }
 
 .gameplay-stage-copy,
 .gameplay-stage-meta,
-.gameplay-topbar-actions { display: grid; gap: 8px; }
+.gameplay-topbar-actions { display: grid; gap: 5px; }
 
 .gameplay-stage-meta {
   grid-auto-flow: column;
   justify-content: start;
-  gap: 8px;
+  gap: 5px;
 }
 
 .gameplay-stage-title {
   margin: 0;
-  font-size: clamp(1.15rem, 1.7vw, 1.55rem);
+  font-size: clamp(0.96rem, 1.25vw, 1.2rem);
   line-height: 1.05;
   letter-spacing: -0.04em;
 }
@@ -1319,11 +1319,46 @@ code, pre {
 .gameplay-stage-subtitle {
   margin: 0;
   color: rgba(255, 248, 234, 0.72);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   line-height: 1.35;
 }
 
-.gameplay-topbar-actions { grid-auto-flow: column; align-items: start; gap: 8px; }
+.gameplay-topbar-actions {
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  gap: 6px;
+}
+
+.gameplay-score-card {
+  width: min(340px, 34vw);
+  justify-self: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.gameplay-score-card .metric-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.gameplay-score-card .metric-card {
+  padding: 7px 9px;
+  border-radius: 12px;
+}
+
+.gameplay-score-card .metric-value {
+  font-size: 1rem;
+}
+
+.gameplay-action-card { gap: 8px; }
+
+.gameplay-action-card-head {
+  display: grid;
+  gap: 6px;
+}
 
 .case-summary-panel { display: grid; gap: 8px; }
 
@@ -1772,6 +1807,9 @@ code, pre {
   .header-actions { width: 100%; }
   .header-actions > * { flex: 1 1 auto; }
   .header-top-row { flex-direction: column; }
+  .gameplay-topbar { grid-template-columns: 1fr; align-items: stretch; }
+  .gameplay-score-card { width: 100%; justify-self: stretch; }
+  .gameplay-topbar-actions { justify-content: stretch; }
 
   .home-quick-join-grid,
   .chat-secondary-grid,

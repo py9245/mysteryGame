@@ -49,7 +49,7 @@ export function InvestigationQueueBanner({
           <p className="panel-copy">
             {isBriefing
               ? "브리핑 1분 동안은 잠시 닫혀 있습니다."
-              : "대기열에 들어가면 비는 즉시 자동 입장합니다."}
+              : "대기열에 들어가면 순서가 왔을 때 자동으로 질문방이 열립니다."}
           </p>
         </div>
         <span className="status-badge" data-tone={isBriefing ? "alert" : !isLocked || isLockedByMe ? "live" : "alert"}>
@@ -64,8 +64,6 @@ export function InvestigationQueueBanner({
       </div>
       {!isBriefing ? (
         <div className="utility-chip-row">
-          <span className="status-badge">질문 {investigation?.questionCountRemaining ?? 0}회 남음</span>
-          <span className="status-badge">정답 {investigation?.answerAttemptCountRemaining ?? 0}회 남음</span>
           <span className="status-badge">대기열 {waitingPlayerCount}명</span>
           {queuePosition ? <span className="status-badge">내 순번 {queuePosition}번</span> : null}
           {queueCooldownSeconds > 0 ? <span className="status-badge">재진입 {queueCooldownSeconds}초</span> : null}

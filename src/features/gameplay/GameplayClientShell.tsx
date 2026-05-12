@@ -401,9 +401,6 @@ export function GameplayClientShell({
         ? "질문방이 비어 있어 바로 입장합니다."
         : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 열립니다.",
     );
-    if (shouldEnterImmediately) {
-      setIsInvestigationOpen(true);
-    }
     updateInvestigationOptimistically((current) => {
       if (shouldEnterImmediately) {
         return {
@@ -728,6 +725,9 @@ export function GameplayClientShell({
         onRespondPrivateChat={handleRespondPrivateChat}
         onEndPrivateChat={handleEndPrivateChat}
         onOpenInvestigationModal={() => setIsInvestigationOpen(true)}
+        onJoinInvestigationQueue={handleJoinQueue}
+        onLeaveInvestigationQueue={handleLeaveQueue}
+        isSubmittingInvestigation={isSubmittingInvestigation}
       />
       <GameplayInvestigationModal
         snapshot={displayedSnapshot}

@@ -9,12 +9,12 @@ export function InvestigationLimitMeter({ snapshot }: { snapshot: RoomSnapshot }
   return (
     <section className="metric-grid investigation-meter-grid">
       <article className="metric-card metric-card-emphasis">
-        <span className="metric-label">남은 질문</span>
+        <span className="metric-label">이번 입장 질문 기회</span>
         <strong className="metric-value">{toNumber(investigation?.questionCountRemaining)}</strong>
-        <span className="metric-detail">조사실 안에서만 사용 가능</span>
+        <span className="metric-detail">질문방에 다시 입장하면 새 기회로 시작합니다.</span>
       </article>
       <article className="metric-card metric-card-emphasis">
-        <span className="metric-label">남은 정답 시도</span>
+        <span className="metric-label">이번 입장 정답 기회</span>
         <strong className="metric-value">{toNumber(investigation?.answerAttemptCountRemaining)}</strong>
         <span className="metric-detail">무리한 시도는 점수 손실로 이어집니다.</span>
       </article>

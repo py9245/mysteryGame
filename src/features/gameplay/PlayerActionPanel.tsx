@@ -1,100 +1,139 @@
-import Link from "next/link";
 import type { RoomSnapshot } from "@/contracts/api";
-import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
-function resolveActionCopy(snapshot: RoomSnapshot) {
-  const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
-  const investigationHref = appendRoomContextToHref(`/stage/${stageNumber}/investigation`, snapshot);
+function resolveRemainingSeconds(expiresAt: string | null | undefined, nowMs?: number) {
+  if (!expiresAt || typeof nowMs !== "number") {
+    return 0;
+  }
+
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
+}
+
+function resolveActionCopy(snapshot: RoomSnapshot, nowMs?: number) {
   const isBriefing = snapshot.stage?.status === "briefing";
+  const isInProgress = snapshot.stage?.status === "in_progress";
   const investigation = snapshot.stage?.investigation;
   const lockOwnerId = investigation?.lockedByPlayerId ?? null;
   const isLockedByMe = lockOwnerId === snapshot.me.playerId;
   const isAvailable = !lockOwnerId;
   const queuePosition = investigation?.queuePosition ?? null;
+  const queueCooldownSeconds = resolveRemainingSeconds(investigation?.reentryCooldownEndsAt, nowMs);
 
   if (isBriefing) {
     return {
-      href: investigationHref,
-      label: "질문방 준비 중",
+      action: "disabled" as const,
+      label: "브리핑 후 줄서기 가능",
       status: `브리핑 ${snapshot.stage?.remainingSeconds ?? 0}초`,
-      description: "지금은 사건을 읽고 채팅으로 이야기하는 시간입니다. 1분이 지나면 질문방이 열립니다.",
+      description: "채팅으로 사건을 정리하는 시간입니다.",
       disabled: true,
     };
   }
 
   if (isLockedByMe) {
     return {
-      href: investigationHref,
-      label: "질문방으로 복귀",
-      status: "내 차례 진행 중",
-      description: "지금은 내가 질문이나 정답 시도를 이어갈 차례입니다.",
-      disabled: false,
-    };
-  }
-
-  if (isAvailable) {
-    return {
-      href: investigationHref,
-      label: "질문방으로 이동",
-      status: "바로 행동 가능",
-      description: "질문방이 비어 있습니다. 지금 들어가 질문이나 정답 시도를 정리하세요.",
+      action: "open" as const,
+      label: "질문방 열기",
+      status: "내 차례",
+      description: "질문과 정답 시도를 진행할 수 있습니다.",
       disabled: false,
     };
   }
 
   if (queuePosition) {
     return {
-      href: investigationHref,
-      label: "대기열 상태 보기",
+      action: "leave_queue" as const,
+      label: "대기열 취소",
       status: `대기열 ${queuePosition}번`,
-      description: "앞사람이 나오면 자동으로 입장합니다. 지금은 대기열 상태만 확인하면 됩니다.",
+      description: "차례가 오면 질문방이 자동으로 열립니다.",
+      disabled: false,
+    };
+  }
+
+  if (!isInProgress) {
+    return {
+      action: "disabled" as const,
+      label: "질문방 줄서기",
+      status: "준비 중",
+      description: "스테이지가 시작되면 줄서기가 열립니다.",
+      disabled: true,
+    };
+  }
+
+  if (queueCooldownSeconds > 0) {
+    return {
+      action: "disabled" as const,
+      label: `재진입 ${queueCooldownSeconds}초`,
+      status: "재진입 대기",
+      description: "방금 질문방에서 나와 잠시 후 다시 줄설 수 있습니다.",
+      disabled: true,
+    };
+  }
+
+  if (isAvailable) {
+    return {
+      action: "join_queue" as const,
+      label: "질문방 줄서기",
+      status: "바로 입장 가능",
+      description: "줄서기 요청을 보내면 비어 있는 질문방에 자동 입장합니다.",
       disabled: false,
     };
   }
 
   return {
-    href: investigationHref,
-    label: "대기열 상태 보기",
-    status: "차례 대기",
-    description: "다른 플레이어가 사용 중입니다. 대기열과 1:1 요청 상태만 먼저 확인하면 됩니다.",
+    action: "join_queue" as const,
+    label: "질문방 줄서기",
+    status: "대기 가능",
+    description: "앞사람이 끝나면 대기열 순서대로 자동 입장합니다.",
     disabled: false,
   };
 }
 
 export function PlayerActionPanel({
   snapshot,
+  nowMs,
+  isSubmitting = false,
   onOpenInvestigationModal,
+  onJoinInvestigationQueue,
+  onLeaveInvestigationQueue,
 }: {
   snapshot: RoomSnapshot;
+  nowMs?: number;
+  isSubmitting?: boolean;
   onOpenInvestigationModal?: () => void;
+  onJoinInvestigationQueue?: () => void;
+  onLeaveInvestigationQueue?: () => void;
 }) {
-  const action = resolveActionCopy(snapshot);
+  const action = resolveActionCopy(snapshot, nowMs);
+  const handleClick =
+    action.action === "open"
+      ? onOpenInvestigationModal
+      : action.action === "leave_queue"
+        ? onLeaveInvestigationQueue
+        : action.action === "join_queue"
+          ? onJoinInvestigationQueue
+          : undefined;
 
   return (
-    <section className="panel panel-accent utility-card">
-      <div className="composer-header">
-        <div>
-          <h3 className="panel-title">지금 할 일</h3>
-          <p className="panel-copy">{action.description}</p>
-        </div>
-        <span className="status-badge" data-tone={action.status === "바로 행동 가능" ? "live" : action.disabled ? "alert" : undefined}>
+    <section className="panel panel-accent utility-card gameplay-action-card">
+      <div className="gameplay-action-card-head">
+        <span className="status-badge" data-tone={action.status === "바로 입장 가능" || action.status === "내 차례" ? "live" : action.disabled ? "alert" : undefined}>
           {action.status}
         </span>
+        <p className="panel-copy">{action.description}</p>
       </div>
       <div className="action-row">
-        {action.disabled ? (
-          <button className="button-secondary" type="button" disabled>
-            {action.label}
-          </button>
-        ) : onOpenInvestigationModal ? (
-          <button className="button-primary" type="button" onClick={onOpenInvestigationModal}>
-            {action.label}
-          </button>
-        ) : (
-          <Link className="button-primary" href={action.href}>
-            {action.label}
-          </Link>
-        )}
+        <button
+          className={action.disabled ? "button-secondary" : "button-primary"}
+          type="button"
+          onClick={handleClick}
+          disabled={action.disabled || isSubmitting || !handleClick}
+        >
+          {isSubmitting ? "처리 중..." : action.label}
+        </button>
       </div>
     </section>
   );

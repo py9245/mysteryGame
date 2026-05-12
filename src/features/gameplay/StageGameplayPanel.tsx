@@ -9,6 +9,7 @@ import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader
 import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { GameplayUtilityRail } from "./GameplayUtilityRail";
 import type { LoadedGameRuntimeSnapshot } from "./game-runtime-loader";
+import { MyScoreCard } from "./MyScoreCard";
 
 export function StageGameplayPanel({
   snapshot,
@@ -25,6 +26,9 @@ export function StageGameplayPanel({
   onRespondPrivateChat,
   onEndPrivateChat,
   onOpenInvestigationModal,
+  onJoinInvestigationQueue,
+  onLeaveInvestigationQueue,
+  isSubmittingInvestigation = false,
 }: {
   snapshot: RoomSnapshot;
   initialChatMessages: ChatMessage[];
@@ -40,13 +44,18 @@ export function StageGameplayPanel({
   onRespondPrivateChat?: (requestId: string, accept: boolean) => void;
   onEndPrivateChat?: (sessionId: string) => void;
   onOpenInvestigationModal?: () => void;
+  onJoinInvestigationQueue?: () => void;
+  onLeaveInvestigationQueue?: () => void;
+  isSubmittingInvestigation?: boolean;
 }) {
   const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
   const stageTitle = snapshot.stage?.publicTitle ?? `스테이지 ${stageNumber}`;
-  const briefingCopy =
+  const stageStatusCopy =
     snapshot.stage?.status === "briefing"
-      ? `브리핑 ${snapshot.stage?.remainingSeconds ?? 0}초 · 지금은 채팅만 가능하고, 0초가 되면 질문방이 열립니다.`
-      : "채팅과 행동 패널을 한 화면에서 바로 이어서 진행하세요.";
+      ? `브리핑 ${snapshot.stage?.remainingSeconds ?? 0}초`
+      : snapshot.stage?.status === "in_progress"
+        ? "진행 중"
+        : "스테이지";
 
   return (
     <section className="page-shell">
@@ -63,8 +72,14 @@ export function StageGameplayPanel({
             <span className="status-badge">{snapshot.me.teamSlotId ? snapshot.teamSlots.find((team) => team.id === snapshot.me.teamSlotId)?.label ?? "팀 미정" : "팀 미정"}</span>
           </div>
           <h1 className="gameplay-stage-title">{stageTitle}</h1>
-          <p className="gameplay-stage-subtitle">{briefingCopy}</p>
+          <span className="gameplay-stage-subtitle">{stageStatusCopy}</span>
         </div>
+        <MyScoreCard
+          snapshot={snapshot}
+          nowMs={nowMs}
+          timerStartedAt={runtime.snapshot?.stage?.startedAt ?? null}
+          className="gameplay-score-card"
+        />
         <div className="header-actions gameplay-topbar-actions">
             <LeaveRoomButton
               roomId={snapshot.room.id}
@@ -99,6 +114,9 @@ export function StageGameplayPanel({
             onRespondPrivateChat={onRespondPrivateChat}
             onEndPrivateChat={onEndPrivateChat}
             onOpenInvestigationModal={onOpenInvestigationModal}
+            onJoinInvestigationQueue={onJoinInvestigationQueue}
+            onLeaveInvestigationQueue={onLeaveInvestigationQueue}
+            isSubmittingInvestigation={isSubmittingInvestigation}
           />
         </section>
 
