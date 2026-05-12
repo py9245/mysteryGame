@@ -83,6 +83,7 @@ import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { upsertAccountGameResults } from "@/server/account-store";
 import { hashPassword, verifyPassword } from "@/server/auth-password";
 import type { ActiveRoomMembership } from "@/server/auth-session";
+import { BUNDLED_CASE_CATALOG } from "@/server/local-case-catalog";
 import { addSeconds, diffSeconds, hasExpired, nowUtcIso, remainingSeconds } from "@/server/time";
 import { createTextCompletion } from "@/lib/ai";
 import { generateImage } from "@/lib/ai";
@@ -2396,7 +2397,14 @@ async function loadIndexedCaseFiles(indexPath: string, baseDir: string): Promise
   }
 }
 
+function loadBundledCatalogCases(): CaseFile[] {
+  return BUNDLED_CASE_CATALOG.map((entry) =>
+    parseCaseFilePayload(entry.key, entry.payload),
+  ).filter((caseFile): caseFile is CaseFile => caseFile !== null);
+}
+
 async function loadLocalCatalogCases(): Promise<CaseFile[]> {
+  const bundledCases = loadBundledCatalogCases();
   const [seedCases, generatedCases] = await Promise.all([
     loadIndexedCaseFiles(join(process.cwd(), "data/cases", "index.json"), join(process.cwd(), "data/cases")),
     loadIndexedCaseFiles(
@@ -2405,7 +2413,11 @@ async function loadLocalCatalogCases(): Promise<CaseFile[]> {
     ),
   ]);
 
-  return [...seedCases, ...generatedCases];
+  return Array.from(
+    new Map(
+      [...bundledCases, ...seedCases, ...generatedCases].map((caseFile) => [caseFile.key, caseFile]),
+    ).values(),
+  );
 }
 
 async function ensureCaseCatalogSeeded(): Promise<void> {
@@ -2515,6 +2527,14 @@ async function loadCaseLibraryCaseFile(caseKey: string): Promise<CaseFile | null
 }
 
 async function loadLocalCaseFile(caseKey: string): Promise<CaseFile | null> {
+  const bundledEntry = BUNDLED_CASE_CATALOG.find((entry) => entry.key === caseKey);
+  if (bundledEntry) {
+    const bundledCase = parseCaseFilePayload(bundledEntry.key, bundledEntry.payload);
+    if (bundledCase) {
+      return bundledCase;
+    }
+  }
+
   for (const candidatePath of [
     join(process.cwd(), "data/cases", `${caseKey}.json`),
     join(process.cwd(), "data/generated-cases", `${caseKey}.json`),
