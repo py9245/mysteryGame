@@ -5160,6 +5160,7 @@ export async function joinInvestigationQueueInStore(
   roomId: string,
   stageId: string,
   playerId: string,
+  options: { includeSnapshot?: boolean } = {},
 ): Promise<JoinInvestigationQueueResponse> {
   const room = await findRoomByRef(roomId);
 
@@ -5167,7 +5168,7 @@ export async function joinInvestigationQueueInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeJoin = await loadSyncedLobbyState(room.id);
+  const stateBeforeJoin = await loadLobbyState(room.id);
   assertLockableStageState({
     currentStage: stateBeforeJoin.currentStage,
     playerStates: stateBeforeJoin.playerStates,
@@ -5212,12 +5213,24 @@ export async function joinInvestigationQueueInStore(
   }
 
   const admittedLock = await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
-  const refreshed = await loadSyncedLobbyState(room.id);
+  const autoAdmitted =
+    admittedLock?.locked_by_player_id === playerId ||
+    stateBeforeJoin.activeLock?.locked_by_player_id === playerId;
+
+  if (options.includeSnapshot === false) {
+    return {
+      lock: admittedLock ? toInvestigationLock(admittedLock) : stateBeforeJoin.activeLock ? toInvestigationLock(stateBeforeJoin.activeLock) : null,
+      autoAdmitted,
+      snapshot: null,
+    };
+  }
+
+  const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
   return {
     lock: admittedLock ? toInvestigationLock(admittedLock) : null,
-    autoAdmitted: refreshed.activeLock?.locked_by_player_id === playerId,
+    autoAdmitted,
     snapshot: buildSnapshotFromState(refreshed, caseSummary, playerId),
   };
 }
@@ -5226,6 +5239,7 @@ export async function leaveInvestigationQueueInStore(
   roomId: string,
   stageId: string,
   playerId: string,
+  options: { includeSnapshot?: boolean } = {},
 ): Promise<LeaveInvestigationQueueResponse> {
   const room = await findRoomByRef(roomId);
 
@@ -5233,7 +5247,7 @@ export async function leaveInvestigationQueueInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeLeave = await loadSyncedLobbyState(room.id);
+  const stateBeforeLeave = await loadLobbyState(room.id);
   assertLockableStageState({
     currentStage: stateBeforeLeave.currentStage,
     playerStates: stateBeforeLeave.playerStates,
@@ -5262,7 +5276,13 @@ export async function leaveInvestigationQueueInStore(
     throw new Error(`Failed to leave investigation queue: ${queueLeaveError.message}`);
   }
 
-  const refreshed = await loadSyncedLobbyState(room.id);
+  if (options.includeSnapshot === false) {
+    return {
+      snapshot: null,
+    };
+  }
+
+  const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
   return {
@@ -5274,6 +5294,7 @@ export async function acquireInvestigationLockInStore(
   roomId: string,
   stageId: string,
   playerId: string,
+  options: { includeSnapshot?: boolean } = {},
 ): Promise<AcquireInvestigationLockResponse> {
   const room = await findRoomByRef(roomId);
 
@@ -5281,7 +5302,7 @@ export async function acquireInvestigationLockInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeAcquire = await loadSyncedLobbyState(room.id);
+  const stateBeforeAcquire = await loadLobbyState(room.id);
   assertLockableStageState({
     currentStage: stateBeforeAcquire.currentStage,
     playerStates: stateBeforeAcquire.playerStates,
@@ -5354,7 +5375,14 @@ export async function acquireInvestigationLockInStore(
     throw new Error(`Failed to mark player lock acquisition: ${playerStateError.message}`);
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  if (options.includeSnapshot === false) {
+    return {
+      lock: toInvestigationLock(lockRow),
+      snapshot: null,
+    };
+  }
+
+  const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
   return {
@@ -5367,6 +5395,7 @@ export async function releaseInvestigationLockInStore(
   roomId: string,
   stageId: string,
   playerId: string,
+  options: { includeSnapshot?: boolean } = {},
 ): Promise<ReleaseInvestigationLockResponse> {
   const room = await findRoomByRef(roomId);
 
@@ -5374,7 +5403,7 @@ export async function releaseInvestigationLockInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const stateBeforeRelease = await loadSyncedLobbyState(room.id);
+  const stateBeforeRelease = await loadLobbyState(room.id);
   const currentLock = stateBeforeRelease.activeLock;
 
   if (!stateBeforeRelease.currentStage || stateBeforeRelease.currentStage.id !== stageId) {
@@ -5411,7 +5440,14 @@ export async function releaseInvestigationLockInStore(
   await applyInvestigationQueueCooldown(stageId, playerId, nowIso);
   await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
 
-  const state = await loadSyncedLobbyState(room.id);
+  if (options.includeSnapshot === false) {
+    return {
+      lock: toInvestigationLock(lockRow),
+      snapshot: null,
+    };
+  }
+
+  const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
   return {

@@ -249,7 +249,7 @@ export interface AcquireInvestigationLockRequest {
 
 export interface AcquireInvestigationLockResponse {
   lock: InvestigationLock;
-  snapshot: RoomSnapshot;
+  snapshot: RoomSnapshot | null;
 }
 
 export interface ReleaseInvestigationLockRequest {
@@ -261,7 +261,7 @@ export interface ReleaseInvestigationLockRequest {
 
 export interface ReleaseInvestigationLockResponse {
   lock: InvestigationLock;
-  snapshot: RoomSnapshot;
+  snapshot: RoomSnapshot | null;
 }
 
 export interface JoinInvestigationQueueRequest {
@@ -274,7 +274,7 @@ export interface JoinInvestigationQueueRequest {
 export interface JoinInvestigationQueueResponse {
   lock: InvestigationLock | null;
   autoAdmitted: boolean;
-  snapshot: RoomSnapshot;
+  snapshot: RoomSnapshot | null;
 }
 
 export interface LeaveInvestigationQueueRequest {
@@ -285,7 +285,7 @@ export interface LeaveInvestigationQueueRequest {
 }
 
 export interface LeaveInvestigationQueueResponse {
-  snapshot: RoomSnapshot;
+  snapshot: RoomSnapshot | null;
 }
 
 export interface SubmitQuestionRequest {

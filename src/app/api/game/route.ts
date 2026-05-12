@@ -1044,6 +1044,7 @@ export async function POST(request: Request) {
             validated.command.roomId,
             validated.command.stageId,
             validated.command.playerId,
+            { includeSnapshot: false },
           );
 
           return Response.json(
@@ -1086,6 +1087,7 @@ export async function POST(request: Request) {
             validated.command.roomId,
             validated.command.stageId,
             validated.command.playerId,
+            { includeSnapshot: false },
           );
 
           return Response.json(
@@ -1128,6 +1130,7 @@ export async function POST(request: Request) {
             validated.command.roomId,
             validated.command.stageId,
             validated.command.playerId,
+            { includeSnapshot: false },
           );
 
           return Response.json(
@@ -1170,6 +1173,7 @@ export async function POST(request: Request) {
             validated.command.roomId,
             validated.command.stageId,
             validated.command.playerId,
+            { includeSnapshot: false },
           );
 
           return Response.json(

@@ -41,7 +41,7 @@ function normalizeAcquireLockResponse(
   if (
     isRecord(value) &&
     isRecord(value.lock) &&
-    isRecord(value.snapshot)
+    ("snapshot" in value ? isRecord(value.snapshot) || value.snapshot === null : true)
   ) {
     return value as unknown as AcquireInvestigationLockResponse;
   }
@@ -55,7 +55,7 @@ function normalizeReleaseLockResponse(
   if (
     isRecord(value) &&
     isRecord(value.lock) &&
-    isRecord(value.snapshot)
+    ("snapshot" in value ? isRecord(value.snapshot) || value.snapshot === null : true)
   ) {
     return value as unknown as ReleaseInvestigationLockResponse;
   }
@@ -125,7 +125,7 @@ async function submitInvestigationLockRequest(
       ? normalizeRoomSnapshot(commandResponse.snapshot)
       : null;
 
-    if (response.ok && snapshot) {
+    if (response.ok) {
       return {
         ok: true,
         endpoint,

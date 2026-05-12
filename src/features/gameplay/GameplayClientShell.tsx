@@ -26,6 +26,14 @@ import {
   submitPrivateChatResponse,
 } from "./private-chat-command";
 import { GameplayInvestigationModal } from "./GameplayInvestigationModal";
+import type { InvestigationLockView } from "@/contracts/view";
+
+const OPTIMISTIC_INVESTIGATION_LOCK_SECONDS = 60;
+const OPTIMISTIC_INVESTIGATION_REENTRY_COOLDOWN_SECONDS = 5;
+
+function futureIso(seconds: number): string {
+  return new Date(Date.now() + seconds * 1000).toISOString();
+}
 
 export function GameplayClientShell({
   initialSnapshot,
@@ -44,7 +52,7 @@ export function GameplayClientShell({
 }) {
   const [runtimeSnapshot] = useState(runtime);
   const [snapshot, setSnapshot] = useRoomRealtimeSnapshot(initialSnapshot, {
-    fallbackIntervalMs: 18_000,
+    fallbackIntervalMs: 3_000,
   });
   const [nowMs, setNowMs] = useState(Date.now());
   const [isSubmittingPrivateChat, setIsSubmittingPrivateChat] = useState(false);
@@ -258,13 +266,96 @@ export function GameplayClientShell({
   })();
   const hasStageContext = Boolean(displayedSnapshot.stage?.stageId);
 
+  async function refreshCurrentSnapshot() {
+    const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
+    const params = new URLSearchParams({
+      playerId: snapshot.me.playerId,
+      stageNumber: String(stageNumber),
+    });
+
+    try {
+      const response = await fetch(
+        `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as unknown;
+      const nextSnapshot =
+        typeof payload === "object" && payload !== null && "data" in payload
+          ? normalizeRoomSnapshot((payload as { data: unknown }).data)
+          : normalizeRoomSnapshot(payload);
+
+      if (nextSnapshot) {
+        setSnapshot(nextSnapshot);
+      }
+    } catch {
+      // Fast-path reconciliation is best effort; realtime/fallback polling will still catch up.
+    }
+  }
+
+  function scheduleSnapshotRefresh(delayMs = 350) {
+    window.setTimeout(() => {
+      void refreshCurrentSnapshot();
+    }, delayMs);
+  }
+
+  function updateInvestigationOptimistically(
+    updater: (current: InvestigationLockView) => InvestigationLockView,
+  ) {
+    setSnapshot((current) => {
+      if (!current.stage?.investigation) {
+        return current;
+      }
+
+      const nextInvestigation = updater(current.stage.investigation);
+
+      return {
+        ...current,
+        stage: {
+          ...current.stage,
+          investigation: nextInvestigation,
+        },
+        activeLock: nextInvestigation,
+      };
+    });
+  }
+
   async function handleAcquireLock() {
     if (isSubmittingInvestigation || !displayedSnapshot.stage?.stageId) {
       return;
     }
 
+    const previousSnapshot = snapshot;
+    const nowIso = new Date().toISOString();
+
     setIsSubmittingInvestigation(true);
     setInvestigationErrorMessage(null);
+    setInvestigationStatusMessage("질문방에 입장 중입니다.");
+    setIsInvestigationOpen(true);
+    updateInvestigationOptimistically((current) => {
+      const wasQueued = current.queuedPlayerIds.includes(displayedSnapshot.me.playerId);
+
+      return {
+        ...current,
+        lockedByPlayerId: displayedSnapshot.me.playerId,
+        lockedAt: nowIso,
+        expiresAt: futureIso(OPTIMISTIC_INVESTIGATION_LOCK_SECONDS),
+        remainingSeconds: OPTIMISTIC_INVESTIGATION_LOCK_SECONDS,
+        queuePosition: null,
+        waitingPlayerCount: wasQueued ? Math.max(0, current.waitingPlayerCount - 1) : current.waitingPlayerCount,
+        queuedPlayerIds: current.queuedPlayerIds.filter((queuedPlayerId) => queuedPlayerId !== displayedSnapshot.me.playerId),
+        reentryCooldownEndsAt: null,
+        questionCountRemaining: 3,
+        answerAttemptCountRemaining: 1,
+      };
+    });
 
     const result = await submitAcquireInvestigationLock({
       roomId: displayedSnapshot.room.id,
@@ -272,14 +363,19 @@ export function GameplayClientShell({
       playerId: displayedSnapshot.me.playerId,
     });
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
+    if (result.ok) {
+      if (result.snapshot) {
+        setSnapshot(result.snapshot);
+      } else {
+        scheduleSnapshotRefresh();
+      }
       setInvestigationStatusMessage("질문방에 입장했습니다. 지금부터 질문과 정답 시도가 가능합니다.");
       setIsInvestigationOpen(true);
       setIsSubmittingInvestigation(false);
       return;
     }
 
+    setSnapshot(previousSnapshot);
     setInvestigationErrorMessage(result.errorMessage ?? "질문방 입장에 실패했습니다.");
     setInvestigationStatusMessage(null);
     setIsSubmittingInvestigation(false);
@@ -290,8 +386,57 @@ export function GameplayClientShell({
       return;
     }
 
+    const previousSnapshot = snapshot;
+    const shouldEnterImmediately =
+      displayedSnapshot.stage.status === "in_progress" &&
+      !lockOwnerId &&
+      waitingPlayerCount === 0 &&
+      !isQueued;
+    const nowIso = new Date().toISOString();
+
     setIsSubmittingInvestigation(true);
     setInvestigationErrorMessage(null);
+    setInvestigationStatusMessage(
+      shouldEnterImmediately
+        ? "질문방이 비어 있어 바로 입장합니다."
+        : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 열립니다.",
+    );
+    if (shouldEnterImmediately) {
+      setIsInvestigationOpen(true);
+    }
+    updateInvestigationOptimistically((current) => {
+      if (shouldEnterImmediately) {
+        return {
+          ...current,
+          lockedByPlayerId: displayedSnapshot.me.playerId,
+          lockedAt: nowIso,
+          expiresAt: futureIso(OPTIMISTIC_INVESTIGATION_LOCK_SECONDS),
+          remainingSeconds: OPTIMISTIC_INVESTIGATION_LOCK_SECONDS,
+          queuePosition: null,
+          waitingPlayerCount: current.queuedPlayerIds.includes(displayedSnapshot.me.playerId)
+            ? Math.max(0, current.waitingPlayerCount - 1)
+            : current.waitingPlayerCount,
+          queuedPlayerIds: current.queuedPlayerIds.filter((queuedPlayerId) => queuedPlayerId !== displayedSnapshot.me.playerId),
+          reentryCooldownEndsAt: null,
+          questionCountRemaining: 3,
+          answerAttemptCountRemaining: 1,
+        };
+      }
+
+      const wasQueued = current.queuedPlayerIds.includes(displayedSnapshot.me.playerId);
+      const queuedPlayerIds = wasQueued
+        ? current.queuedPlayerIds
+        : [...current.queuedPlayerIds, displayedSnapshot.me.playerId];
+      const nextPosition = current.queuePosition ?? queuedPlayerIds.indexOf(displayedSnapshot.me.playerId) + 1;
+
+      return {
+        ...current,
+        queuePosition: nextPosition > 0 ? nextPosition : current.waitingPlayerCount + 1,
+        waitingPlayerCount: wasQueued ? current.waitingPlayerCount : current.waitingPlayerCount + 1,
+        queuedPlayerIds,
+        reentryCooldownEndsAt: null,
+      };
+    });
 
     const result = await submitJoinInvestigationQueue({
       roomId: displayedSnapshot.room.id,
@@ -299,19 +444,28 @@ export function GameplayClientShell({
       playerId: displayedSnapshot.me.playerId,
     });
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      const admitted = result.snapshot.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId;
+    if (result.ok) {
+      if (result.snapshot) {
+        setSnapshot(result.snapshot);
+      } else {
+        scheduleSnapshotRefresh();
+      }
+      const admitted =
+        shouldEnterImmediately ||
+        result.snapshot?.stage?.investigation?.lockedByPlayerId === displayedSnapshot.me.playerId;
       setInvestigationStatusMessage(
         admitted
           ? "질문방이 비어 있어서 바로 입장했습니다."
           : "질문방 대기열에 참가했습니다. 차례가 오면 자동으로 열립니다.",
       );
-      setIsInvestigationOpen(true);
+      if (admitted) {
+        setIsInvestigationOpen(true);
+      }
       setIsSubmittingInvestigation(false);
       return;
     }
 
+    setSnapshot(previousSnapshot);
     setInvestigationErrorMessage(result.errorMessage ?? "질문방 대기열에 참가하지 못했습니다.");
     setInvestigationStatusMessage(null);
     setIsSubmittingInvestigation(false);
@@ -322,8 +476,21 @@ export function GameplayClientShell({
       return;
     }
 
+    const previousSnapshot = snapshot;
+
     setIsSubmittingInvestigation(true);
     setInvestigationErrorMessage(null);
+    setInvestigationStatusMessage("질문방 대기열에서 빠졌습니다.");
+    updateInvestigationOptimistically((current) => {
+      const wasQueued = current.queuedPlayerIds.includes(displayedSnapshot.me.playerId);
+
+      return {
+        ...current,
+        queuePosition: null,
+        waitingPlayerCount: wasQueued ? Math.max(0, current.waitingPlayerCount - 1) : current.waitingPlayerCount,
+        queuedPlayerIds: current.queuedPlayerIds.filter((queuedPlayerId) => queuedPlayerId !== displayedSnapshot.me.playerId),
+      };
+    });
 
     const result = await submitLeaveInvestigationQueue({
       roomId: displayedSnapshot.room.id,
@@ -331,13 +498,18 @@ export function GameplayClientShell({
       playerId: displayedSnapshot.me.playerId,
     });
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
+    if (result.ok) {
+      if (result.snapshot) {
+        setSnapshot(result.snapshot);
+      } else {
+        scheduleSnapshotRefresh();
+      }
       setInvestigationStatusMessage("질문방 대기열에서 빠졌습니다.");
       setIsSubmittingInvestigation(false);
       return;
     }
 
+    setSnapshot(previousSnapshot);
     setInvestigationErrorMessage(result.errorMessage ?? "질문방 대기열 취소에 실패했습니다.");
     setInvestigationStatusMessage(null);
     setIsSubmittingInvestigation(false);
@@ -348,8 +520,22 @@ export function GameplayClientShell({
       return;
     }
 
+    const previousSnapshot = snapshot;
+
     setIsSubmittingInvestigation(true);
     setInvestigationErrorMessage(null);
+    setInvestigationStatusMessage("질문방에서 나왔습니다. 다음 플레이어가 자동으로 이어받습니다.");
+    setIsInvestigationOpen(false);
+    updateInvestigationOptimistically((current) => ({
+      ...current,
+      lockedByPlayerId: null,
+      lockedAt: null,
+      expiresAt: null,
+      remainingSeconds: 0,
+      reentryCooldownEndsAt: futureIso(OPTIMISTIC_INVESTIGATION_REENTRY_COOLDOWN_SECONDS),
+      questionCountRemaining: 3,
+      answerAttemptCountRemaining: 1,
+    }));
 
     const result = await submitReleaseInvestigationLock({
       roomId: displayedSnapshot.room.id,
@@ -357,13 +543,19 @@ export function GameplayClientShell({
       playerId: displayedSnapshot.me.playerId,
     });
 
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
+    if (result.ok) {
+      if (result.snapshot) {
+        setSnapshot(result.snapshot);
+      } else {
+        scheduleSnapshotRefresh();
+      }
       setInvestigationStatusMessage("질문방에서 나왔습니다. 다음 플레이어가 자동으로 이어받습니다.");
       setIsSubmittingInvestigation(false);
       return;
     }
 
+    setSnapshot(previousSnapshot);
+    setIsInvestigationOpen(true);
     setInvestigationErrorMessage(result.errorMessage ?? "질문방 나가기에 실패했습니다.");
     setInvestigationStatusMessage(null);
     setIsSubmittingInvestigation(false);

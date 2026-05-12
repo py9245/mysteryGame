@@ -85,7 +85,7 @@ async function submitQueueRequest(
     const error = resolveApiError(payload);
 
     return {
-      ok: response.ok && snapshot !== null,
+      ok: response.ok,
       endpoint,
       statusCode: response.status,
       request,
