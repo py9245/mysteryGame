@@ -10,6 +10,37 @@ const OPENAI_IMAGE_URL = "https://gms.ssafy.io/gmsapi/api.openai.com/v1/images/g
 const GOOGLE_IMAGE_URL =
   "https://gms.ssafy.io/gmsapi/generativelanguage.googleapis.com/v1beta/models/imagen-4.0-ultra-generate-001:predict";
 const CLAUDE_URL = "https://gms.ssafy.io/gmsapi/api.anthropic.com/v1/messages";
+const CASE_REFERENCE_BLUEPRINTS = [
+  {
+    name: "간첩형 반전",
+    publicSetup: "평범하게 출근하던 인물이 공휴일 아침 회사 화장실에서 사망한다.",
+    hiddenTruth:
+      "타국 스파이, 지하철역 물품보관소 지령, 대통령 암살, 발각 전 자살 명령이 연결된다.",
+    structure:
+      "평범한 루틴 -> 국가적 사건 -> 임시공휴일/지하철역/기사 정독의 어긋남 -> 지령과 자살의 전말",
+    keywords: ["자살", "대통령 암살", "간첩", "발각", "지령"],
+  },
+  {
+    name: "착각형 관계 반전",
+    publicSetup: "특별한 날 호텔/레스토랑에서 만난 두 사람 중 한 명이 한 시간 뒤 사망한다.",
+    hiddenTruth:
+      "쌍둥이 대리 만남, 바람, 음식 알레르기, 구급차 지연이 얽혀 치명적 착오가 된다.",
+    structure: "오해되는 관계 -> 대리 참석/쌍둥이 -> 전달되지 않은 위험 정보 -> 지연된 구조로 사망",
+    keywords: ["음식 알레르기", "쌍둥이", "착각", "바람"],
+  },
+];
+const CASE_DIVERSITY_AXES = [
+  "병원 야간 당직",
+  "웨딩홀 리허설",
+  "방송국 생방송",
+  "미술관 폐관 시간",
+  "대학교 연구실",
+  "아파트 택배 동선",
+  "호텔 조식 뷔페",
+  "극장 리허설",
+  "수족관 백스테이지",
+  "장례식장 조문",
+];
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) {
@@ -94,8 +125,21 @@ function asStringArray(value) {
   return value.filter((entry) => typeof entry === "string");
 }
 
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function callText(messages, gmsKey) {
-  const response = await fetch(TEXT_URL, {
+  const response = await fetchWithTimeout(TEXT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -105,7 +149,7 @@ async function callText(messages, gmsKey) {
       model: "gpt-5-mini",
       messages,
     }),
-  });
+  }, 45_000);
 
   if (!response.ok) {
     const body = await response.text();
@@ -135,7 +179,7 @@ async function callClaude(messages, gmsKey) {
     .join("\n\n")
     .trim();
 
-  const response = await fetch(CLAUDE_URL, {
+  const response = await fetchWithTimeout(CLAUDE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -148,7 +192,7 @@ async function callClaude(messages, gmsKey) {
       system: system.length > 0 ? system : undefined,
       messages: anthropicMessages,
     }),
-  });
+  }, 60_000);
 
   if (!response.ok) {
     const body = await response.text();
@@ -170,7 +214,7 @@ async function callClaude(messages, gmsKey) {
 }
 
 async function callOpenAiImage(prompt, gmsKey) {
-  const response = await fetch(OPENAI_IMAGE_URL, {
+  const response = await fetchWithTimeout(OPENAI_IMAGE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -182,7 +226,7 @@ async function callOpenAiImage(prompt, gmsKey) {
       n: 1,
       size: "1024x1024",
     }),
-  });
+  }, 75_000);
 
   if (!response.ok) {
     const body = await response.text();
@@ -194,7 +238,7 @@ async function callOpenAiImage(prompt, gmsKey) {
 }
 
 async function callGoogleImage(prompt, gmsKey) {
-  const response = await fetch(GOOGLE_IMAGE_URL, {
+  const response = await fetchWithTimeout(GOOGLE_IMAGE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -204,7 +248,7 @@ async function callGoogleImage(prompt, gmsKey) {
       instances: [{ prompt }],
       parameters: { sampleCount: 1 },
     }),
-  });
+  }, 75_000);
 
   if (!response.ok) {
     const body = await response.text();
@@ -311,12 +355,12 @@ function normalizeHints(caseKey, rawHints) {
 
 function buildImagePrompt({ title, publicDescription, hints }) {
   return [
-    "Cinematic Korean mystery webgame illustration, no text, no collage, no visible murderer.",
+    "High-quality cinematic Korean mystery webgame key visual, single coherent scene, no text, no letters, no UI, no collage, no visible murderer.",
     `Scene: ${title}.`,
-    `Aftermath setup: ${publicDescription}`,
-    `Show only spoiler-safe visible clues inspired by these hint threads: ${hints.map((hint) => hint.publicText).join(", ")}.`,
-    "Grounded detective drama lighting, realistic props, atmospheric composition, subtle clue emphasis.",
-    "Do not show the act of murder or the culprit's reveal.",
+    `Aftermath setup visible to players: ${publicDescription}`,
+    `Place 2-3 spoiler-safe clue props clearly in the environment: ${hints.map((hint) => hint.publicText).join(", ")}.`,
+    "Realistic Korean locations and props, tense stillness, cinematic lens, grounded dramatic lighting, clue-centered foreground, atmospheric background.",
+    "Do not show the act of murder, the culprit's reveal, gore, labels, captions, supernatural elements, or solution-revealing symbols.",
   ].join(" ");
 }
 
@@ -328,12 +372,32 @@ async function runStructuredTextFallback(messages, gmsKey) {
   }
 }
 
+async function runStructuredJson(messages, gmsKey, label) {
+  try {
+    const text = await callText(messages, gmsKey);
+    const parsed = extractJsonObject(text);
+    if (parsed) {
+      return parsed;
+    }
+  } catch {
+    // Claude fallback below handles either transport or malformed JSON failures.
+  }
+
+  const fallbackText = await callClaude(messages, gmsKey);
+  const fallbackParsed = extractJsonObject(fallbackText);
+  if (!fallbackParsed) {
+    throw new Error(`${label} JSON parse failed.`);
+  }
+
+  return fallbackParsed;
+}
+
 async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, references }) {
   const creationMessages = [
     {
       role: "developer",
       content:
-        "너는 미스터리 추리 웹게임 사건 설계자다. 반드시 JSON 객체만 반환한다. 사건은 일상적인 표면 상황에서 시작하지만 숨겨진 인과관계가 드러나는 구조여야 한다. 힌트는 정확히 3개이며 weak -> medium -> strong으로 점점 구체화되어야 한다. 메인 키워드는 4~5개, 추가 키워드는 2~3개다. 이미지 프롬프트는 영어 한 문장으로 작성하고, 현장과 visible clue만 보여주며 스포일러를 피해야 한다.",
+        "너는 한국어 미스터리 추리 웹게임 사건 설계자다. 반드시 JSON 객체만 반환한다. 사건은 피의 게임식 라운드 문제처럼 짧은 공개 상황, 이상한 결과, 숨겨진 관계/동기/방식 반전이 있어야 한다. 정답은 범인/방법/동기/결정적 단서가 하나의 인과로 연결되어야 하며 requiredKeywords만으로 판정 가능해야 한다. 힌트는 정확히 3개이며 weak -> medium -> strong으로 점점 구체화한다. 이미지 프롬프트는 영어 한 문장으로 작성하고, 사건 직후 현장과 visible clue만 보여주며 스포일러를 피해야 한다.",
     },
     {
       role: "user",
@@ -341,19 +405,30 @@ async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, refere
         {
           stageNumber,
           attemptLabel,
+          referenceBlueprints: CASE_REFERENCE_BLUEPRINTS,
+          diversityAxes: CASE_DIVERSITY_AXES,
           referencePatterns: [
-            "겉보기에는 평범한 만남이나 출근, 행사처럼 보이지만 숨겨진 맥락이 뒤늦게 드러난다.",
+            "공개 설명은 2문장 안에서 평범한 행동과 비정상 결과만 제시한다.",
+            "진실에는 인물관계 반전 또는 사회적/조직적 배경 반전이 하나 이상 있어야 한다.",
+            "레퍼런스는 구조만 참고하고 인물/장소/직업/핵심 트릭은 새롭게 바꾼다.",
             "정답은 인물, 방법, 동기, 결정적 단서가 한 문장으로 연결되어야 한다.",
             "힌트는 같은 말을 반복하지 않고 관찰 범위를 좁혀야 한다.",
             "이미지는 사건 직후의 현장만 보여주고 범행 장면이나 범인의 얼굴은 직접 드러내지 않는다.",
           ],
+          forbiddenPatterns: [
+            "그냥 독살했다, 그냥 밀었다 같은 단일행위 사건",
+            "간첩/출근/카페/물품보관소/자결 명령을 그대로 반복하는 사건",
+            "우연/초자연/꿈/기억상실로 해결되는 사건",
+            "힌트가 정답을 그대로 말하는 사건",
+            "requiredKeywords가 추상어뿐이라 판정이 불가능한 사건",
+          ],
           referenceExamples: references,
           outputSchema: {
             title: "20자 내외 한국어 제목",
-            publicDescription: "2~3문장 공개 설명",
+            publicDescription: "2문장 공개 설명. 정답은 숨기되 이상한 점이 보여야 함",
             question: "사건의 전말을 묻는 한 문장",
-            truth: "3~5문장 진실",
-            requiredKeywords: ["핵심 키워드 4~5개"],
+            truth: "4~6문장 진실. 인물관계, 방법, 동기, 은폐/착각 장치 포함",
+            requiredKeywords: ["핵심 키워드 4~5개. 범인/방법/동기/결정단서 중심"],
             bonusKeywords: ["추가 키워드 2~3개"],
             acceptedAnswerSummary: "정답 요약 1문장",
             imagePrompt: "영문 이미지 프롬프트 1문장",
@@ -371,17 +446,13 @@ async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, refere
     },
   ];
 
-  const createdText = await runStructuredTextFallback(creationMessages, gmsKey);
-  const created = extractJsonObject(createdText);
-  if (!created) {
-    throw new Error("Generated case JSON parse failed.");
-  }
+  const created = await runStructuredJson(creationMessages, gmsKey, "Generated case");
 
   const validationMessages = [
     {
       role: "developer",
       content:
-        "너는 미스터리 사건 검수자다. 반드시 JSON 객체만 반환한다. 입력 사건을 검수해 한 번에 추리 가능한지, 메인 키워드와 진실이 일치하는지, 힌트 3개가 점층하는지, 이미지 프롬프트가 spoiler-safe인지 확인하고 필요하면 수정한다.",
+        "너는 미스터리 사건 검수자다. 반드시 JSON 객체만 반환한다. 입력 사건을 검수해 레퍼런스처럼 공개 상황의 이상함, 숨겨진 인과, requiredKeywords 판정 가능성, 3단계 힌트 점층성, spoiler-safe 이미지 프롬프트를 확인하고 부족하면 직접 수정한다.",
     },
     {
       role: "user",
@@ -389,10 +460,11 @@ async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, refere
         {
           checklist: [
             "공개 설명만 읽어서는 정답이 드러나지 않아야 한다",
-            "truth는 범인/방법/동기/위장 요소가 연결되어야 한다",
+            "truth는 범인/방법/동기/위장/착각/배경 반전 요소가 연결되어야 한다",
             "requiredKeywords는 truth를 복원하는 최소 단위여야 한다",
             "hints는 정확히 3개이며 weak/medium/strong으로 점층해야 한다",
             "imagePrompt는 현장과 visible clue만 보여주고 스포일러를 피해야 한다",
+            "간첩형/착각형 레퍼런스처럼 마지막에 전말이 납득되어야 한다",
           ],
           candidate: created,
           outputSchema: {
@@ -418,8 +490,12 @@ async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, refere
     },
   ];
 
-  const validatedText = await runStructuredTextFallback(validationMessages, gmsKey);
-  const validated = extractJsonObject(validatedText) ?? created;
+  let validated = created;
+  try {
+    validated = await runStructuredJson(validationMessages, gmsKey, "Validated case");
+  } catch {
+    validated = created;
+  }
   const caseKey = `generated-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const hints = normalizeHints(caseKey, validated.hints);
   const title = typeof validated.title === "string" && validated.title.trim().length > 0 ? validated.title.trim() : "새로운 사건";
@@ -516,6 +592,66 @@ async function writeGeneratedCaseFiles(caseFile, imageUrl) {
   );
 }
 
+function toImportIdentifier(prefix, index) {
+  return `${prefix}${index}`;
+}
+
+async function readCaseIndex(indexPath) {
+  try {
+    const parsed = JSON.parse(await readFile(indexPath, "utf8"));
+    return Array.isArray(parsed.cases) ? parsed.cases : [];
+  } catch {
+    return [];
+  }
+}
+
+async function refreshLocalCaseCatalogModule() {
+  const seedCases = await readCaseIndex(join(process.cwd(), "data", "cases", "index.json"));
+  const generatedCases = await readCaseIndex(join(process.cwd(), "data", "generated-cases", "index.json"));
+  const imports = [];
+  const entries = [];
+  let importIndex = 0;
+
+  for (const entry of seedCases) {
+    if (typeof entry?.id !== "string" || typeof entry?.file !== "string") {
+      continue;
+    }
+
+    const identifier = toImportIdentifier("seedCase", importIndex);
+    importIndex += 1;
+    const filePath = entry.file.replace(/^\.\//, "");
+    imports.push(`import ${identifier} from "../../data/cases/${filePath}";`);
+    entries.push(`  { key: ${JSON.stringify(entry.id)}, payload: ${identifier}, isPracticePool: true },`);
+  }
+
+  for (const entry of generatedCases) {
+    if (typeof entry?.id !== "string" || typeof entry?.file !== "string") {
+      continue;
+    }
+
+    const identifier = toImportIdentifier("generatedCase", importIndex);
+    importIndex += 1;
+    const filePath = entry.file.replace(/^\.\//, "");
+    imports.push(`import ${identifier} from "../../data/generated-cases/${filePath}";`);
+    entries.push(`  { key: ${JSON.stringify(entry.id)}, payload: ${identifier}, isPracticePool: false },`);
+  }
+
+  const content = `${imports.join("\n")}
+
+export interface BundledCaseCatalogEntry {
+  key: string;
+  payload: Record<string, unknown>;
+  isPracticePool: boolean;
+}
+
+export const BUNDLED_CASE_CATALOG: BundledCaseCatalogEntry[] = [
+${entries.join("\n")}
+];
+`;
+
+  await writeFile(join(process.cwd(), "src", "server", "local-case-catalog.ts"), content, "utf8");
+}
+
 async function upsertCaseRow(supabase, caseFile, imageUrl, options = {}) {
   if (!supabase) {
     return false;
@@ -586,12 +722,28 @@ async function seedPracticeCasesIntoSupabase(supabase) {
 }
 
 async function generateOneCase({ gmsKey, stageNumber, attemptLabel, references, supabase }) {
-  const { caseFile, imagePrompt } = await generateValidatedCase({
-    gmsKey,
-    stageNumber,
-    attemptLabel,
-    references,
-  });
+  let generatedDefinition = null;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      generatedDefinition = await generateValidatedCase({
+        gmsKey,
+        stageNumber,
+        attemptLabel: `${attemptLabel}-try-${attempt}`,
+        references,
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!generatedDefinition) {
+    throw lastError ?? new Error("Case generation failed.");
+  }
+
+  const { caseFile, imagePrompt } = generatedDefinition;
 
   let imagePayload = null;
   try {
@@ -667,18 +819,26 @@ async function main() {
   }));
 
   const results = await runWithConcurrency(jobs, 4, async (job, index) => {
-    const generated = await generateOneCase({
-      gmsKey,
-      stageNumber: job.stageNumber,
-      attemptLabel: job.attemptLabel,
-      references,
-      supabase,
-    });
-    console.log(`[${index + 1}/${jobs.length}] ${generated.caseKey} ${generated.title}`);
-    return generated;
+    try {
+      const generated = await generateOneCase({
+        gmsKey,
+        stageNumber: job.stageNumber,
+        attemptLabel: job.attemptLabel,
+        references,
+        supabase,
+      });
+      console.log(`[${index + 1}/${jobs.length}] ${generated.caseKey} ${generated.title}`);
+      return generated;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[${index + 1}/${jobs.length}] 생성 실패: ${message}`);
+      return null;
+    }
   });
 
-  console.log(`완료: ${results.length}건 생성`);
+  await refreshLocalCaseCatalogModule();
+  const successCount = results.filter(Boolean).length;
+  console.log(`완료: ${successCount}/${results.length}건 생성`);
 }
 
 main().catch((error) => {

@@ -241,43 +241,6 @@ type DbAnswerAttemptRow = {
   created_at: string;
 };
 
-type DbJudgementRecordRow = {
-  id: string;
-  room_id: string;
-  game_id: string | null;
-  stage_id: string;
-  player_id: string;
-  kind: JudgementRecordKind;
-  case_id: string;
-  stage_number: number;
-  request: QuestionJudgementRequest | AnswerJudgementRequest;
-  response: QuestionJudgementResponse | AnswerJudgementResponse;
-  public_outcome: string;
-  public_summary: string;
-  internal_payload: Record<string, unknown>;
-  manual_review_required: boolean;
-  needs_operator_override: boolean;
-  persistence_state: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbJudgementReviewQueueRow = {
-  review_id: string;
-  judgement_id: string;
-  kind: JudgementRecordKind;
-  room_id: string;
-  stage_id: string;
-  player_id: string;
-  public_outcome: string;
-  review_status: "pending" | "approved" | "rejected" | "merged";
-  review_summary: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 type DbChatMessageRow = {
   id: string;
   room_id: string;
@@ -381,6 +344,40 @@ const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
 const CASE_REPLENISH_THRESHOLD = 10;
 const CASE_REPLENISH_COUNT = 10;
 const CASE_BATCH_GENERATION_CONCURRENCY = 4;
+const CASE_REFERENCE_BLUEPRINTS = [
+  {
+    name: "간첩형 반전",
+    publicSetup:
+      "평범하게 출근하던 인물이 공휴일 아침 회사 화장실에서 사망한다.",
+    hiddenTruth:
+      "피해자는 타국 스파이였고, 지하철역 물품보관소 지령과 대통령 암살 임무, 발각 전 자살 명령이 연결된다.",
+    structure:
+      "평범한 루틴 -> 국가적 사건 -> 임시공휴일/지하철역/기사 정독 같은 어긋난 단서 -> 지령과 자살의 전말",
+    keywords: ["자살", "대통령 암살", "간첩", "발각", "지령"],
+  },
+  {
+    name: "착각형 관계 반전",
+    publicSetup:
+      "특별한 날 호텔/레스토랑에서 만난 두 사람 중 한 명이 한 시간 뒤 사망한다.",
+    hiddenTruth:
+      "쌍둥이 대리 만남, 바람, 음식 알레르기, 구급차 지연이 얽혀 고의 살인이 아닌 치명적 착오가 된다.",
+    structure:
+      "오해되는 관계 -> 대리 참석/쌍둥이 -> 전달되지 않은 위험 정보 -> 지연된 구조로 사망",
+    keywords: ["음식 알레르기", "쌍둥이", "착각", "바람"],
+  },
+] as const;
+const CASE_DIVERSITY_AXES = [
+  "병원 야간 당직",
+  "웨딩홀 리허설",
+  "방송국 생방송",
+  "미술관 폐관 시간",
+  "대학교 연구실",
+  "아파트 택배 동선",
+  "호텔 조식 뷔페",
+  "극장 리허설",
+  "수족관 백스테이지",
+  "장례식장 조문",
+] as const;
 
 type CaseSummary = {
   title: string;
@@ -1101,11 +1098,12 @@ async function resolveQuestionJudgement(input: {
 
   try {
     const completion = await createTextCompletion({
+      timeoutMs: 7_000,
       messages: [
         {
           role: "developer",
           content:
-            "너는 미스터리 추리 게임의 질문 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. judgement는 YES, NO, MAYBE, IRRELEVANT 중 하나만 허용한다. publicReply는 정확히 '네, 그렇습니다.', '아니오, 그렇지 않습니다.', '그럴 수도 있습니다.', '중요하지 않습니다.' 중 하나만 허용한다. reasonCode는 짧은 snake_case 문자열로 작성한다. manualReviewRequired는 boolean, safetyFlags는 문자열 배열, logSummary는 짧은 한국어 한 줄이다.",
+            "너는 미스터리 추리 게임의 빠른 질문 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. truth와 키워드를 기준으로 플레이어 질문이 진실과 맞으면 YES, 반대면 NO, 일부만 맞거나 조건부면 MAYBE, 사건 해결과 무관하면 IRRELEVANT다. publicReply는 정확히 '네, 그렇습니다.', '아니오, 그렇지 않습니다.', '그럴 수도 있습니다.', '중요하지 않습니다.' 중 하나만 허용한다. 짧고 보수적으로 판정한다.",
         },
         {
           role: "user",
@@ -1206,11 +1204,12 @@ async function resolveAnswerJudgement(input: {
 
   try {
     const completion = await createTextCompletion({
+      timeoutMs: 8_000,
       messages: [
         {
           role: "developer",
           content:
-            "너는 미스터리 추리 게임의 정답 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. result는 correct, incorrect, ambiguous 중 하나만 허용한다. publicOutcome은 correct, wrong, needs_review 중 하나만 허용한다. matchedRequiredKeywords, missingRequiredKeywords, matchedBonusKeywords에는 제공된 키워드 목록 안의 항목만 넣는다. reasonCode는 짧은 snake_case 문자열, publicSummary는 40자 이내 한국어 문장, needsOperatorOverride는 boolean, logSummary는 짧은 한국어 한 줄이다.",
+            "너는 미스터리 추리 게임의 빠른 정답 판정기다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문, 추가 문장 금지. 정답은 범인/방법/동기/결정적 단서가 requiredKeywords와 truth를 충분히 복원하면 correct다. 핵심 축이 빠지면 incorrect, 일부 핵심만 맞으면 ambiguous다. matchedRequiredKeywords, missingRequiredKeywords, matchedBonusKeywords에는 제공된 키워드 목록 안의 항목만 넣는다. publicSummary는 40자 이내 한국어로 작성한다.",
         },
         {
           role: "user",
@@ -1545,8 +1544,21 @@ function buildRoomSnapshot({
 
   const viewer =
     players.find((player) => player.id === viewerPlayerId) ??
-    players.find((player) => player.role === "host") ??
-    players[0];
+    ({
+      id: "spectator",
+      nickname: "관전자",
+      role: "player",
+      room_id: room.id,
+      is_ready: false,
+      connection_status: "connected",
+      total_score: 0,
+      solved_count: 0,
+      bonus_keyword_count: 0,
+      joined_at: nowUtcIso(),
+      last_seen_at: nowUtcIso(),
+    } as DbPlayerRow);
+
+  const isSpectator = viewer.id === "spectator";
 
   const roomContract = toRoom(room);
   const gameContract = game ? toGame(game) : null;
@@ -2255,17 +2267,18 @@ async function applyPendingPrivateChatResolution(
   }
 }
 
-async function loadCaseSummary(caseKey: string): Promise<CaseSummary | null> {
-  const caseFile = await loadCaseFile(caseKey);
-  if (!caseFile) {
-    return null;
+async function broadcastSync(roomId: string): Promise<void> {
+  if (!isSupabaseEnabled()) {
+    return;
   }
 
-  return {
-    title: caseFile.title,
-    publicDescription: caseFile.publicDescription,
-    imageUrl: caseFile.imageUrl,
-  };
+  const supabase = getSupabaseAdminClient();
+  // We use a dedicated sync channel or the existing room channel
+  await supabase.channel(`room-snapshot:${roomId}`).send({
+    type: "broadcast",
+    event: "sync",
+    payload: { roomId },
+  });
 }
 
 function parseCaseHints(
@@ -2718,7 +2731,7 @@ async function generatePracticeCaseFile(
         {
           role: "developer",
           content:
-            "너는 미스터리 추리 웹게임의 사건 설계자다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문 금지. 한국어로 작성한다. 사건은 한 번에 추리 가능해야 하며, 질문/정답 판정에 쓰기 쉬운 구조로 만든다.",
+            "너는 한국어 미스터리 추리 웹게임의 사건 설계자다. 반드시 JSON 객체만 반환한다. 코드블록, 설명문 금지. 좋은 사건은 평범한 공개 상황 안에 어긋난 단서 2~3개가 있고, 진실은 범인/방법/동기/결정적 단서가 한 번에 연결된다. 피의 게임식 라운드 문제처럼 공개 설명은 짧고 이상해야 하며, 힌트 3개는 weak -> medium -> strong 순서로 추리 범위를 좁힌다.",
         },
         {
           role: "user",
@@ -2726,37 +2739,46 @@ async function generatePracticeCaseFile(
             {
               target: "practice_mode_single_player_stage",
               stageNumber,
+              referenceBlueprints: CASE_REFERENCE_BLUEPRINTS,
+              diversityAxes: CASE_DIVERSITY_AXES,
               requirements: {
                 title: "20자 내외 한국어 사건 제목",
-                publicDescription: "플레이어에게 공개될 2~3문장 요약",
-                question: "정답으로 찾아야 할 질문 한 문장",
-                truth: "사건의 실제 진실 2~4문장",
-                requiredKeywords: "정답 판정에 반드시 필요한 키워드 4~6개",
-                bonusKeywords: "보너스 키워드 1~3개",
+                publicDescription: "플레이어에게 공개될 2문장. 평범한 상황 + 이상한 결과만 보여주고 정답은 숨김",
+                question: "사건의 전말을 묻는 한 문장",
+                truth: "사건의 실제 진실 4~6문장. 인물관계, 방법, 동기, 은폐/착각 장치를 모두 포함",
+                requiredKeywords: "정답 판정에 반드시 필요한 키워드 4~5개. 범인/방법/동기/결정단서 중심",
+                bonusKeywords: "보너스 키워드 2~3개. 숨겨진 배경이나 보조 단서",
                 acceptedAnswerSummary: "정답 공개 요약 1문장",
-                imagePrompt: "사건 장면을 그릴 영어 프롬프트 1문장",
+                imagePrompt: "스포일러 없이 사건 직후 현장과 관찰 가능한 소품만 보여주는 영어 이미지 프롬프트 1문장",
                 hints: [
                   {
                     order: 1,
                     triggerType: "time_elapsed",
                     strength: "weak",
-                    publicText: "약한 힌트",
-                    internalNote: "운영 메모",
+                    publicText: "공개 설명의 어긋난 점을 짚는 약한 힌트",
+                    internalNote: "운영 메모. 어떤 축을 암시하는지",
                   },
                   {
                     order: 2,
                     triggerType: "time_elapsed",
                     strength: "medium",
-                    publicText: "중간 힌트",
-                    internalNote: "운영 메모",
+                    publicText: "범행/사망 방식 또는 관계 반전을 좁히는 중간 힌트",
+                    internalNote: "운영 메모. 방법/관계 중 무엇을 좁히는지",
                   },
                   {
                     order: 3,
                     triggerType: "stage_pressure",
                     strength: "strong",
-                    publicText: "강한 힌트",
-                    internalNote: "운영 메모",
+                    publicText: "정답 직전 단계까지 연결하는 강한 힌트",
+                    internalNote: "운영 메모. requiredKeywords 중 무엇과 연결되는지",
                   },
+                ],
+                forbidden: [
+                  "단순 살인 자백, 단순 사고, 무작위 범죄",
+                  "레퍼런스의 인물/장소/직업/지령/카페/출근 구조를 그대로 복제하는 것",
+                  "이미지 프롬프트에 범인 정체나 살해 순간 직접 노출",
+                  "힌트가 공개 설명을 반복하는 것",
+                  "requiredKeywords가 일반명사만 있는 것",
                 ],
               },
             },
@@ -2812,7 +2834,11 @@ async function generatePracticeCaseFile(
     const imagePrompt =
       typeof parsed.imagePrompt === "string" && parsed.imagePrompt.trim().length > 0
         ? parsed.imagePrompt.trim()
-        : `Cinematic mystery crime scene illustration, ${title}, ${publicDescription}`;
+        : buildCatalogImagePrompt({
+            title,
+            publicDescription,
+            visibleClues: hints.map((hint) => hint.publicText),
+          });
 
     let imageUrl: string | null = null;
 
@@ -3128,13 +3154,13 @@ function buildCatalogImagePrompt(input: {
 }): string {
   const clueText = input.visibleClues.slice(0, 3).join(", ");
   return [
-    "Cinematic Korean mystery webgame illustration, no text, no split panels, no suspect portrait montage.",
+    "High-quality cinematic Korean mystery webgame key visual, single coherent scene, no text, no letters, no UI, no split panels, no suspect portrait montage.",
     `Scene title: ${input.title}.`,
-    `Visible aftermath scene: ${input.publicDescription}`,
-    `Include only spoiler-safe clues that a player could notice at a glance: ${clueText}.`,
-    "Show a tense indoor environment after the incident, realistic props, readable silhouette, dramatic but grounded lighting.",
-    "Do not depict the killer committing the act. Do not reveal the solution explicitly.",
-    input.sceneStyle ?? "Moody detective drama key art, sharp composition, realistic proportions, subtle clue emphasis.",
+    `Aftermath scene visible to players: ${input.publicDescription}`,
+    `Place 2-3 spoiler-safe clue props clearly in the environment: ${clueText}.`,
+    "Use realistic Korean locations and props, tense stillness, readable composition, cinematic lens, grounded dramatic lighting, subtle evidence emphasis.",
+    "Do not depict the killer, the exact murder act, supernatural elements, gore, labels, captions, or solution-revealing symbols.",
+    input.sceneStyle ?? "Moody detective drama still frame, high detail, sharp composition, realistic proportions, clue-centered foreground and atmospheric background.",
   ].join(" ");
 }
 
@@ -3151,26 +3177,37 @@ async function generateCatalogCaseDefinition(input: {
       {
         role: "developer",
         content:
-          "너는 추리 게임 사건 설계자다. 반드시 JSON 객체만 반환한다. 사건은 일상적 표면 상황에서 출발하지만 숨겨진 인과관계가 드러나는 구조여야 한다. 3개의 힌트는 weak -> medium -> strong 순서로 점점 구체화되어야 한다. 메인 키워드는 4~5개, 추가 키워드는 2~3개다. 이미지 프롬프트는 스포일러 없이 현장과 visible clue만 보여주는 영어 한 문장이어야 한다.",
+          "너는 한국어 추리 게임 사건 설계자다. 반드시 JSON 객체만 반환한다. 사건은 피의 게임식 라운드 문제처럼 짧은 공개 상황, 이상한 결과, 숨겨진 관계/동기/방식 반전이 있어야 한다. 정답은 범인/방법/동기/결정적 단서가 하나의 인과로 연결되어야 하며, requiredKeywords만으로 정답 판정이 가능해야 한다. 힌트는 3개만 만들고 weak -> medium -> strong 순서로 점점 구체화한다. 이미지 프롬프트는 스포일러 없이 사건 직후 현장과 관찰 가능한 단서 소품만 보여주는 영어 한 문장이어야 한다.",
       },
       {
         role: "user",
         content: JSON.stringify(
           {
+            referenceBlueprints: CASE_REFERENCE_BLUEPRINTS,
+            diversityAxes: CASE_DIVERSITY_AXES,
             referencePatterns: [
-              "일상적 상황 + 뒤늦게 드러나는 반전 동기",
-              "정답은 범인, 방법, 동기, 결정적 단서가 한 번에 연결되어야 함",
-              "힌트는 공개 설명을 반복하지 말고, 관찰 포인트를 조금씩 좁혀야 함",
-              "이미지는 사건 직후의 현장만 보여주고 범행 장면이나 범인의 얼굴은 직접 보여주지 않음",
+              "공개 설명은 2문장 안에서 평범한 행동과 비정상 결과만 제시한다",
+              "진실에는 인물관계 반전 또는 사회적/조직적 배경 반전이 하나 이상 있어야 한다",
+              "레퍼런스는 구조만 참고하고 인물/장소/직업/핵심 트릭은 새롭게 바꾼다",
+              "정답은 범인, 방법, 동기, 결정적 단서가 한 번에 연결되어야 한다",
+              "힌트는 공개 설명을 반복하지 않고 관찰 포인트를 조금씩 좁힌다",
+              "이미지는 사건 직후의 현장만 보여주고 범행 장면이나 범인의 얼굴은 직접 보여주지 않는다",
+            ],
+            forbiddenPatterns: [
+              "그냥 독살했다, 그냥 밀었다 같은 단일행위 사건",
+              "간첩/출근/카페/물품보관소/자결 명령을 그대로 반복하는 사건",
+              "우연/초자연/꿈/기억상실로 해결되는 사건",
+              "힌트가 정답을 그대로 말하는 사건",
+              "requiredKeywords가 추상어뿐이라 판정이 불가능한 사건",
             ],
             round: input.attemptLabel,
             stageNumber: input.stageNumber,
             outputSchema: {
               title: "20자 내외 한국어 제목",
-              publicDescription: "2~3문장 공개 설명",
+              publicDescription: "2문장 공개 설명. 정답은 숨기되 이상한 점이 보여야 함",
               question: "사건의 전말을 묻는 한 문장",
-              truth: "3~5문장 진실",
-              requiredKeywords: ["핵심 키워드 4~5개"],
+              truth: "4~6문장 진실. 인물관계, 방법, 동기, 은폐/착각 장치 포함",
+              requiredKeywords: ["핵심 키워드 4~5개. 범인/방법/동기/결정단서 중심"],
               bonusKeywords: ["추가 키워드 2~3개"],
               acceptedAnswerSummary: "정답 요약 1문장",
               imagePrompt: "영문 이미지 프롬프트 1문장",
@@ -3199,7 +3236,7 @@ async function generateCatalogCaseDefinition(input: {
       {
         role: "developer",
         content:
-          "너는 추리 게임 사건 검수자다. 반드시 JSON 객체만 반환한다. 입력 사건을 검수해 한 번에 추리 가능한지, 메인 키워드와 사건의 진실이 일치하는지, 힌트 3개가 weak/medium/strong으로 점층하는지, 이미지 프롬프트가 spoiler-safe인지 확인하고 필요하면 수정한다.",
+          "너는 추리 게임 사건 검수자다. 반드시 JSON 객체만 반환한다. 입력 사건을 검수해 레퍼런스처럼 공개 상황의 이상함, 숨겨진 인과, requiredKeywords 판정 가능성, 3단계 힌트 점층성, spoiler-safe 이미지 프롬프트를 확인하고 부족하면 직접 수정한다.",
       },
       {
         role: "user",
@@ -3207,10 +3244,11 @@ async function generateCatalogCaseDefinition(input: {
           {
             checklist: [
               "공개 설명만 읽어서는 정답이 보이지 않아야 한다",
-              "truth는 인물, 방법, 동기, 위장 요소가 연결되어야 한다",
+              "truth는 인물, 방법, 동기, 위장/착각/배경 반전 요소가 연결되어야 한다",
               "requiredKeywords는 truth를 복원하는 최소 단위여야 한다",
               "hints는 3개만 유지하고 점점 더 구체적이어야 한다",
               "imagePrompt는 범행 장면이나 범인 정체를 직접 노출하지 말아야 한다",
+              "간첩형/착각형 레퍼런스처럼 마지막에 전말이 납득되어야 한다",
             ],
             candidate: created,
             outputSchema: {
@@ -4029,6 +4067,8 @@ export async function updateRoomSettingsInStore(input: {
   const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
+  await broadcastSync(room.id);
+
   return {
     roomId: updatedRoom.id,
     settings: toRoomSettings(updatedRoom),
@@ -4673,6 +4713,9 @@ export async function setReadyInStore(
 
   const state = await loadLobbyState(roomId);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
+
+  await broadcastSync(roomId);
+
   return {
     room: toRoom(room),
     players: state.players.map(toPlayer),
@@ -4856,6 +4899,8 @@ export async function assignTeamsInStore(
 
   const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
+
+  await broadcastSync(roomId);
 
   return {
     teamSlots: state.teamSlots.map(toTeamSlot),
@@ -5051,6 +5096,8 @@ export async function startStageInStore(
   const state = await loadLobbyState(room.id);
   const caseSummary = await loadCaseSummary(resolvedCaseKey);
 
+  await broadcastSync(roomId);
+
   return {
     game: toGame(updatedGame),
     stage: toStage(updatedStage),
@@ -5146,6 +5193,8 @@ export async function advanceStageInStore(
 
   const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
+
+  await broadcastSync(roomId);
 
   return {
     room: toRoom(updatedRoom),
@@ -5248,6 +5297,8 @@ export async function joinInvestigationQueueInStore(
   const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
 
+  await broadcastSync(room.id);
+
   return {
     lock: admittedLock ? toInvestigationLock(admittedLock) : null,
     autoAdmitted,
@@ -5304,6 +5355,8 @@ export async function leaveInvestigationQueueInStore(
 
   const refreshed = await loadLobbyState(room.id);
   const caseSummary = refreshed.currentStage ? await loadCaseSummary(refreshed.currentStage.case_key) : null;
+
+  await broadcastSync(room.id);
 
   return {
     snapshot: buildSnapshotFromState(refreshed, caseSummary, playerId),
@@ -5405,6 +5458,8 @@ export async function acquireInvestigationLockInStore(
   const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
+  await broadcastSync(room.id);
+
   return {
     lock: toInvestigationLock(lockRow),
     snapshot: buildSnapshotFromState(state, caseSummary, playerId),
@@ -5470,6 +5525,8 @@ export async function releaseInvestigationLockInStore(
   const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
 
+  await broadcastSync(room.id);
+
   return {
     lock: toInvestigationLock(lockRow),
     snapshot: buildSnapshotFromState(state, caseSummary, playerId),
@@ -5488,7 +5545,7 @@ export async function submitQuestionInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   assertQuestionSubmissionState({
     currentStage: state.currentStage,
     playerStates: state.playerStates,
@@ -5500,7 +5557,6 @@ export async function submitQuestionInStore(
   const currentStage = state.currentStage!;
   const activeLock = state.activeLock!;
   const currentPlayerState = state.playerStates.find((playerState) => playerState.player_id === playerId) ?? null;
-  const currentPlayerRow = state.players.find((player) => player.id === playerId) ?? null;
   const resolvedTeamSlotId = currentPlayerState?.team_slot_id ?? teamSlotId;
 
   if (currentPlayerState?.team_slot_id && currentPlayerState.team_slot_id !== teamSlotId) {
@@ -5516,7 +5572,6 @@ export async function submitQuestionInStore(
   });
   const nextQuestionCount = activeLock.question_count + 1;
   const supabase = getSupabaseAdminClient();
-  const previousJudgementIds = await loadJudgementHistory(stageId);
 
   const { data: questionRow, error: questionError } = await supabase
     .from("questions")
@@ -5592,8 +5647,8 @@ export async function submitQuestionInStore(
       stageNumber: currentStage.stage_number,
       questionText: content,
       visibleHints: state.visibleHints.map((hint) => hint.id),
-      previousQuestionIds: previousJudgementIds.previousQuestionIds,
-      previousAnswerIds: previousJudgementIds.previousAnswerIds,
+      previousQuestionIds: [],
+      previousAnswerIds: [],
       viewMode: activeLock.locked_by_player_id === playerId ? "investigation_active" : "stage_playing",
       canSeeStageSecrets: false,
       canSeeOwnLockState: true,
@@ -5614,30 +5669,47 @@ export async function submitQuestionInStore(
     createdAt: nowIso,
   });
 
-  await persistScoreEventsAndSyncTotals(room.id, [
-    buildQuestionCostScoreEvent({
-      roomId: room.id,
-      gameId: currentStage.game_id,
-      stageId,
-      playerId,
-      createdAt: nowIso,
-      questionId: questionRow.id,
-      judgement: judged.judgement,
-      reasonCode: judged.reasonCode,
-    }),
-  ]);
-
-  const refreshed = await loadSyncedLobbyState(room.id);
+  const questionScoreEvent = buildQuestionCostScoreEvent({
+    roomId: room.id,
+    gameId: currentStage.game_id,
+    stageId,
+    playerId,
+    createdAt: nowIso,
+    questionId: questionRow.id,
+    judgement: judged.judgement,
+    reasonCode: judged.reasonCode,
+  });
+  const scoreSync = await persistScoreEventsAndSyncAffectedTotals({
+    roomId: room.id,
+    players: state.players,
+    previousScoreEvents: state.scoreEvents,
+    currentStageId: state.currentStage?.id ?? null,
+    scoreEvents: [questionScoreEvent],
+    nowIso,
+  });
+  const nextState: SyncedLobbyState = {
+    ...state,
+    players: scoreSync.players,
+    scoreEvents: scoreSync.scoreEvents,
+    activeLock: updatedLock,
+    playerStates: state.playerStates.map((playerState) =>
+      playerState.player_id === playerId
+        ? {
+            ...playerState,
+            question_count: nextQuestionCount,
+            locked_at: activeLock.locked_at,
+            updated_at: nowIso,
+          }
+        : playerState,
+    ),
+  };
   const caseSummary = await loadCaseSummary(currentStage.case_key);
-  const scoreSnapshots = buildScoreLedger(
-    refreshed.players,
-    refreshed.scoreEvents,
-    refreshed.currentStage?.id ?? null,
-  ).snapshots;
   const snapshot = cloneSnapshotWithQuestionJudgement(
-    buildSnapshotFromState(refreshed, caseSummary, playerId),
+    buildSnapshotFromState(nextState, caseSummary, playerId),
     judged.publicReply,
   );
+
+  await broadcastSync(room.id);
 
   return {
     question: createQuestionRecord({
@@ -5651,7 +5723,7 @@ export async function submitQuestionInStore(
       createdAt: nowIso,
     }),
     activeLock: toInvestigationLock(updatedLock),
-    scores: scoreSnapshots,
+    scores: scoreSync.snapshots,
     snapshot,
   };
 }
@@ -5984,7 +6056,7 @@ async function persistJudgementRecord(input: {
   createdAt: string;
 }): Promise<{ judgementId: string; reviewId: string | null }> {
   const supabase = getSupabaseAdminClient();
-  const judgementId = crypto.randomUUID();
+  const judgementId = randomUUID();
   const envelope = createJudgementEnvelope({
     judgementId,
     manualReviewRequired: input.manualReviewRequired,
@@ -5997,7 +6069,7 @@ async function persistJudgementRecord(input: {
     internalPayload: input.internalPayload,
   });
 
-  const { data: judgementRow, error: judgementError } = await supabase
+  const { error: judgementError } = await supabase
     .from("judgement_records")
     .upsert(
       {
@@ -6021,11 +6093,9 @@ async function persistJudgementRecord(input: {
         updated_at: input.createdAt,
       },
       { onConflict: "id" },
-    )
-    .select("*")
-    .single<DbJudgementRecordRow>();
+    );
 
-  if (judgementError || !judgementRow) {
+  if (judgementError) {
     throw new Error(`Failed to persist judgement record: ${judgementError?.message ?? "unknown error"}`);
   }
 
@@ -6033,10 +6103,12 @@ async function persistJudgementRecord(input: {
     return { judgementId, reviewId: null };
   }
 
-  const { data: reviewRow, error: reviewError } = await supabase
+  const reviewId = randomUUID();
+  const { error: reviewError } = await supabase
     .from("judgement_review_queue")
     .upsert(
       {
+        review_id: reviewId,
         judgement_id: judgementId,
         room_id: input.roomId,
         stage_id: input.stageId,
@@ -6051,51 +6123,13 @@ async function persistJudgementRecord(input: {
         updated_at: input.createdAt,
       },
       { onConflict: "judgement_id" },
-    )
-    .select("*")
-    .single<DbJudgementReviewQueueRow>();
+    );
 
-  if (reviewError || !reviewRow) {
+  if (reviewError) {
     throw new Error(`Failed to persist judgement review queue item: ${reviewError?.message ?? "unknown error"}`);
   }
 
-  return { judgementId, reviewId: reviewRow.review_id };
-}
-
-async function loadJudgementHistory(stageId: string): Promise<{
-  previousQuestionIds: string[];
-  previousAnswerIds: string[];
-}> {
-  const supabase = getSupabaseAdminClient();
-  const [
-    { data: questionRows, error: questionError },
-    { data: answerRows, error: answerError },
-  ] = await Promise.all([
-    supabase
-      .from("questions")
-      .select("id")
-      .eq("stage_id", stageId)
-      .order("created_at", { ascending: true })
-      .returns<Array<{ id: string }>>(),
-    supabase
-      .from("answer_attempts")
-      .select("id")
-      .eq("stage_id", stageId)
-      .order("created_at", { ascending: true })
-      .returns<Array<{ id: string }>>(),
-  ]);
-
-  if (questionError) {
-    throw new Error(`Failed to load previous questions: ${questionError.message}`);
-  }
-  if (answerError) {
-    throw new Error(`Failed to load previous answers: ${answerError.message}`);
-  }
-
-  return {
-    previousQuestionIds: (questionRows ?? []).map((row) => row.id),
-    previousAnswerIds: (answerRows ?? []).map((row) => row.id),
-  };
+  return { judgementId, reviewId };
 }
 
 function toScoreEventRow(event: ScoreEvent): DbScoreEventRow {
@@ -6581,6 +6615,83 @@ async function persistScoreEventsAndSyncTotals(
   }
 }
 
+async function persistScoreEventsAndSyncAffectedTotals(input: {
+  roomId: string;
+  players: DbPlayerRow[];
+  previousScoreEvents: DbScoreEventRow[];
+  currentStageId: string | null;
+  scoreEvents: ScoreEvent[];
+  nowIso: string;
+}): Promise<{
+  players: DbPlayerRow[];
+  scoreEvents: DbScoreEventRow[];
+  snapshots: PlayerScoreSnapshot[];
+}> {
+  const nextScoreEvents = [
+    ...input.previousScoreEvents,
+    ...input.scoreEvents.map(toScoreEventRow),
+  ];
+  const { snapshots } = buildScoreLedger(
+    input.players,
+    nextScoreEvents,
+    input.currentStageId,
+  );
+
+  if (input.scoreEvents.length === 0) {
+    return {
+      players: input.players,
+      scoreEvents: nextScoreEvents,
+      snapshots,
+    };
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error: insertError } = await supabase
+    .from("score_events")
+    .insert(input.scoreEvents.map(toScoreEventRow));
+
+  if (insertError) {
+    throw new Error(`Failed to persist score events: ${insertError.message}`);
+  }
+
+  const affectedPlayerIds = Array.from(new Set(input.scoreEvents.map((event) => event.playerId)));
+  const snapshotByPlayerId = new Map(snapshots.map((snapshot) => [snapshot.playerId, snapshot]));
+  const updateResults = await Promise.all(
+    affectedPlayerIds.map((playerId) =>
+      supabase
+        .from("players")
+        .update({
+          total_score: snapshotByPlayerId.get(playerId)?.total ?? 0,
+          updated_at: input.nowIso,
+        })
+        .eq("id", playerId)
+        .eq("room_id", input.roomId),
+    ),
+  );
+
+  const failedUpdate = updateResults.find((result) => result.error);
+  if (failedUpdate?.error) {
+    throw new Error(`Failed to sync affected player totals: ${failedUpdate.error.message}`);
+  }
+
+  return {
+    players: input.players.map((player) => {
+      const snapshot = snapshotByPlayerId.get(player.id);
+      if (!affectedPlayerIds.includes(player.id) || !snapshot) {
+        return player;
+      }
+
+      return {
+        ...player,
+        total_score: snapshot.total,
+        updated_at: input.nowIso,
+      };
+    }),
+    scoreEvents: nextScoreEvents,
+    snapshots,
+  };
+}
+
 async function saveFinishedGameResults(input: {
   roomId: string;
   gameId: string;
@@ -6632,7 +6743,7 @@ export async function submitAnswerInStore(
     throw new InvestigationLockError("ROOM_NOT_FOUND", "방 정보를 찾을 수 없습니다.");
   }
 
-  const state = await loadSyncedLobbyState(room.id);
+  const state = await loadLobbyState(room.id);
   assertAnswerSubmissionState({
     currentStage: state.currentStage,
     playerStates: state.playerStates,
@@ -6660,7 +6771,6 @@ export async function submitAnswerInStore(
   });
   const nextAnswerAttemptCount = activeLock.answer_attempt_count + 1;
   const supabase = getSupabaseAdminClient();
-  const previousJudgementIds = await loadJudgementHistory(stageId);
 
   const { data: answerRow, error: answerError } = await supabase
     .from("answer_attempts")
@@ -6686,7 +6796,7 @@ export async function submitAnswerInStore(
   const updatedPlayerStageState = {
     question_count: currentPlayerState?.question_count ?? 0,
     answer_attempt_count: nextAnswerAttemptCount,
-    status: resolution.shouldLockPlayer ? "solved_locked" : "active",
+    status: resolution.shouldLockPlayer ? ("solved_locked" as const) : ("active" as const),
     solved_at: resolution.shouldLockPlayer ? nowIso : currentPlayerState?.solved_at ?? null,
     locked_at: resolution.shouldLockPlayer ? activeLock.locked_at : currentPlayerState?.locked_at ?? null,
     updated_at: nowIso,
@@ -6703,7 +6813,6 @@ export async function submitAnswerInStore(
   }
 
   if (resolution.shouldLockPlayer) {
-    const currentPlayerRow = state.players.find((player) => player.id === playerId);
     const { error: playerAggregateError } = await supabase
       .from("players")
       .update({
@@ -6713,7 +6822,7 @@ export async function submitAnswerInStore(
         updated_at: nowIso,
       })
       .eq("id", playerId)
-      .eq("room_id", roomId);
+      .eq("room_id", room.id);
 
     if (playerAggregateError) {
       throw new Error(`Failed to update player aggregates after solve: ${playerAggregateError.message}`);
@@ -6751,8 +6860,8 @@ export async function submitAnswerInStore(
       stageNumber: currentStage.stage_number,
       answerText: content,
       visibleHints: state.visibleHints.map((hint) => hint.id),
-      previousQuestionIds: previousJudgementIds.previousQuestionIds,
-      previousAnswerIds: previousJudgementIds.previousAnswerIds,
+      previousQuestionIds: [],
+      previousAnswerIds: [],
       viewMode: activeLock.locked_by_player_id === playerId ? "investigation_active" : "stage_playing",
       canSeeStageSecrets: false,
       canSeeOwnLockState: true,
@@ -6932,31 +7041,106 @@ export async function submitAnswerInStore(
     );
   }
 
-  await persistScoreEventsAndSyncTotals(room.id, scoreEvents);
+  const scoreSync = await persistScoreEventsAndSyncAffectedTotals({
+    roomId: room.id,
+    players: state.players.map((player) =>
+      player.id === playerId && resolution.shouldLockPlayer
+        ? {
+            ...player,
+            solved_count: (currentPlayerRow?.solved_count ?? 0) + 1,
+            bonus_keyword_count:
+              (currentPlayerRow?.bonus_keyword_count ?? 0) + resolution.matchedBonusKeywords.length,
+            updated_at: nowIso,
+          }
+        : player,
+    ),
+    previousScoreEvents: state.scoreEvents,
+    currentStageId: state.currentStage?.id ?? null,
+    scoreEvents,
+    nowIso,
+  });
+  const nextActiveLock: DbInvestigationLockRow | null = resolution.shouldLockPlayer
+    ? {
+        ...activeLock,
+        locked_by_player_id: null,
+        locked_at: null,
+        expires_at: null,
+        question_count: 0,
+        answer_attempt_count: 0,
+        last_released_by_player_id: playerId,
+        last_released_at: nowIso,
+        version: activeLock.version + 1,
+        updated_at: nowIso,
+      }
+    : {
+        ...activeLock,
+        answer_attempt_count: nextAnswerAttemptCount,
+        version: activeLock.version + 1,
+        updated_at: nowIso,
+      };
+  const nextState: SyncedLobbyState = {
+    ...state,
+    players: scoreSync.players,
+    scoreEvents: scoreSync.scoreEvents,
+    currentStage: state.currentStage
+      ? {
+          ...state.currentStage,
+          solved_player_ids: updatedSolvedPlayerIds,
+          status: shouldEndStage ? (shouldFinishGame ? "revealed" : "ended") : state.currentStage.status,
+          ended_at: shouldEndStage ? nowIso : state.currentStage.ended_at,
+          end_reason: shouldEndStage ? "two_players_solved" : state.currentStage.end_reason,
+          updated_at: nowIso,
+        }
+      : state.currentStage,
+    game:
+      shouldEndStage && state.game
+        ? {
+            ...state.game,
+            status: shouldFinishGame ? "finished" : "stage_result",
+            ended_at: shouldFinishGame ? nowIso : state.game.ended_at,
+            updated_at: nowIso,
+          }
+        : state.game,
+    activeLock: nextActiveLock,
+    playerStates: state.playerStates.map((playerState) => {
+      if (playerState.player_id === playerId) {
+        return {
+          ...playerState,
+          ...updatedPlayerStageState,
+        };
+      }
 
-  const refreshed = await loadSyncedLobbyState(room.id);
+      if (shouldEndStage) {
+        return {
+          ...playerState,
+          queue_joined_at: null,
+          queue_cooldown_ends_at: null,
+          updated_at: nowIso,
+        };
+      }
+
+      return playerState;
+    }),
+  };
   const caseSummary = await loadCaseSummary(currentStage.case_key);
-  const scoreSnapshots = buildScoreLedger(
-    refreshed.players,
-    refreshed.scoreEvents,
-    refreshed.currentStage?.id ?? null,
-  ).snapshots;
-  if (shouldFinishGame && refreshed.game) {
+  if (shouldFinishGame && nextState.game) {
     await saveFinishedGameResults({
       roomId: room.id,
-      gameId: refreshed.game.id,
-      players: refreshed.players,
-      scoreEvents: refreshed.scoreEvents,
-      currentStageId: refreshed.currentStage?.id ?? null,
+      gameId: nextState.game.id,
+      players: nextState.players,
+      scoreEvents: nextState.scoreEvents,
+      currentStageId: nextState.currentStage?.id ?? null,
     });
   }
   const snapshot = cloneSnapshotWithAnswerResult(
-    buildSnapshotFromState(refreshed, caseSummary, playerId),
+    buildSnapshotFromState(nextState, caseSummary, playerId),
     resolution.publicOutcome,
     resolution.publicSummary,
   );
 
-  const refreshedPlayerState = refreshed.playerStates.find((playerState) => playerState.player_id === playerId) ?? null;
+  const refreshedPlayerState = nextState.playerStates.find((playerState) => playerState.player_id === playerId) ?? null;
+
+  await broadcastSync(room.id);
 
   return {
     attempt: createAnswerAttemptRecord({
@@ -6974,7 +7158,7 @@ export async function submitAnswerInStore(
       createdAt: nowIso,
     }),
     playerState: refreshedPlayerState ? toPlayerStageState(refreshedPlayerState) : null,
-    scores: scoreSnapshots,
+    scores: scoreSync.snapshots,
     snapshot,
   };
 }

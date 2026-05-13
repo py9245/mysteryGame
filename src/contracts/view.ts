@@ -93,6 +93,15 @@ export interface ScoreView {
   isMe: boolean;
 }
 
+export interface InvestigationHistoryItem {
+  id: string;
+  type: "question" | "answer";
+  content: string;
+  response: string | null;
+  tone: "positive" | "negative" | "note";
+  createdAt: number;
+}
+
 export interface InvestigationLockView {
   stageId: EntityId;
   roomId: EntityId;
@@ -193,6 +202,7 @@ export interface RoomViewSnapshot {
   activeLock: InvestigationLockView | null;
   visibleHints: HintReveal[];
   scores: ScoreView[];
+  investigationHistory: InvestigationHistoryItem[];
   privateChat: PrivateChatView | RedactedValue | null;
   results: ResultsView | RedactedValue | null;
 }

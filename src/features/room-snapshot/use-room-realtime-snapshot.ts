@@ -58,7 +58,10 @@ export function useRoomRealtimeSnapshot(
     let stageChannel: RealtimeChannel | null = null;
 
     async function refreshSnapshot() {
-      scheduledRefreshId = null;
+      if (scheduledRefreshId !== null) {
+        window.clearTimeout(scheduledRefreshId);
+        scheduledRefreshId = null;
+      }
 
       if (!shouldRefreshRoomSnapshot()) {
         return;
@@ -95,7 +98,7 @@ export function useRoomRealtimeSnapshot(
 
       scheduledRefreshId = window.setTimeout(() => {
         void refreshSnapshot();
-      }, 180);
+      }, 100); // 100ms debounce
     }
 
     fallbackRefreshId = window.setInterval(() => {
@@ -125,11 +128,6 @@ export function useRoomRealtimeSnapshot(
           )
           .on(
             "postgres_changes",
-            { event: "*", schema: "public", table: "team_slots", filter: `room_id=eq.${subscriptionKey.roomId}` },
-            scheduleRefresh,
-          )
-          .on(
-            "postgres_changes",
             { event: "*", schema: "public", table: "stages", filter: `room_id=eq.${subscriptionKey.roomId}` },
             scheduleRefresh,
           )
@@ -139,20 +137,17 @@ export function useRoomRealtimeSnapshot(
             scheduleRefresh,
           )
           .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "score_events", filter: `room_id=eq.${subscriptionKey.roomId}` },
-            scheduleRefresh,
+            "broadcast",
+            { event: "sync" },
+            () => {
+              void refreshSnapshot(); // Broadcast sync triggers immediate fetch
+            }
           )
           .subscribe();
 
         if (subscriptionKey.stageId) {
           stageChannel = supabase
             .channel(`room-snapshot-stage:${subscriptionKey.stageId}`)
-            .on(
-              "postgres_changes",
-              { event: "*", schema: "public", table: "stage_team_assignments", filter: `stage_id=eq.${subscriptionKey.stageId}` },
-              scheduleRefresh,
-            )
             .on(
               "postgres_changes",
               { event: "*", schema: "public", table: "player_stage_states", filter: `stage_id=eq.${subscriptionKey.stageId}` },
@@ -169,9 +164,11 @@ export function useRoomRealtimeSnapshot(
               scheduleRefresh,
             )
             .on(
-              "postgres_changes",
-              { event: "*", schema: "public", table: "private_chat_sessions", filter: `stage_id=eq.${subscriptionKey.stageId}` },
-              scheduleRefresh,
+              "broadcast",
+              { event: "sync" },
+              () => {
+                void refreshSnapshot();
+              }
             )
             .subscribe();
         }

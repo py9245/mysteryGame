@@ -79,8 +79,14 @@ function extractFinishReason(raw: unknown): string | null {
 export async function createTextCompletion(input: TextCompletionInput): Promise<TextCompletionOutput> {
   const provider = input.provider ?? DEFAULT_TEXT_PROVIDER;
   const requestedModel = input.model ?? DEFAULT_TEXT_MODEL;
+  const abortController = input.timeoutMs ? new AbortController() : null;
+  const timeoutId = abortController
+    ? setTimeout(() => abortController.abort(), input.timeoutMs)
+    : null;
+
   const response = await fetch(getTextCompletionUrl(), {
     method: "POST",
+    signal: abortController?.signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getGmsKey()}`,
@@ -89,6 +95,10 @@ export async function createTextCompletion(input: TextCompletionInput): Promise<
       model: requestedModel,
       messages: input.messages,
     }),
+  }).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   });
 
   if (!response.ok) {

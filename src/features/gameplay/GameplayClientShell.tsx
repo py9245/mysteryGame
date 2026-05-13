@@ -38,10 +38,14 @@ function futureIso(seconds: number): string {
 function resolveQuestionReply(snapshot: RoomSnapshot): string {
   const judgement = snapshot.stage?.lastQuestionJudgement;
   if (judgement && typeof judgement === "object" && "publicReply" in judgement) {
-    return String(judgement.publicReply);
+    const reply = String(judgement.publicReply);
+    if (reply.includes("네")) return "네";
+    if (reply.includes("아니오") || reply.includes("아니요")) return "아니요";
+    if (reply.includes("그럴 수")) return "그럴 수 있습니다";
+    return "상관 없습니다";
   }
 
-  return "응답을 확인했습니다.";
+  return "상관 없습니다";
 }
 
 function resolveAnswerReply(snapshot: RoomSnapshot): {
@@ -51,25 +55,17 @@ function resolveAnswerReply(snapshot: RoomSnapshot): {
   const result = snapshot.stage?.lastAnswerResult;
   if (result && typeof result === "object" && "publicOutcome" in result) {
     const publicOutcome = result.publicOutcome;
-    const publicSummary =
-      "publicSummary" in result && typeof result.publicSummary === "string"
-        ? result.publicSummary
-        : null;
-
+    
     if (publicOutcome === "correct") {
-      return { text: publicSummary ?? "정답으로 인정되었습니다.", tone: "positive" };
+      return { text: "정답입니다", tone: "positive" };
     }
 
     if (publicOutcome === "incorrect" || publicOutcome === "wrong") {
-      return { text: publicSummary ?? "정답이 인정되지 않았습니다.", tone: "negative" };
-    }
-
-    if (publicOutcome === "ambiguous") {
-      return { text: publicSummary ?? "정답이 애매합니다. 더 구체적으로 입력하세요.", tone: "note" };
+      return { text: "오답입니다", tone: "negative" };
     }
   }
 
-  return { text: "운영자 확인이 필요합니다.", tone: "note" };
+  return { text: "오답입니다", tone: "negative" };
 }
 
 export function GameplayClientShell({

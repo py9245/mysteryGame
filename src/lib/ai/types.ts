@@ -10,6 +10,7 @@ export interface TextCompletionInput {
   provider?: TextProvider;
   model?: string;
   messages: TextCompletionMessage[];
+  timeoutMs?: number;
 }
 
 export interface TextCompletionUsage {
