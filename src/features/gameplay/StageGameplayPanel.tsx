@@ -1,10 +1,12 @@
 import type { RoomSnapshot } from "@/contracts/api";
 import type { ChatMessage } from "@/contracts/game";
+import type { RoomRealtimeSyncMeta } from "@/features/room-snapshot/use-room-realtime-snapshot";
 import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { CaseImageFrame } from "@/components/stage/CaseImageFrame";
 import { CasePanel } from "@/components/stage/CasePanel";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
+import { RealtimeStatusStrip } from "@/components/status/RealtimeStatusStrip";
 import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
 import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { GameplayUtilityRail } from "./GameplayUtilityRail";
@@ -19,6 +21,7 @@ export function StageGameplayPanel({
   runtime,
   currentStageNumber,
   nowMs,
+  syncMeta,
   isSubmittingPrivateChat = false,
   privateChatStatusMessage = null,
   privateChatErrorMessage = null,
@@ -37,6 +40,7 @@ export function StageGameplayPanel({
   runtime: LoadedGameRuntimeSnapshot;
   currentStageNumber?: number;
   nowMs?: number;
+  syncMeta: RoomRealtimeSyncMeta;
   isSubmittingPrivateChat?: boolean;
   privateChatStatusMessage?: string | null;
   privateChatErrorMessage?: string | null;
@@ -56,6 +60,7 @@ export function StageGameplayPanel({
       : snapshot.stage?.status === "in_progress"
         ? "진행 중"
         : "스테이지";
+  const stageQuestion = snapshot.stage?.question?.trim() || "사건의 전말을 추리해 정답을 제출하세요.";
 
   return (
     <section className="page-shell gameplay-page-shell">
@@ -74,13 +79,21 @@ export function StageGameplayPanel({
           <h1 className="gameplay-stage-title">{stageTitle}</h1>
           <span className="gameplay-stage-subtitle">{stageStatusCopy}</span>
         </div>
-        <MyScoreCard
-          snapshot={snapshot}
-          nowMs={nowMs}
-          timerStartedAt={runtime.snapshot?.stage?.startedAt ?? null}
-          className="gameplay-score-card"
-        />
-        <div className="header-actions gameplay-topbar-actions">
+        <section className="gameplay-objective-card" aria-label="추리 목표">
+          <span className="gameplay-objective-label">추리 목표</span>
+          <p className="gameplay-objective-copy">
+            사망 이유, 범행 도구, 범인, 장소를 연결해 사건의 전말을 맞추세요.
+          </p>
+          <span className="gameplay-objective-question">{stageQuestion}</span>
+        </section>
+        <div className="gameplay-topbar-controls">
+          <MyScoreCard
+            snapshot={snapshot}
+            nowMs={nowMs}
+            timerStartedAt={runtime.snapshot?.stage?.startedAt ?? null}
+            className="gameplay-score-card"
+          />
+          <div className="header-actions gameplay-topbar-actions">
             <LeaveRoomButton
               roomId={snapshot.room.id}
               playerId={snapshot.me.playerId}
@@ -88,16 +101,23 @@ export function StageGameplayPanel({
               label="게임 나가기"
             />
             <RulebookLauncher label="룰북" compact scope="game" />
+          </div>
         </div>
       </header>
+      <RealtimeStatusStrip
+        snapshot={snapshot}
+        syncMeta={syncMeta}
+        variant="gameplay"
+        nowMs={nowMs}
+      />
       <div className="gameplay-layout mt-gameplay-layout">
         <section className="gameplay-column gameplay-column-left">
           <section className="panel panel-muted gameplay-story-card">
-            <div className="gameplay-story-media">
-              <CaseImageFrame snapshot={snapshot} />
-            </div>
             <div className="gameplay-story-summary">
               <CasePanel snapshot={snapshot} />
+            </div>
+            <div className="gameplay-story-media">
+              <CaseImageFrame snapshot={snapshot} />
             </div>
           </section>
         </section>

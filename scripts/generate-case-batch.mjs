@@ -276,23 +276,34 @@ function mimeTypeToExtension(mimeType) {
 }
 
 function buildFallbackSvg(title, description) {
-  const safeTitle = title.replace(/[<&>"]/g, "");
-  const safeDescription = description.replace(/[<&>"]/g, "");
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
       <defs>
         <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="#050816" />
-          <stop offset="100%" stop-color="#131a2e" />
+          <stop offset="0%" stop-color="#07080d" />
+          <stop offset="55%" stop-color="#15151a" />
+          <stop offset="100%" stop-color="#241815" />
         </linearGradient>
+        <radialGradient id="lamp" cx="70%" cy="18%" r="45%">
+          <stop offset="0%" stop-color="#f8d06c" stop-opacity="0.24" />
+          <stop offset="100%" stop-color="#f8d06c" stop-opacity="0" />
+        </radialGradient>
       </defs>
       <rect width="1024" height="1024" fill="url(#bg)" />
+      <rect width="1024" height="1024" fill="url(#lamp)" />
+      <rect x="96" y="154" width="832" height="548" rx="28" fill="#111217" stroke="#f8d06c" stroke-opacity="0.16" />
+      <rect x="160" y="500" width="704" height="258" rx="18" fill="#2c201b" />
+      <rect x="212" y="552" width="188" height="124" rx="16" fill="#49312a" opacity="0.88" />
+      <rect x="430" y="552" width="164" height="124" rx="16" fill="#3a2826" opacity="0.9" />
+      <rect x="620" y="552" width="172" height="124" rx="16" fill="#51342b" opacity="0.85" />
+      <circle cx="720" cy="440" r="76" fill="#7f2f2c" opacity="0.56" />
+      <rect x="646" y="376" width="212" height="108" rx="22" fill="#18212b" opacity="0.86" />
+      <path d="M680 450 752 378 828 448" fill="none" stroke="#9eb8dc" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="270" y="268" width="150" height="106" rx="12" fill="#f3dfbd" opacity="0.82" />
+      <rect x="440" y="252" width="180" height="122" rx="14" fill="#d8b985" opacity="0.78" />
+      <rect x="638" y="280" width="132" height="94" rx="12" fill="#e8cf9e" opacity="0.72" />
+      <path d="M248 804c138-42 338-40 528 4" fill="none" stroke="#f8d06c" stroke-opacity="0.18" stroke-width="4" />
       <rect x="76" y="76" width="872" height="872" rx="40" fill="none" stroke="#f8d06c" stroke-opacity="0.18" />
-      <text x="112" y="190" fill="#f5f5f5" font-size="56" font-family="Arial, sans-serif" font-weight="700">${safeTitle}</text>
-      <foreignObject x="112" y="258" width="800" height="560">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d6d9e3;font-size:30px;line-height:1.55;font-family:Arial,sans-serif;">${safeDescription}</div>
-      </foreignObject>
-      <text x="112" y="912" fill="#f8d06c" font-size="24" font-family="Arial, sans-serif">Mystery Time generated fallback visual</text>
     </svg>
   `.trim();
 }
@@ -355,12 +366,32 @@ function normalizeHints(caseKey, rawHints) {
 
 function buildImagePrompt({ title, publicDescription, hints }) {
   return [
-    "High-quality cinematic Korean mystery webgame key visual, single coherent scene, no text, no letters, no UI, no collage, no visible murderer.",
+    "High-quality cinematic Korean mystery webgame key visual, single coherent aftermath scene, wide landscape composition inside a square canvas, no text, no letters, no numbers, no UI, no collage, no visible murderer.",
     `Scene: ${title}.`,
     `Aftermath setup visible to players: ${publicDescription}`,
     `Place 2-3 spoiler-safe clue props clearly in the environment: ${hints.map((hint) => hint.publicText).join(", ")}.`,
     "Realistic Korean locations and props, tense stillness, cinematic lens, grounded dramatic lighting, clue-centered foreground, atmospheric background.",
-    "Do not show the act of murder, the culprit's reveal, gore, labels, captions, supernatural elements, or solution-revealing symbols.",
+    "Strictly avoid readable text of any kind: no Korean, English, letters, numbers, names, logos, captions, signs, labels, documents, UI, watermarks, or title cards.",
+    "If a clue would normally have a label, name tag, note, receipt, phone screen, document, or sign, show it as blank paper, an unreadable blur, a color mark, a folded shape, or a barcode-like abstract block with no legible characters.",
+    "Do not show the act of murder, the culprit's reveal, gore, captions, supernatural elements, or solution-revealing symbols.",
+  ].join(" ");
+}
+
+function buildStrictImagePrompt(rawPrompt, { title, publicDescription, hints }) {
+  const basePrompt =
+    typeof rawPrompt === "string" && rawPrompt.trim().length > 0
+      ? rawPrompt.trim()
+      : buildImagePrompt({ title, publicDescription, hints });
+
+  return [
+    "Create a polished, text-free, cinematic case-scene image for a Korean mystery webgame.",
+    `Case title for context only, do not render as text: ${title}.`,
+    `Public scene context: ${publicDescription}`,
+    `Core visual brief: ${basePrompt}`,
+    "Composition: one coherent aftermath scene, wide horizontal framing, clear foreground clue props, no split panels, no poster layout, no UI mockup.",
+    "Absolute negative constraints: no readable text, no fake Korean, no fake English, no letters, no numbers, no name tags, no labels, no signs, no documents with visible writing, no logos, no watermarks.",
+    "Represent any label/note/document as blank, blurred, folded, partially hidden, or purely color-coded so there are zero legible characters.",
+    "Do not reveal the culprit, murder act, final solution, explicit gore, or supernatural elements.",
   ].join(" ");
 }
 
@@ -536,10 +567,15 @@ async function generateValidatedCase({ gmsKey, stageNumber, attemptLabel, refere
     throw new Error(`Generated case failed validation for ${caseKey}`);
   }
 
-  const imagePrompt =
+  const rawImagePrompt =
     typeof validated.imagePrompt === "string" && validated.imagePrompt.trim().length > 0
       ? validated.imagePrompt.trim()
       : buildImagePrompt({ title: caseFile.title, publicDescription: caseFile.publicDescription, hints: caseFile.hints });
+  const imagePrompt = buildStrictImagePrompt(rawImagePrompt, {
+    title: caseFile.title,
+    publicDescription: caseFile.publicDescription,
+    hints: caseFile.hints,
+  });
 
   return { caseFile, imagePrompt };
 }

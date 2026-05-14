@@ -3,6 +3,7 @@ import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { StageResultsSummary } from "@/components/results/StageResultsSummary";
+import { StageResolutionReveal } from "@/components/results/StageResolutionReveal";
 import { RankingTable } from "@/components/results/RankingTable";
 import { PersonalScoreBreakdown } from "@/components/results/PersonalScoreBreakdown";
 import { StageResultsAdvanceCard } from "./StageResultsAdvanceCard";
@@ -48,6 +49,16 @@ export function StageResultsPanel({
       </header>
       <StageResultsAdvanceCard snapshot={snapshot} currentStageNumber={currentStageNumber ?? snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1} />
       <div className="results-grid">
+        {snapshot.stage?.caseResolution ? (
+          <section className="span-12">
+            <StageResolutionReveal
+              title={snapshot.stage.publicTitle}
+              resolution={snapshot.stage.caseResolution}
+              requiredKeywordCount={snapshot.stage.requiredKeywordCount}
+              bonusKeywordCount={snapshot.stage.bonusKeywordCount}
+            />
+          </section>
+        ) : null}
         <section className="span-4">
           <StageResultsSummary snapshot={snapshot} />
         </section>

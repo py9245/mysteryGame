@@ -44,17 +44,22 @@ export function RulebookModal({
         aria-label={meta.title}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="composer-header">
+        <header className="rulebook-modal-header">
           <div>
             <p className="eyebrow">룰북</p>
             <h3 className="panel-title">{meta.title}</h3>
             <p className="panel-copy">{meta.intro}</p>
           </div>
-          <button className="button-secondary" type="button" onClick={onClose}>
+          <button
+            className="button-secondary rulebook-modal-close"
+            type="button"
+            onClick={onClose}
+            aria-label="룰북 닫기"
+          >
             닫기
           </button>
-        </div>
-        <div className="modal-stack">
+        </header>
+        <div className="rulebook-modal-body">
           <RulebookSections scope={scope} />
           <OnboardingGuide scope={scope} variant="inline" />
         </div>

@@ -84,7 +84,7 @@ export function GameplayClientShell({
   currentStageNumber?: number;
 }) {
   const [runtimeSnapshot] = useState(runtime);
-  const [snapshot, setSnapshot] = useRoomRealtimeSnapshot(initialSnapshot, {
+  const [snapshot, setSnapshot, syncMeta] = useRoomRealtimeSnapshot(initialSnapshot, {
     fallbackIntervalMs: 3_000,
   });
   const [nowMs, setNowMs] = useState(Date.now());
@@ -102,6 +102,7 @@ export function GameplayClientShell({
   const [answerFeedbackMessage, setAnswerFeedbackMessage] = useState<string | null>(null);
   const [answerFeedbackTone, setAnswerFeedbackTone] = useState<"positive" | "negative" | "note">("note");
   const [investigationDraft, setInvestigationDraft] = useState("");
+  const [investigationMode, setInvestigationMode] = useState<"question" | "answer">("question");
   const [investigationHistory, setInvestigationHistory] = useState<
     Array<{
       id: string;
@@ -109,6 +110,7 @@ export function GameplayClientShell({
       content: string;
       response: string | null;
       tone: "positive" | "negative" | "note";
+      isPending: boolean;
       createdAt: number;
     }>
   >([]);
@@ -621,9 +623,23 @@ export function GameplayClientShell({
     const content = directContent ?? investigationDraft.trim();
     if (!content) return;
 
+    const pendingId = `question-pending-${Date.now()}`;
     setIsQuestionSubmitting(true);
     setQuestionFeedbackMessage(null);
     setQuestionFeedbackTone("note");
+    setInvestigationDraft("");
+    setInvestigationHistory((prev) => [
+      ...prev,
+      {
+        id: pendingId,
+        type: "question",
+        content,
+        response: null,
+        tone: "note",
+        isPending: true,
+        createdAt: Date.now(),
+      },
+    ]);
 
     const result = await submitInvestigationQuestion({
       type: "submit_question",
@@ -636,40 +652,49 @@ export function GameplayClientShell({
 
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
-      setInvestigationDraft("");
       const publicReply = resolveQuestionReply(result.snapshot);
+      const tone: "positive" | "negative" | "note" =
+        publicReply === "네"
+          ? "positive"
+          : publicReply === "아니요"
+            ? "negative"
+            : "note";
 
-      setInvestigationHistory(prev => [
-        ...prev,
-        {
-          id: result.question?.id ?? Math.random().toString(),
-          type: "question",
-          content,
-          response: publicReply,
-          tone: "positive",
-          createdAt: Date.now(),
-        }
-      ]);
+      setInvestigationHistory((prev) =>
+        prev.map((item) =>
+          item.id === pendingId
+            ? {
+                ...item,
+                id: result.question?.id ?? item.id,
+                response: publicReply,
+                tone,
+                isPending: false,
+              }
+            : item,
+        ),
+      );
 
-      setQuestionFeedbackTone("positive");
+      setQuestionFeedbackTone(tone);
       setQuestionFeedbackMessage(publicReply);
       setInvestigationStatusMessage("질문 결과가 반영되었습니다.");
       setInvestigationErrorMessage(null);
     } else {
-      setInvestigationHistory((prev) => [
-        ...prev,
-        {
-          id: `question-error-${Date.now()}`,
-          type: "question",
-          content,
-          response: result.errorMessage ?? "질문 제출에 실패했습니다.",
-          tone: "negative",
-          createdAt: Date.now(),
-        },
-      ]);
+      const errorMessage = result.errorMessage ?? "질문 제출에 실패했습니다.";
+      setInvestigationHistory((prev) =>
+        prev.map((item) =>
+          item.id === pendingId
+            ? {
+                ...item,
+                response: errorMessage,
+                tone: "negative",
+                isPending: false,
+              }
+            : item,
+        ),
+      );
       setQuestionFeedbackTone("negative");
-      setQuestionFeedbackMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
-      setInvestigationErrorMessage(result.errorMessage ?? "질문 제출에 실패했습니다.");
+      setQuestionFeedbackMessage(errorMessage);
+      setInvestigationErrorMessage(errorMessage);
     }
 
     setIsQuestionSubmitting(false);
@@ -688,9 +713,23 @@ export function GameplayClientShell({
     const content = directContent ?? investigationDraft.trim();
     if (!content) return;
 
+    const pendingId = `answer-pending-${Date.now()}`;
     setIsAnswerSubmitting(true);
     setAnswerFeedbackMessage(null);
     setAnswerFeedbackTone("note");
+    setInvestigationDraft("");
+    setInvestigationHistory((prev) => [
+      ...prev,
+      {
+        id: pendingId,
+        type: "answer",
+        content,
+        response: null,
+        tone: "note",
+        isPending: true,
+        createdAt: Date.now(),
+      },
+    ]);
 
     const result = await submitInvestigationAnswer({
       type: "submit_answer",
@@ -703,40 +742,43 @@ export function GameplayClientShell({
 
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
-      setInvestigationDraft("");
       const answerReply = resolveAnswerReply(result.snapshot);
 
-      setInvestigationHistory(prev => [
-        ...prev,
-        {
-          id: result.attempt?.id ?? Math.random().toString(),
-          type: "answer",
-          content,
-          response: answerReply.text,
-          tone: answerReply.tone,
-          createdAt: Date.now(),
-        }
-      ]);
+      setInvestigationHistory((prev) =>
+        prev.map((item) =>
+          item.id === pendingId
+            ? {
+                ...item,
+                id: result.attempt?.id ?? item.id,
+                response: answerReply.text,
+                tone: answerReply.tone,
+                isPending: false,
+              }
+            : item,
+        ),
+      );
 
       setAnswerFeedbackTone(answerReply.tone);
       setAnswerFeedbackMessage(answerReply.text);
       setInvestigationStatusMessage("정답 제출 결과가 반영되었습니다.");
       setInvestigationErrorMessage(null);
     } else {
-      setInvestigationHistory((prev) => [
-        ...prev,
-        {
-          id: `answer-error-${Date.now()}`,
-          type: "answer",
-          content,
-          response: result.errorMessage ?? "정답 제출에 실패했습니다.",
-          tone: "negative",
-          createdAt: Date.now(),
-        },
-      ]);
+      const errorMessage = result.errorMessage ?? "정답 제출에 실패했습니다.";
+      setInvestigationHistory((prev) =>
+        prev.map((item) =>
+          item.id === pendingId
+            ? {
+                ...item,
+                response: errorMessage,
+                tone: "negative",
+                isPending: false,
+              }
+            : item,
+        ),
+      );
       setAnswerFeedbackTone("negative");
-      setAnswerFeedbackMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
-      setInvestigationErrorMessage(result.errorMessage ?? "정답 제출에 실패했습니다.");
+      setAnswerFeedbackMessage(errorMessage);
+      setInvestigationErrorMessage(errorMessage);
     }
 
     setIsAnswerSubmitting(false);
@@ -808,6 +850,7 @@ export function GameplayClientShell({
         runtime={runtimeSnapshot}
         currentStageNumber={currentStageNumber}
         nowMs={nowMs}
+        syncMeta={syncMeta}
         isSubmittingPrivateChat={isSubmittingPrivateChat}
         privateChatStatusMessage={privateChatStatusMessage}
         privateChatErrorMessage={privateChatErrorMessage}
@@ -850,6 +893,8 @@ export function GameplayClientShell({
         onInvestigationDraftChange={setInvestigationDraft}
         investigationHistory={investigationHistory}
         isDraftEditable={isLockedByMe}
+        investigationMode={investigationMode}
+        onInvestigationModeChange={setInvestigationMode}
       />
     </>
   );

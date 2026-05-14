@@ -6,6 +6,18 @@ import type { RoomSnapshot } from "@/contracts/api";
 import { getSupabaseBrowserClient, hasSupabaseBrowserEnv } from "@/lib/supabase-browser";
 import { normalizeRoomSnapshot } from "./room-snapshot-loader";
 
+export type RoomRealtimeSyncStatus = "connecting" | "live" | "polling" | "stale" | "error";
+
+export interface RoomRealtimeSyncMeta {
+  status: RoomRealtimeSyncStatus;
+  isRealtimeAvailable: boolean;
+  isRealtimeConnected: boolean;
+  lastSyncedAt: number | null;
+  lastEventAt: number | null;
+  lastErrorAt: number | null;
+  fallbackIntervalMs: number;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -29,9 +41,22 @@ export function useRoomRealtimeSnapshot(
   options: {
     fallbackIntervalMs?: number;
   } = {},
-): [RoomSnapshot, Dispatch<SetStateAction<RoomSnapshot>>] {
+): [RoomSnapshot, Dispatch<SetStateAction<RoomSnapshot>>, RoomRealtimeSyncMeta] {
   const fallbackIntervalMs = options.fallbackIntervalMs ?? 20_000;
   const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [syncMeta, setSyncMeta] = useState<RoomRealtimeSyncMeta>(() => {
+    const isRealtimeAvailable = hasSupabaseBrowserEnv();
+
+    return {
+      status: isRealtimeAvailable ? "connecting" : "polling",
+      isRealtimeAvailable,
+      isRealtimeConnected: false,
+      lastSyncedAt: Date.now(),
+      lastEventAt: null,
+      lastErrorAt: null,
+      fallbackIntervalMs,
+    };
+  });
   const snapshotRef = useRef(initialSnapshot);
 
   useEffect(() => {
@@ -41,6 +66,13 @@ export function useRoomRealtimeSnapshot(
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  useEffect(() => {
+    setSyncMeta((current) => ({
+      ...current,
+      fallbackIntervalMs,
+    }));
+  }, [fallbackIntervalMs]);
 
   const subscriptionKey = useMemo(
     () => ({
@@ -74,6 +106,13 @@ export function useRoomRealtimeSnapshot(
         });
 
         if (!response.ok) {
+          if (mounted) {
+            setSyncMeta((current) => ({
+              ...current,
+              status: current.lastSyncedAt ? "stale" : "error",
+              lastErrorAt: Date.now(),
+            }));
+          }
           return;
         }
 
@@ -85,13 +124,30 @@ export function useRoomRealtimeSnapshot(
 
         if (mounted && nextSnapshot) {
           setSnapshot(nextSnapshot);
+          setSyncMeta((current) => ({
+            ...current,
+            status: current.isRealtimeConnected ? "live" : "polling",
+            lastSyncedAt: Date.now(),
+            lastErrorAt: null,
+          }));
         }
       } catch {
-        // Realtime refresh is best effort only.
+        if (mounted) {
+          setSyncMeta((current) => ({
+            ...current,
+            status: current.lastSyncedAt ? "stale" : "error",
+            lastErrorAt: Date.now(),
+          }));
+        }
       }
     }
 
     function scheduleRefresh() {
+      setSyncMeta((current) => ({
+        ...current,
+        lastEventAt: Date.now(),
+      }));
+
       if (scheduledRefreshId !== null) {
         return;
       }
@@ -104,6 +160,17 @@ export function useRoomRealtimeSnapshot(
     fallbackRefreshId = window.setInterval(() => {
       void refreshSnapshot();
     }, fallbackIntervalMs);
+
+    const isRealtimeAvailable = hasSupabaseBrowserEnv();
+    setSyncMeta((current) => ({
+      ...current,
+      isRealtimeAvailable,
+      status: isRealtimeAvailable
+        ? current.isRealtimeConnected
+          ? "live"
+          : "connecting"
+        : "polling",
+    }));
 
     if (hasSupabaseBrowserEnv()) {
       const supabase = getSupabaseBrowserClient();
@@ -143,7 +210,19 @@ export function useRoomRealtimeSnapshot(
               void refreshSnapshot(); // Broadcast sync triggers immediate fetch
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            if (!mounted) {
+              return;
+            }
+
+            setSyncMeta((current) => ({
+              ...current,
+              isRealtimeAvailable: true,
+              isRealtimeConnected: status === "SUBSCRIBED",
+              status: status === "SUBSCRIBED" ? "live" : current.lastSyncedAt ? "polling" : "connecting",
+              lastEventAt: status === "SUBSCRIBED" ? Date.now() : current.lastEventAt,
+            }));
+          });
 
         if (subscriptionKey.stageId) {
           stageChannel = supabase
@@ -170,7 +249,23 @@ export function useRoomRealtimeSnapshot(
                 void refreshSnapshot();
               }
             )
-            .subscribe();
+            .subscribe((status) => {
+              if (!mounted) {
+                return;
+              }
+
+              setSyncMeta((current) => ({
+                ...current,
+                isRealtimeAvailable: true,
+                isRealtimeConnected: status === "SUBSCRIBED" || current.isRealtimeConnected,
+                status: status === "SUBSCRIBED" || current.isRealtimeConnected
+                  ? "live"
+                  : current.lastSyncedAt
+                    ? "polling"
+                    : "connecting",
+                lastEventAt: status === "SUBSCRIBED" ? Date.now() : current.lastEventAt,
+              }));
+            });
         }
       }
     }
@@ -193,5 +288,5 @@ export function useRoomRealtimeSnapshot(
     };
   }, [fallbackIntervalMs, subscriptionKey.roomId, subscriptionKey.stageId]);
 
-  return [snapshot, setSnapshot];
+  return [snapshot, setSnapshot, syncMeta];
 }

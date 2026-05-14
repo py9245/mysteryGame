@@ -120,6 +120,7 @@ export function createInitialInvestigationLock(
 export interface CaseSummaryInput {
   title: string;
   publicDescription: string;
+  question?: string;
   imageUrl: string | null;
   truth: string;
   requiredKeywords: string[];
@@ -332,6 +333,7 @@ function buildStageView(
   const remainingSeconds = stage.endsAt
     ? Math.max(0, Math.ceil((Date.parse(stage.endsAt) - Date.now()) / 1000))
     : 0;
+  const shouldRevealResolution = stage.status === "ended" || stage.status === "revealed";
 
   return {
     stageId: stage.id,
@@ -344,6 +346,16 @@ function buildStageView(
       : redacted("stage_secret"),
     publicTitle: caseSummary?.title ?? "",
     publicDescription: caseSummary?.publicDescription ?? "",
+    question: caseSummary?.question ?? "사건의 전말을 추리해 정답을 제출하세요.",
+    requiredKeywordCount: caseSummary?.requiredKeywords.length ?? 0,
+    bonusKeywordCount: caseSummary?.bonusKeywords.length ?? 0,
+    caseResolution:
+      shouldRevealResolution && caseSummary
+        ? {
+            truth: caseSummary.truth,
+            acceptedAnswerSummary: caseSummary.acceptedAnswerSummary,
+          }
+        : null,
     imageUrl: caseSummary?.imageUrl ?? null,
     remainingSeconds,
     solvedPlayerIds: stage.solvedPlayerIds,
@@ -498,6 +510,7 @@ export function buildRoomSnapshot(
     activeLock: activeLockView,
     visibleHints: input.visibleHints,
     scores: scoreViews,
+    investigationHistory: [],
     privateChat: redacted("private_chat"),
     results:
       input.game?.status === "finished"

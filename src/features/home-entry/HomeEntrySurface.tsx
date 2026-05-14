@@ -473,6 +473,7 @@ export function HomeEntrySurface({
     if (!nextResult.ok) {
       setJoinResult(nextResult);
       setCreateResult(null);
+      await refreshRoomDirectory();
       throw new Error(nextResult.errorMessage ?? "방 입장에 실패했습니다.");
     }
 

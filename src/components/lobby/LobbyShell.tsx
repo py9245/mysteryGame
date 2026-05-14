@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ChatMessage } from "@/contracts/game";
 import type { RoomSnapshot } from "@/contracts/api";
 import type { LoadedChatMessages } from "@/features/chat-ui/chat-messages-loader";
+import type { RoomRealtimeSyncMeta } from "@/features/room-snapshot/use-room-realtime-snapshot";
 import { ChatRailClientShell } from "@/features/chat-ui/ChatRailClientShell";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
@@ -9,6 +10,7 @@ import { ReadyPanel } from "@/components/lobby/ReadyPanel";
 import { LeaveRoomButton } from "@/components/room/LeaveRoomButton";
 import { TeamAssignmentBoard } from "@/components/room/TeamAssignmentBoard";
 import { PlayerRoster } from "@/components/room/PlayerRoster";
+import { RealtimeStatusStrip } from "@/components/status/RealtimeStatusStrip";
 
 function getRoomStatusLabel(status: string) {
   switch (status) {
@@ -27,6 +29,7 @@ function getRoomStatusLabel(status: string) {
 
 export function LobbyShell({
   snapshot,
+  syncMeta,
   initialChatMessages,
   initialChatSource,
   chatEndpoint,
@@ -40,6 +43,7 @@ export function LobbyShell({
   onStartGame,
 }: {
   snapshot: RoomSnapshot;
+  syncMeta: RoomRealtimeSyncMeta;
   initialChatMessages: ChatMessage[];
   initialChatSource: LoadedChatMessages["source"];
   chatEndpoint: string;
@@ -160,6 +164,8 @@ export function LobbyShell({
           <RulebookLauncher label="룰북" compact scope="lobby" />
         </div>
       </section>
+
+      <RealtimeStatusStrip snapshot={snapshot} syncMeta={syncMeta} variant="lobby" />
 
       <section className="lobby-main-grid mt-lobby-grid">
         <div className="lobby-main-column">

@@ -163,10 +163,10 @@ export function PrivateChatBanner({
     !(cooldownSeconds && cooldownSeconds > 0);
 
   return (
-    <section className="panel panel-muted utility-card">
+    <section className="panel panel-muted utility-card private-chat-card">
       <div className="composer-header">
         <div>
-          <h3 className="panel-title">1:1 전화</h3>
+          <h3 className="panel-title private-chat-title">1:1 대화</h3>
         </div>
         <span className="status-badge" data-tone={statusTone}>
           {statusLabel}
@@ -253,21 +253,21 @@ export function PrivateChatBanner({
       <div className="utility-stack">
         <div className="composer-header">
           <div>
-            <h4 className="panel-title">신청 가능한 플레이어</h4>
+            <h4 className="panel-title private-chat-subtitle">신청 가능</h4>
           </div>
         </div>
         {requestablePlayers.length > 0 ? (
-          <ul className="utility-list">
+          <ul className="utility-list private-chat-request-list">
             {requestablePlayers.map((player) => (
-              <li className="utility-list-item" key={player.playerId}>
+              <li className="utility-list-item private-chat-request-item" key={player.playerId}>
                 <div>
-                  <strong>{player.nickname}</strong>
-                  <div className="utility-meta">
+                  <strong className="private-chat-player-name">{player.nickname}</strong>
+                  <div className="utility-meta private-chat-request-meta">
                     {resolveTeamLabel(snapshot, player.teamSlotId)} · {player.connectionStatus === "connected" ? "접속 중" : "이탈"}
                   </div>
-                  </div>
+                </div>
                 <button
-                  className="button-secondary button-compact"
+                  className="button-secondary button-compact private-chat-action-button"
                   type="button"
                   disabled={!canPlaceRequest}
                   onClick={() => onRequestPrivateChat?.(player.playerId)}

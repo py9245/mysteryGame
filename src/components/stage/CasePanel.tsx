@@ -2,13 +2,22 @@ import type { RoomSnapshot } from "@/contracts/api";
 
 export function CasePanel({ snapshot }: { snapshot: RoomSnapshot }) {
   const stage = snapshot.stage;
+  const requiredKeywordCount = stage?.requiredKeywordCount ?? 0;
+  const bonusKeywordCount = stage?.bonusKeywordCount ?? 0;
+
   return (
     <section className="case-summary-panel">
       <div className="case-summary-header">
-        <span className="status-badge" data-tone="live">
-          {stage?.stageNumber ? `S${stage.stageNumber}` : "대기"}
-        </span>
-        <h3 className="panel-title">사건 공개 정보</h3>
+        <div className="case-summary-header-main">
+          <span className="status-badge" data-tone="live">
+            {stage?.stageNumber ? `S${stage.stageNumber}` : "대기"}
+          </span>
+          <h3 className="panel-title">사건 공개 정보</h3>
+        </div>
+        <div className="case-keyword-counts" aria-label="정답 키워드 개수">
+          <span className="case-keyword-count" data-tone="required">필수 {requiredKeywordCount}개</span>
+          <span className="case-keyword-count" data-tone="bonus">추가 {bonusKeywordCount}개</span>
+        </div>
       </div>
       <div className="case-summary-body">
         <p className="case-summary-title">{stage?.publicTitle ?? "브리핑 대기"}</p>

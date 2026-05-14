@@ -47,5 +47,5 @@
   "reviewNotes": "수정 사항: 공개 설명에서 '교환된 듯한' 등의 확정적 표현을 완화해 공개만으로 정답이 바로 드러나지 않도록 조정함. truth에 '식중독으로 위장' 요소를 명시해 범인/방법/동기/위장 요소가 명확히 연결되도록 보강함. requiredKeywords에 '식중독 위장'을 추가해 위장 요소를 복원 가능한 최소 단위로 포함시킴. imagePrompt는 현장과 눈에 보이는 단서(이름표 봉투, 택배 점퍼 등)만 묘사하고 CCTV 화면이나 범인의 모습 등 스포일러 요소는 제외하도록 명확히 수정함. 힌트는 3개로 유지되며 약→중→강으로 점층하도록 배치됨.",
   "status": "approved",
   "version": "gms-1.0",
-  "imageUrl": "/generated-case-images/generated-1778481544760-aa53e4fc.png"
+  "imageUrl": "/case-images/generated-1778481544760-aa53e4fc.svg"
 }

@@ -13,8 +13,11 @@ type InvestigationChatItem = {
   content: string;
   response: string | null;
   tone: "positive" | "negative" | "note";
+  isPending: boolean;
   createdAt: number;
 };
+
+type InvestigationMode = "question" | "answer";
 
 export function GameplayInvestigationModal({
   snapshot,
@@ -29,6 +32,8 @@ export function GameplayInvestigationModal({
   onInvestigationDraftChange,
   investigationHistory = [],
   isDraftEditable = false,
+  investigationMode = "question",
+  onInvestigationModeChange,
 }: {
   snapshot: RoomSnapshot;
   isOpen: boolean;
@@ -60,14 +65,24 @@ export function GameplayInvestigationModal({
   onInvestigationDraftChange?: (value: string) => void;
   investigationHistory?: InvestigationChatItem[];
   isDraftEditable?: boolean;
+  investigationMode?: InvestigationMode;
+  onInvestigationModeChange?: (mode: InvestigationMode) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [investigationHistory, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && isDraftEditable) {
+      const id = window.setTimeout(() => textareaRef.current?.focus(), 60);
+      return () => window.clearTimeout(id);
+    }
+  }, [isOpen, isDraftEditable, investigationMode]);
 
   if (!isOpen) {
     return null;
@@ -77,7 +92,10 @@ export function GameplayInvestigationModal({
   const remainingSeconds = snapshot.stage?.investigation?.remainingSeconds ?? 0;
   const remainingQuestions = toCount(snapshot.stage?.investigation?.questionCountRemaining);
   const remainingAnswers = toCount(snapshot.stage?.investigation?.answerAttemptCountRemaining);
-  const canSend = isDraftEditable && investigationDraft.trim().length > 0 && !isAnySubmitting;
+  const isAnswerMode = investigationMode === "answer";
+  const canSend = isDraftEditable && investigationDraft.trim().length > 0 && !isAnySubmitting &&
+    (isAnswerMode ? remainingAnswers > 0 : remainingQuestions > 0);
+  const timerCritical = remainingSeconds <= 10;
 
   function handleSend() {
     if (!canSend) {
@@ -85,21 +103,30 @@ export function GameplayInvestigationModal({
     }
 
     const trimmed = investigationDraft.trim();
+
+    // Slash-command shortcuts still work
     if (trimmed.startsWith("/정답 ")) {
       onSubmitAnswer?.(trimmed.slice(4).trim());
       return;
     }
-
     if (trimmed.startsWith("/질문 ")) {
       onSubmitQuestion?.(trimmed.slice(4).trim());
       return;
     }
 
-    onSubmitQuestion?.(trimmed);
+    if (isAnswerMode) {
+      onSubmitAnswer?.(trimmed);
+    } else {
+      onSubmitQuestion?.(trimmed);
+    }
   }
 
+  const placeholder = isAnswerMode
+    ? "정답을 확정해서 입력하세요. (예: 범인은 조카이고 와인잔에 독을 넣었습니다)"
+    : "AI 수사관에게 예/아니오로 답할 수 있는 질문을 던지세요.";
+
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="modal-backdrop investigation-modal-backdrop" role="presentation" onClick={onClose}>
       <section
         className="modal-shell gameplay-investigation-modal gameplay-investigation-chat-modal"
         role="dialog"
@@ -108,52 +135,90 @@ export function GameplayInvestigationModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="gameplay-investigation-chat-header">
-          <div>
-            <p className="eyebrow">질문방</p>
+          <div className="gameplay-investigation-heading">
+            <p className="eyebrow">AI 수사관</p>
             <h2 className="gameplay-investigation-title" id="gameplay-investigation-title">
-              AI 수사관에게 묻기
+              질문방
             </h2>
           </div>
           <div className="gameplay-investigation-meter-strip" aria-label="질문방 남은 자원">
-            <span className="status-badge">시간 {remainingSeconds}s</span>
-            <span className="status-badge">질문 {remainingQuestions}</span>
-            <span className="status-badge">정답 {remainingAnswers}</span>
+            <span
+              className={`investigation-meter${timerCritical ? " is-critical" : ""}`}
+              data-meter="timer"
+            >
+              <span className="investigation-meter-label">시간</span>
+              <span className="investigation-meter-value">{remainingSeconds}s</span>
+            </span>
+            <span className="investigation-meter" data-meter="question">
+              <span className="investigation-meter-label">질문</span>
+              <span className="investigation-meter-value">{remainingQuestions}</span>
+            </span>
+            <span className="investigation-meter" data-meter="answer">
+              <span className="investigation-meter-label">정답</span>
+              <span className="investigation-meter-value">{remainingAnswers}</span>
+            </span>
           </div>
           <button
-            className="button-secondary"
+            className="button-secondary investigation-exit-button"
             type="button"
             onClick={onReleaseLock}
             disabled={!isDraftEditable || isAnySubmitting}
           >
-            질문방 나가기
+            나가기
           </button>
         </header>
 
         <div className="gameplay-investigation-chat-body" ref={scrollRef}>
           {investigationHistory.length === 0 ? (
             <div className="gameplay-investigation-empty">
-              <p className="message-note">입력하면 AI가 바로 응답합니다.</p>
-              <code>/질문 피해자는 독살인가요?</code>
-              <code>/정답 범인은 조카이고 와인잔에 독을 넣었습니다.</code>
+              <div className="investigation-empty-icon" aria-hidden="true">?</div>
+              <p className="investigation-empty-title">단서를 좁혀보세요</p>
+              <p className="investigation-empty-copy">
+                예/아니오로 답할 수 있는 질문을 던지거나, 확신이 들면 정답 모드로 추리를 제출하세요.
+              </p>
+              <div className="investigation-empty-examples">
+                <span className="investigation-empty-tag">질문</span>
+                <code>피해자는 독살인가요?</code>
+                <span className="investigation-empty-tag">정답</span>
+                <code>범인은 조카이고 와인잔에 독을 넣었습니다</code>
+              </div>
             </div>
           ) : (
             <ul className="gameplay-investigation-chat-list">
               {investigationHistory.map((item) => (
                 <li key={item.id} className="gameplay-investigation-chat-turn">
-                  <article className="chat-message chat-message-mine">
+                  <article className="chat-message chat-message-mine investigation-bubble-mine" data-kind={item.type}>
                     <div className="chat-message-top">
+                      <span className={`investigation-kind-tag investigation-kind-${item.type}`}>
+                        {item.type === "answer" ? "정답 제출" : "질문"}
+                      </span>
                       <strong className="chat-author">{snapshot.me.nickname}</strong>
-                      <span className="chat-meta">{item.type === "answer" ? "정답" : "질문"}</span>
                     </div>
                     <p>{item.content}</p>
                   </article>
-                  {item.response ? (
-                    <article className="chat-message chat-message-system">
+                  {item.isPending ? (
+                    <article className="chat-message chat-message-system investigation-bubble-ai is-pending">
                       <div className="chat-message-top">
                         <strong className="chat-author">AI 수사관</strong>
-                        <span className="chat-meta">응답</span>
+                        <span className="chat-meta">분석 중</span>
                       </div>
-                      <p className={`message-${item.tone}`}>{item.response}</p>
+                      <div className="investigation-typing" aria-label="AI 수사관이 분석 중입니다">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </article>
+                  ) : item.response ? (
+                    <article
+                      className={`chat-message chat-message-system investigation-bubble-ai is-${item.tone}`}
+                    >
+                      <div className="chat-message-top">
+                        <strong className="chat-author">AI 수사관</strong>
+                        <span className="chat-meta">
+                          {item.type === "answer" ? "정답 판정" : "응답"}
+                        </span>
+                      </div>
+                      <p className="investigation-bubble-response">{item.response}</p>
                     </article>
                   ) : null}
                 </li>
@@ -163,23 +228,59 @@ export function GameplayInvestigationModal({
         </div>
 
         <footer className="gameplay-investigation-chat-composer">
-          <textarea
-            className="text-area gameplay-investigation-chat-input"
-            rows={2}
-            placeholder="/질문 ... 또는 /정답 ..."
-            value={investigationDraft}
-            onChange={(event) => onInvestigationDraftChange?.(event.target.value)}
-            readOnly={!isDraftEditable || isAnySubmitting}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <button className="button-primary" type="button" onClick={handleSend} disabled={!canSend}>
-            {isAnySubmitting ? "응답 대기..." : "전송"}
-          </button>
+          <div
+            className="investigation-mode-switch"
+            role="tablist"
+            aria-label="질문방 모드"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isAnswerMode}
+              className={!isAnswerMode ? "is-active" : ""}
+              onClick={() => onInvestigationModeChange?.("question")}
+              disabled={isAnySubmitting}
+            >
+              <span className="investigation-mode-label">질문</span>
+              <span className="investigation-mode-count">{remainingQuestions}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isAnswerMode}
+              className={isAnswerMode ? "is-active" : ""}
+              onClick={() => onInvestigationModeChange?.("answer")}
+              disabled={isAnySubmitting}
+            >
+              <span className="investigation-mode-label">정답</span>
+              <span className="investigation-mode-count">{remainingAnswers}</span>
+            </button>
+          </div>
+          <div className="investigation-composer-input">
+            <textarea
+              ref={textareaRef}
+              className="text-area gameplay-investigation-chat-input"
+              rows={2}
+              placeholder={placeholder}
+              value={investigationDraft}
+              onChange={(event) => onInvestigationDraftChange?.(event.target.value)}
+              readOnly={!isDraftEditable || isAnySubmitting}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            <button
+              className={`button-primary investigation-send-button${isAnswerMode ? " is-answer" : ""}`}
+              type="button"
+              onClick={handleSend}
+              disabled={!canSend}
+            >
+              {isAnySubmitting ? "전송 중" : isAnswerMode ? "정답 제출" : "질문 보내기"}
+            </button>
+          </div>
         </footer>
       </section>
     </div>

@@ -38,6 +38,8 @@ export function RoomPresenceClient({
       }
     }
 
+    void ping();
+
     const intervalId = window.setInterval(() => {
       if (!stopped) {
         void ping();

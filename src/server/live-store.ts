@@ -337,7 +337,7 @@ const DEFAULT_STAGE_DURATION_SECONDS = 15 * 60;
 const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
 const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
 const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
-const ROOM_PRESENCE_TTL_SECONDS = 15;
+const ROOM_PRESENCE_TTL_SECONDS = 60;
 const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
 const PRACTICE_GENERATED_CASE_PREFIX = "practice-generated-";
 const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
@@ -382,6 +382,11 @@ const CASE_DIVERSITY_AXES = [
 type CaseSummary = {
   title: string;
   publicDescription: string;
+  question: string;
+  requiredKeywordCount: number;
+  bonusKeywordCount: number;
+  truth: string;
+  acceptedAnswerSummary: string;
   imageUrl: string | null;
 };
 
@@ -1565,6 +1570,8 @@ function buildRoomSnapshot({
   const teamSlotContracts = teamSlots.map(toTeamSlot);
   const activeStage =
     currentStage && currentStage.status !== "pending" ? currentStage : null;
+  const shouldRevealStageResolution =
+    activeStage?.status === "ended" || activeStage?.status === "revealed";
   const scoresPublic = game?.status === "finished" || activeStage?.status === "revealed";
   const { snapshots: scoreSnapshots, byPlayerId: scoreSnapshotByPlayerId } = buildScoreLedger(
     players,
@@ -1660,6 +1667,16 @@ function buildRoomSnapshot({
           publicTitle: caseSummary?.title ?? `스테이지 ${activeStage.stage_number}`,
           publicDescription:
             caseSummary?.publicDescription ?? `${activeStage.case_key} 사건 브리핑이 준비되었습니다.`,
+          question: caseSummary?.question ?? "사건의 전말을 추리해 정답을 제출하세요.",
+          requiredKeywordCount: caseSummary?.requiredKeywordCount ?? 0,
+          bonusKeywordCount: caseSummary?.bonusKeywordCount ?? 0,
+          caseResolution:
+            shouldRevealStageResolution && caseSummary
+              ? {
+                  truth: caseSummary.truth,
+                  acceptedAnswerSummary: caseSummary.acceptedAnswerSummary,
+                }
+              : null,
           imageUrl: caseSummary?.imageUrl ?? null,
           remainingSeconds:
             activeStage.status === "briefing"
@@ -1828,6 +1845,7 @@ function buildRoomSnapshot({
           : REDACTED_OTHER_PLAYER,
       visibility: score.playerId === viewer.id ? "self" : scoresPublic ? "public" : "redacted",
     })),
+    investigationHistory: [],
     privateChat: privateChatView,
     results: resultsView,
   };
@@ -1865,10 +1883,16 @@ async function loadLobbyState(roomId: string): Promise<{
   privateChatSessions: DbPrivateChatSessionRow[];
 }> {
   const supabase = getSupabaseAdminClient();
-  const [{ data: room, error: roomError }, { data: game, error: gameError }, { data: players, error: playersError }, { data: teamSlots, error: teamSlotsError }, { data: scoreEvents, error: scoreEventsError }] =
+  const [{ data: room, error: roomError }, { data: games, error: gameError }, { data: players, error: playersError }, { data: teamSlots, error: teamSlotsError }, { data: scoreEvents, error: scoreEventsError }] =
     await Promise.all([
-      supabase.from("rooms").select("*").eq("id", roomId).single<DbRoomRow>(),
-      supabase.from("games").select("*").eq("room_id", roomId).maybeSingle<DbGameRow>(),
+      supabase.from("rooms").select("*").eq("id", roomId).maybeSingle<DbRoomRow>(),
+      supabase
+        .from("games")
+        .select("*")
+        .eq("room_id", roomId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .returns<DbGameRow[]>(),
       supabase.from("players").select("*").eq("room_id", roomId).order("joined_at", { ascending: true }).returns<DbPlayerRow[]>(),
       supabase.from("team_slots").select("*").eq("room_id", roomId).order("created_at", { ascending: true }).returns<DbTeamSlotRow[]>(),
       supabase.from("score_events").select("*").eq("room_id", roomId).order("created_at", { ascending: true }).returns<DbScoreEventRow[]>(),
@@ -1876,6 +1900,9 @@ async function loadLobbyState(roomId: string): Promise<{
 
   if (roomError) {
     throw new Error(`Failed to load room state: ${roomError.message}`);
+  }
+  if (!room) {
+    throw new Error("Room state not found.");
   }
   if (gameError) {
     throw new Error(`Failed to load game state: ${gameError.message}`);
@@ -1898,19 +1925,23 @@ async function loadLobbyState(roomId: string): Promise<{
   let privateChatRequests: DbPrivateChatRequestRow[] = [];
   let privateChatSessions: DbPrivateChatSessionRow[] = [];
 
+  const game = games?.[0] ?? null;
+
   if (game?.id) {
-    const { data: stage, error: stageError } = await supabase
+    const { data: stages, error: stageError } = await supabase
       .from("stages")
       .select("*")
       .eq("game_id", game.id)
       .eq("stage_number", game.current_stage_number)
-      .maybeSingle<DbStageRow>();
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .returns<DbStageRow[]>();
 
     if (stageError) {
       throw new Error(`Failed to load current stage: ${stageError.message}`);
     }
 
-    currentStage = stage ?? null;
+    currentStage = stages?.[0] ?? null;
 
     if (currentStage) {
       const { data: assignments, error: assignmentsError } = await supabase
@@ -1928,7 +1959,7 @@ async function loadLobbyState(roomId: string): Promise<{
 
       const [
         { data: loadedPlayerStates, error: playerStatesError },
-        { data: lock, error: lockError },
+        { data: lockRows, error: lockError },
         { data: hintRows, error: hintsError },
         { data: requestRows, error: requestsError },
         { data: sessionRows, error: sessionsError },
@@ -1942,7 +1973,9 @@ async function loadLobbyState(roomId: string): Promise<{
           .from("investigation_locks")
           .select("*")
           .eq("stage_id", currentStage.id)
-          .maybeSingle<DbInvestigationLockRow>(),
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .returns<DbInvestigationLockRow[]>(),
         supabase
           .from("hint_reveals")
           .select("*")
@@ -1984,7 +2017,7 @@ async function loadLobbyState(roomId: string): Promise<{
       }
 
       playerStates = loadedPlayerStates ?? [];
-      activeLock = lock ?? null;
+      activeLock = lockRows?.[0] ?? null;
       visibleHints = hintRows ?? [];
       privateChatRequests = requestRows ?? [];
       privateChatSessions = sessionRows ?? [];
@@ -2567,6 +2600,24 @@ async function loadLocalCaseFile(caseKey: string): Promise<CaseFile | null> {
   return null;
 }
 
+async function loadCaseSummary(caseKey: string): Promise<CaseSummary | null> {
+  const caseFile = await loadCaseFile(caseKey);
+  if (!caseFile) {
+    return null;
+  }
+
+  return {
+    title: caseFile.title,
+    publicDescription: caseFile.publicDescription,
+    question: caseFile.question,
+    requiredKeywordCount: caseFile.requiredKeywords.length,
+    bonusKeywordCount: caseFile.bonusKeywords.length,
+    truth: caseFile.truth,
+    acceptedAnswerSummary: caseFile.acceptedAnswerSummary,
+    imageUrl: caseFile.imageUrl,
+  };
+}
+
 async function loadCaseFile(caseKey: string): Promise<CaseFile | null> {
   if (isPracticeGeneratedCaseKey(caseKey)) {
     return loadPracticeGeneratedCaseFile(caseKey);
@@ -2627,28 +2678,34 @@ async function loadPracticeGeneratedCaseFile(caseKey: string): Promise<CaseFile 
 }
 
 function buildPracticeImageFallbackDataUrl(title: string, description: string): string {
-  const safeTitle = title.replace(/[<&>"]/g, "");
-  const safeDescription = description.replace(/[<&>"]/g, "");
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
       <defs>
         <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="#09090b" />
-          <stop offset="55%" stop-color="#18181b" />
-          <stop offset="100%" stop-color="#27272a" />
+          <stop offset="0%" stop-color="#07080d" />
+          <stop offset="55%" stop-color="#15151a" />
+          <stop offset="100%" stop-color="#241815" />
         </linearGradient>
+        <radialGradient id="lamp" cx="70%" cy="18%" r="45%">
+          <stop offset="0%" stop-color="#f8d06c" stop-opacity="0.24" />
+          <stop offset="100%" stop-color="#f8d06c" stop-opacity="0" />
+        </radialGradient>
       </defs>
       <rect width="1024" height="1024" fill="url(#bg)" />
-      <circle cx="788" cy="212" r="132" fill="#b91c1c" opacity="0.18" />
-      <circle cx="240" cy="792" r="160" fill="#f59e0b" opacity="0.14" />
+      <rect width="1024" height="1024" fill="url(#lamp)" />
+      <rect x="96" y="154" width="832" height="548" rx="28" fill="#111217" stroke="#f8d06c" stroke-opacity="0.16" />
+      <rect x="160" y="500" width="704" height="258" rx="18" fill="#2c201b" />
+      <rect x="212" y="552" width="188" height="124" rx="16" fill="#49312a" opacity="0.88" />
+      <rect x="430" y="552" width="164" height="124" rx="16" fill="#3a2826" opacity="0.9" />
+      <rect x="620" y="552" width="172" height="124" rx="16" fill="#51342b" opacity="0.85" />
+      <circle cx="720" cy="440" r="76" fill="#7f2f2c" opacity="0.56" />
+      <rect x="646" y="376" width="212" height="108" rx="22" fill="#18212b" opacity="0.86" />
+      <path d="M680 450 752 378 828 448" fill="none" stroke="#9eb8dc" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="270" y="268" width="150" height="106" rx="12" fill="#f3dfbd" opacity="0.82" />
+      <rect x="440" y="252" width="180" height="122" rx="14" fill="#d8b985" opacity="0.78" />
+      <rect x="638" y="280" width="132" height="94" rx="12" fill="#e8cf9e" opacity="0.72" />
+      <path d="M248 804c138-42 338-40 528 4" fill="none" stroke="#f8d06c" stroke-opacity="0.18" stroke-width="4" />
       <rect x="92" y="92" width="840" height="840" rx="44" fill="none" stroke="#f4f4f5" stroke-opacity="0.12" stroke-width="2" />
-      <text x="112" y="208" fill="#f4f4f5" font-size="54" font-family="Arial, sans-serif" font-weight="700">${safeTitle}</text>
-      <foreignObject x="112" y="272" width="800" height="520">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d4d4d8;font-size:31px;line-height:1.55;font-family:Arial,sans-serif;">
-          ${safeDescription}
-        </div>
-      </foreignObject>
-      <text x="112" y="902" fill="#f59e0b" font-size="24" font-family="Arial, sans-serif">Practice case fallback visual</text>
     </svg>
   `.trim();
 
@@ -2831,7 +2888,7 @@ async function generatePracticeCaseFile(
             }))
         : fallbackCase.hints;
 
-    const imagePrompt =
+    const rawImagePrompt =
       typeof parsed.imagePrompt === "string" && parsed.imagePrompt.trim().length > 0
         ? parsed.imagePrompt.trim()
         : buildCatalogImagePrompt({
@@ -2839,6 +2896,11 @@ async function generatePracticeCaseFile(
             publicDescription,
             visibleClues: hints.map((hint) => hint.publicText),
           });
+    const imagePrompt = buildStrictCatalogImagePrompt(rawImagePrompt, {
+      title,
+      publicDescription,
+      visibleClues: hints.map((hint) => hint.publicText),
+    });
 
     let imageUrl: string | null = null;
 
@@ -3154,13 +3216,40 @@ function buildCatalogImagePrompt(input: {
 }): string {
   const clueText = input.visibleClues.slice(0, 3).join(", ");
   return [
-    "High-quality cinematic Korean mystery webgame key visual, single coherent scene, no text, no letters, no UI, no split panels, no suspect portrait montage.",
+    "High-quality cinematic Korean mystery webgame key visual, single coherent aftermath scene, wide landscape composition inside a square canvas, no text, no letters, no numbers, no UI, no split panels, no suspect portrait montage.",
     `Scene title: ${input.title}.`,
     `Aftermath scene visible to players: ${input.publicDescription}`,
     `Place 2-3 spoiler-safe clue props clearly in the environment: ${clueText}.`,
     "Use realistic Korean locations and props, tense stillness, readable composition, cinematic lens, grounded dramatic lighting, subtle evidence emphasis.",
-    "Do not depict the killer, the exact murder act, supernatural elements, gore, labels, captions, or solution-revealing symbols.",
+    "Strictly avoid readable text of any kind: no Korean, English, letters, numbers, names, logos, captions, signs, labels, documents, UI, watermarks, or title cards.",
+    "If a clue would normally have a label, name tag, note, receipt, phone screen, document, or sign, show it as blank paper, an unreadable blur, a color mark, a folded shape, or a barcode-like abstract block with no legible characters.",
+    "Do not depict the killer, the exact murder act, supernatural elements, gore, captions, or solution-revealing symbols.",
     input.sceneStyle ?? "Moody detective drama still frame, high detail, sharp composition, realistic proportions, clue-centered foreground and atmospheric background.",
+  ].join(" ");
+}
+
+function buildStrictCatalogImagePrompt(
+  rawPrompt: string,
+  input: {
+    title: string;
+    publicDescription: string;
+    visibleClues: string[];
+  },
+): string {
+  const basePrompt =
+    rawPrompt.trim().length > 0
+      ? rawPrompt.trim()
+      : buildCatalogImagePrompt(input);
+
+  return [
+    "Create a polished, text-free, cinematic case-scene image for a Korean mystery webgame.",
+    `Case title for context only, do not render as text: ${input.title}.`,
+    `Public scene context: ${input.publicDescription}`,
+    `Core visual brief: ${basePrompt}`,
+    "Composition: one coherent aftermath scene, wide horizontal framing, clear foreground clue props, no split panels, no poster layout, no UI mockup.",
+    "Absolute negative constraints: no readable text, no fake Korean, no fake English, no letters, no numbers, no name tags, no labels, no signs, no documents with visible writing, no logos, no watermarks.",
+    "Represent any label/note/document as blank, blurred, folded, partially hidden, or purely color-coded so there are zero legible characters.",
+    "Do not reveal the culprit, murder act, final solution, explicit gore, or supernatural elements.",
   ].join(" ");
 }
 
@@ -3304,7 +3393,7 @@ async function generateCatalogCaseDefinition(input: {
     typeof validated.reviewNotes === "string" && validated.reviewNotes.trim().length > 0
       ? validated.reviewNotes.trim()
       : "레퍼런스 패턴을 반영해 검수한 자동 생성 사건";
-  const imagePrompt =
+  const rawImagePrompt =
     typeof validated.imagePrompt === "string" && validated.imagePrompt.trim().length > 0
       ? validated.imagePrompt.trim()
       : buildCatalogImagePrompt({
@@ -3312,6 +3401,11 @@ async function generateCatalogCaseDefinition(input: {
           publicDescription,
           visibleClues: hints.map((hint) => hint.publicText),
         });
+  const imagePrompt = buildStrictCatalogImagePrompt(rawImagePrompt, {
+    title,
+    publicDescription,
+    visibleClues: hints.map((hint) => hint.publicText),
+  });
 
   if (requiredKeywords.length < 4 || hints.length !== 3) {
     throw new Error("Generated case quality validation failed.");
@@ -3350,7 +3444,11 @@ async function generateCatalogCaseAsset(input: {
     publicDescription: definition.caseFile.publicDescription,
     visibleClues: definition.caseFile.hints.map((hint) => hint.publicText),
   });
-  const resolvedPrompt = definition.imagePrompt || fallbackPrompt;
+  const resolvedPrompt = buildStrictCatalogImagePrompt(definition.imagePrompt || fallbackPrompt, {
+    title: definition.caseFile.title,
+    publicDescription: definition.caseFile.publicDescription,
+    visibleClues: definition.caseFile.hints.map((hint) => hint.publicText),
+  });
 
   let imageDataUrl: string | null = null;
   try {
@@ -3950,6 +4048,13 @@ export async function joinRoomInStore(
       );
     }
 
+    if (playerError?.code === "23503" || playerError?.message.includes("players_room_id_fkey")) {
+      throw new RoomJoinError(
+        "ROOM_NOT_FOUND",
+        "방이 닫혔거나 정리되어 더 이상 입장할 수 없습니다. 방 목록을 새로고침해 주세요.",
+      );
+    }
+
     throw new Error(`Failed to create joined player: ${playerError?.message ?? "unknown error"}`);
   }
 
@@ -3972,6 +4077,8 @@ export async function joinRoomInStore(
 
   const state = await loadLobbyState(room.id);
   const caseSummary = state.currentStage ? await loadCaseSummary(state.currentStage.case_key) : null;
+
+  await broadcastSync(room.id);
 
   return {
     roomId: room.id,
@@ -4572,6 +4679,10 @@ async function cleanupStalePlayersInRoom(room: DbRoomRow, excludePlayerId?: stri
     changed = true;
   }
 
+  if (changed) {
+    await broadcastSync(room.id);
+  }
+
   return changed;
 }
 
@@ -4659,6 +4770,10 @@ export async function leaveRoomInStore(
       "ROOM_LEAVE_FAILED",
       error instanceof Error ? error.message : "방에서 나가지 못했습니다.",
     );
+  }
+
+  if (!leaveResult.roomDeleted) {
+    await broadcastSync(room.id);
   }
 
   return {

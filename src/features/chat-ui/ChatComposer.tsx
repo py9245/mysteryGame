@@ -100,6 +100,20 @@ export function ChatComposer({
     setIsSubmitting(false);
   }
 
+  function handleTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!canSubmit) {
+      return;
+    }
+
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return (
     <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
       <h4>{heading}</h4>
@@ -130,6 +144,7 @@ export function ChatComposer({
             rows={compact ? 2 : 3}
             value={content}
             onChange={(event) => setContent(event.target.value)}
+            onKeyDown={handleTextareaKeyDown}
             placeholder={resolvedPlaceholder}
           />
         </div>

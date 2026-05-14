@@ -118,6 +118,11 @@ export interface InvestigationLockView {
   visibility: VisibilityScope;
 }
 
+export interface StageCaseResolutionView {
+  truth: string;
+  acceptedAnswerSummary: string;
+}
+
 export interface StageView {
   stageId: EntityId;
   gameId: EntityId;
@@ -127,6 +132,10 @@ export interface StageView {
   caseKey: string | RedactedValue;
   publicTitle: string;
   publicDescription: string;
+  question: string;
+  requiredKeywordCount: number;
+  bonusKeywordCount: number;
+  caseResolution: StageCaseResolutionView | null;
   imageUrl: string | null;
   remainingSeconds: number;
   solvedPlayerIds: EntityId[];

@@ -95,6 +95,7 @@ export function ChatRailClientShell({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [submittedPreview, setSubmittedPreview] = useState<SubmittedChatPreview | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [activeSupportChannel, setActiveSupportChannel] = useState<"team" | "private">("team");
   const visibleMessages = useMemo(() => {
     const merged = mergeMessagesWithSubmittedPreview(messages, submittedPreview);
 
@@ -135,6 +136,15 @@ export function ChatRailClientShell({
         : "불러오는 중"
       : "불러오지 못함";
   const isLobby = variant === "lobby";
+  const activeSupportMessages = activeSupportChannel === "team" ? teamMessages : privateMessages;
+  const activeSupportTitle =
+    activeSupportChannel === "team" ? `${myTeamLabel ?? "미배정"} 팀 채팅` : "1:1 대화";
+  const activeSupportEmptyMessage =
+    activeSupportChannel === "team"
+      ? "아직 팀 채팅이 없습니다."
+      : canUsePrivateChat
+        ? "아직 1:1 대화가 없습니다."
+        : "아직 연결된 1:1 대화가 없습니다.";
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -206,55 +216,98 @@ export function ChatRailClientShell({
           forcedChannel="global"
           title="전체 채팅 보내기"
           description=""
-          submitLabel="전체 전송"
+          submitLabel="전송"
         />
       </section>
 
-      <section className="chat-secondary-grid gameplay-chat-bottom-grid">
-        <section className="chat-section chat-support-panel">
-          <div className="composer-header">
-            <div>
-              <h4>{myTeamLabel ?? "미배정"} 팀 채팅</h4>
+      {isLobby ? (
+        <section className="chat-secondary-grid gameplay-chat-bottom-grid">
+          <section className="chat-section chat-support-panel">
+            <div className="composer-header">
+              <div>
+                <h4>{myTeamLabel ?? "미배정"} 팀 채팅</h4>
+              </div>
+              <span className="status-badge">팀</span>
             </div>
-            <span className="status-badge">팀</span>
+            <ChatMessageList emptyMessage="아직 팀 채팅이 없습니다." messages={teamMessages} />
+            <ChatComposer
+              snapshot={snapshot}
+              onSubmittedPreview={setSubmittedPreview}
+              compact
+              forcedChannel="team"
+              title="팀 채팅 보내기"
+              description=""
+              submitLabel="전송"
+              disabled={!snapshot.me.teamSlotId}
+              disabledMessage="팀이 배정되면 팀 채팅 입력이 열립니다."
+            />
+          </section>
+          <section className="chat-section chat-support-panel">
+            <div className="composer-header">
+              <div>
+                <h4>1:1 대화</h4>
+              </div>
+              <span className="status-badge">{canUsePrivateChat ? "연결됨" : "미연결"}</span>
+            </div>
+            <ChatMessageList
+              emptyMessage={canUsePrivateChat ? "아직 1:1 대화가 없습니다." : "아직 연결된 1:1 대화가 없습니다."}
+              messages={privateMessages}
+            />
+            <ChatComposer
+              snapshot={snapshot}
+              onSubmittedPreview={setSubmittedPreview}
+              compact
+              forcedChannel="private"
+              title="1:1 대화 보내기"
+              description=""
+              submitLabel="전송"
+              disabled={!canUsePrivateChat}
+              disabledMessage="1:1 대화가 연결되면 이 입력창이 열립니다."
+            />
+          </section>
+        </section>
+      ) : (
+        <section className="chat-section chat-support-panel gameplay-chat-support-tabs">
+          <div className="chat-support-header">
+            <div className="tab-row chat-channel-tabs" aria-label="보조 채팅 채널">
+              <button
+                className={activeSupportChannel === "team" ? "tab-button is-active" : "tab-button"}
+                type="button"
+                onClick={() => setActiveSupportChannel("team")}
+              >
+                팀
+              </button>
+              <button
+                className={activeSupportChannel === "private" ? "tab-button is-active" : "tab-button"}
+                type="button"
+                onClick={() => setActiveSupportChannel("private")}
+              >
+                1:1
+              </button>
+            </div>
+            <span className="status-badge">
+              {activeSupportChannel === "team" ? myTeamLabel ?? "미배정" : canUsePrivateChat ? "연결됨" : "미연결"}
+            </span>
           </div>
-          <ChatMessageList emptyMessage="아직 팀 채팅이 없습니다." messages={teamMessages} />
+          <h4>{activeSupportTitle}</h4>
+          <ChatMessageList emptyMessage={activeSupportEmptyMessage} messages={activeSupportMessages} />
           <ChatComposer
             snapshot={snapshot}
             onSubmittedPreview={setSubmittedPreview}
             compact
-            forcedChannel="team"
-            title="팀 채팅 보내기"
+            forcedChannel={activeSupportChannel}
+            title={activeSupportChannel === "team" ? "팀 채팅" : "1:1 대화"}
             description=""
-            submitLabel="팀 채팅 전송"
-            disabled={!snapshot.me.teamSlotId}
-            disabledMessage="팀이 배정되면 팀 채팅 입력이 열립니다."
+            submitLabel="전송"
+            disabled={activeSupportChannel === "team" ? !snapshot.me.teamSlotId : !canUsePrivateChat}
+            disabledMessage={
+              activeSupportChannel === "team"
+                ? "팀이 배정되면 팀 채팅 입력이 열립니다."
+                : "1:1 대화가 연결되면 이 입력창이 열립니다."
+            }
           />
         </section>
-        <section className="chat-section chat-support-panel">
-          <div className="composer-header">
-            <div>
-              <h4>1:1 대화</h4>
-            </div>
-            <span className="status-badge">{canUsePrivateChat ? "연결됨" : "미연결"}</span>
-          </div>
-          <ChatMessageList
-            emptyMessage={canUsePrivateChat ? "아직 1:1 대화가 없습니다." : "아직 연결된 1:1 대화가 없습니다."}
-            messages={privateMessages}
-          />
-          <ChatComposer
-            snapshot={snapshot}
-            onSubmittedPreview={setSubmittedPreview}
-            compact
-            forcedChannel="private"
-            title="1:1 대화 보내기"
-            description=""
-            submitLabel="1:1 전송"
-            disabled={!canUsePrivateChat}
-            disabledMessage="1:1 대화가 연결되면 이 입력창이 열립니다."
-          />
-        </section>
-      </section>
+      )}
     </aside>
   );
 }

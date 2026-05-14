@@ -12,6 +12,7 @@ import {
   submitStartStage,
 } from "@/features/lobby/host-stage-command";
 import { submitSetReady } from "@/features/lobby/set-ready-command";
+import { RoomPresenceClient } from "@/components/room/RoomPresenceClient";
 import { LobbyShell } from "./LobbyShell";
 
 const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
@@ -34,7 +35,7 @@ export function LobbyClientShell({
   chatEndpoint: string;
 }) {
   const router = useRouter();
-  const [snapshot, setSnapshot] = useRoomRealtimeSnapshot(initialSnapshot, {
+  const [snapshot, setSnapshot, syncMeta] = useRoomRealtimeSnapshot(initialSnapshot, {
     fallbackIntervalMs: 24_000,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -182,23 +183,30 @@ export function LobbyClientShell({
   }
 
   return (
-    <LobbyShell
-      snapshot={snapshot}
-      initialChatMessages={initialChatMessages}
-      initialChatSource={initialChatSource}
-      chatEndpoint={chatEndpoint}
-      isSubmitting={isSubmitting}
-      isHostActionSubmitting={isHostActionSubmitting}
-      errorMessage={errorMessage}
-      statusMessage={statusMessage}
-      practiceLoadingMessage={
-        practiceLoadingStepIndex !== null ? PRACTICE_LOADING_STEPS[practiceLoadingStepIndex]?.message ?? null : null
-      }
-      practiceLoadingDetail={
-        practiceLoadingStepIndex !== null ? PRACTICE_LOADING_STEPS[practiceLoadingStepIndex]?.detail ?? null : null
-      }
-      onToggleReady={handleToggleReady}
-      onStartGame={handleStartGame}
-    />
+    <>
+      <RoomPresenceClient
+        roomId={snapshot.room.id}
+        playerId={snapshot.me.playerId}
+      />
+      <LobbyShell
+        snapshot={snapshot}
+        syncMeta={syncMeta}
+        initialChatMessages={initialChatMessages}
+        initialChatSource={initialChatSource}
+        chatEndpoint={chatEndpoint}
+        isSubmitting={isSubmitting}
+        isHostActionSubmitting={isHostActionSubmitting}
+        errorMessage={errorMessage}
+        statusMessage={statusMessage}
+        practiceLoadingMessage={
+          practiceLoadingStepIndex !== null ? PRACTICE_LOADING_STEPS[practiceLoadingStepIndex]?.message ?? null : null
+        }
+        practiceLoadingDetail={
+          practiceLoadingStepIndex !== null ? PRACTICE_LOADING_STEPS[practiceLoadingStepIndex]?.detail ?? null : null
+        }
+        onToggleReady={handleToggleReady}
+        onStartGame={handleStartGame}
+      />
+    </>
   );
 }
