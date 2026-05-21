@@ -55,11 +55,23 @@ import type {
 import type {
   AnswerJudgementRequest,
   AnswerJudgementResponse,
+  JudgementOverrideRecord,
   JudgementRecordKind,
+  JudgementReviewStatus,
   JudgementStorageEnvelope,
   QuestionJudgementRequest,
   QuestionJudgementResponse,
 } from "@/contracts/judgement";
+import type {
+  AdminLogActorType,
+  AdminLogEntry,
+  AdminOperatorOverrideRequest,
+  AdminOperatorOverrideResponse,
+  AdminReviewQueueDetail,
+  AdminReviewQueueListItem,
+  AdminReviewQueueListResponse,
+  AdminLogListResponse,
+} from "@/contracts/admin";
 import type {
   RedactedValue,
   RoomViewSnapshot,
@@ -8379,5 +8391,595 @@ export async function listRoomDirectoryFromStore(input: {
     sort: input.sort ?? "newest",
     search: search.length > 0 ? search : null,
     rooms,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Operator override / admin audit helpers
+// ---------------------------------------------------------------------------
+
+type DbJudgementRecordRow = {
+  id: string;
+  room_id: string;
+  game_id: string | null;
+  stage_id: string;
+  player_id: string;
+  kind: JudgementRecordKind;
+  case_id: string;
+  stage_number: number;
+  request: Record<string, unknown>;
+  response: Record<string, unknown>;
+  public_outcome: string;
+  public_summary: string;
+  internal_payload: Record<string, unknown>;
+  manual_review_required: boolean;
+  needs_operator_override: boolean;
+  persistence_state: "stored" | "queued_for_review" | "reviewed" | "overridden";
+  created_at: string;
+  updated_at: string;
+};
+
+type DbJudgementReviewQueueRow = {
+  review_id: string;
+  judgement_id: string;
+  room_id: string;
+  stage_id: string;
+  player_id: string;
+  kind: JudgementRecordKind;
+  public_outcome: string;
+  review_status: JudgementReviewStatus;
+  review_summary: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DbJudgementOverrideRow = {
+  id: string;
+  review_id: string;
+  judgement_id: string;
+  room_id: string;
+  stage_id: string;
+  operator_id: string;
+  previous_public_outcome: string;
+  new_public_outcome: string;
+  override_reason: string;
+  applied_by: "ai" | "operator";
+  created_at: string;
+};
+
+export class OperatorOverrideError extends Error {
+  constructor(
+    public readonly code:
+      | "REVIEW_NOT_FOUND"
+      | "JUDGEMENT_NOT_FOUND"
+      | "OPERATOR_NOT_FOUND"
+      | "OPERATOR_FORBIDDEN"
+      | "REVIEW_ALREADY_RESOLVED"
+      | "INVALID_OUTCOME"
+      | "OVERRIDE_PERSISTENCE_FAILED",
+    message: string,
+  ) {
+    super(message);
+    this.name = "OperatorOverrideError";
+  }
+}
+
+function toAdminReviewQueueListItem(
+  row: DbJudgementReviewQueueRow,
+  record: DbJudgementRecordRow | null,
+): AdminReviewQueueListItem {
+  return {
+    reviewId: row.review_id,
+    judgementId: row.judgement_id,
+    roomId: row.room_id,
+    stageId: row.stage_id,
+    playerId: row.player_id,
+    kind: row.kind,
+    publicOutcome: row.public_outcome,
+    reviewStatus: row.review_status,
+    reviewSummary: row.review_summary,
+    reviewedBy: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    needsOperatorOverride: record?.needs_operator_override ?? false,
+    caseId: record?.case_id ?? "",
+    stageNumber: record?.stage_number ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toAdminOverrideRecord(row: DbJudgementOverrideRow): JudgementOverrideRecord {
+  return {
+    id: row.id,
+    reviewId: row.review_id,
+    judgementId: row.judgement_id,
+    roomId: row.room_id,
+    stageId: row.stage_id,
+    operatorId: row.operator_id,
+    previousPublicOutcome: row.previous_public_outcome,
+    newPublicOutcome: row.new_public_outcome,
+    overrideReason: row.override_reason,
+    appliedBy: row.applied_by,
+    createdAt: row.created_at,
+  };
+}
+
+function toAdminLogEntry(row: DbAdminLogRow): AdminLogEntry {
+  const actorType: AdminLogActorType =
+    row.actor_type === "operator" || row.actor_type === "system" || row.actor_type === "player"
+      ? row.actor_type
+      : "system";
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    gameId: row.game_id,
+    stageId: row.stage_id,
+    actorType,
+    actorId: row.actor_id,
+    action: row.action,
+    payload: row.payload ?? {},
+    createdAt: row.created_at,
+  };
+}
+
+async function loadJudgementReviewQueueRow(
+  reviewId: string,
+): Promise<DbJudgementReviewQueueRow | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("judgement_review_queue")
+    .select("*")
+    .eq("review_id", reviewId)
+    .maybeSingle<DbJudgementReviewQueueRow>();
+
+  if (error) {
+    throw new Error(`Failed to load review queue item: ${error.message}`);
+  }
+
+  return data ?? null;
+}
+
+async function loadJudgementRecordRow(
+  judgementId: string,
+): Promise<DbJudgementRecordRow | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("judgement_records")
+    .select("*")
+    .eq("id", judgementId)
+    .maybeSingle<DbJudgementRecordRow>();
+
+  if (error) {
+    throw new Error(`Failed to load judgement record: ${error.message}`);
+  }
+
+  return data ?? null;
+}
+
+async function loadJudgementOverrideForReview(
+  reviewId: string,
+): Promise<DbJudgementOverrideRow | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("judgement_overrides")
+    .select("*")
+    .eq("review_id", reviewId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<DbJudgementOverrideRow>();
+
+  if (error) {
+    throw new Error(`Failed to load judgement override: ${error.message}`);
+  }
+
+  return data ?? null;
+}
+
+async function loadOperatorPlayerRow(playerId: string): Promise<DbPlayerRow | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("id", playerId)
+    .maybeSingle<DbPlayerRow>();
+
+  if (error) {
+    throw new Error(`Failed to load operator player row: ${error.message}`);
+  }
+
+  return data ?? null;
+}
+
+/**
+ * Verifies that the supplied playerId belongs to a player with admin role.
+ * Returns the player row when authorized, or null otherwise.
+ */
+export async function loadOperatorPlayerIfAuthorized(
+  playerId: string,
+): Promise<DbPlayerRow | null> {
+  const player = await loadOperatorPlayerRow(playerId);
+  if (!player) {
+    return null;
+  }
+  if (player.role !== "admin") {
+    return null;
+  }
+  return player;
+}
+
+export interface ListReviewQueueOptions {
+  status?: JudgementReviewStatus | "all";
+  roomId?: string;
+  limit?: number;
+}
+
+export async function listJudgementReviewQueueFromStore(
+  options: ListReviewQueueOptions = {},
+): Promise<AdminReviewQueueListResponse> {
+  const supabase = getSupabaseAdminClient();
+  const limit = Math.max(1, Math.min(200, options.limit ?? 50));
+
+  let query = supabase
+    .from("judgement_review_queue")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (options.status && options.status !== "all") {
+    query = query.eq("review_status", options.status);
+  }
+  if (options.roomId) {
+    query = query.eq("room_id", options.roomId);
+  }
+
+  const { data: queueRows, error: queueError } =
+    await query.returns<DbJudgementReviewQueueRow[]>();
+
+  if (queueError) {
+    throw new Error(`Failed to list review queue: ${queueError.message}`);
+  }
+
+  const rows = queueRows ?? [];
+  const judgementIds = Array.from(new Set(rows.map((row) => row.judgement_id)));
+  let records: DbJudgementRecordRow[] = [];
+
+  if (judgementIds.length > 0) {
+    const { data: recordRows, error: recordError } = await supabase
+      .from("judgement_records")
+      .select("*")
+      .in("id", judgementIds)
+      .returns<DbJudgementRecordRow[]>();
+
+    if (recordError) {
+      throw new Error(`Failed to load judgement records: ${recordError.message}`);
+    }
+
+    records = recordRows ?? [];
+  }
+
+  const recordById = new Map(records.map((record) => [record.id, record] as const));
+  const items = rows.map((row) =>
+    toAdminReviewQueueListItem(row, recordById.get(row.judgement_id) ?? null),
+  );
+
+  return {
+    items,
+    totalCount: items.length,
+  };
+}
+
+export async function getJudgementReviewDetailFromStore(
+  reviewId: string,
+): Promise<AdminReviewQueueDetail | null> {
+  const queueRow = await loadJudgementReviewQueueRow(reviewId);
+  if (!queueRow) {
+    return null;
+  }
+
+  const [recordRow, overrideRow] = await Promise.all([
+    loadJudgementRecordRow(queueRow.judgement_id),
+    loadJudgementOverrideForReview(queueRow.review_id),
+  ]);
+
+  if (!recordRow) {
+    return null;
+  }
+
+  return {
+    reviewId: queueRow.review_id,
+    judgementId: queueRow.judgement_id,
+    roomId: queueRow.room_id,
+    stageId: queueRow.stage_id,
+    playerId: queueRow.player_id,
+    kind: queueRow.kind,
+    publicOutcome: recordRow.public_outcome,
+    publicSummary: recordRow.public_summary,
+    reviewStatus: queueRow.review_status,
+    reviewSummary: queueRow.review_summary,
+    reviewedBy: queueRow.reviewed_by,
+    reviewedAt: queueRow.reviewed_at,
+    manualReviewRequired: recordRow.manual_review_required,
+    needsOperatorOverride: recordRow.needs_operator_override,
+    caseId: recordRow.case_id,
+    stageNumber: recordRow.stage_number,
+    request: recordRow.request as unknown as
+      | QuestionJudgementRequest
+      | AnswerJudgementRequest,
+    response: recordRow.response as unknown as
+      | QuestionJudgementResponse
+      | AnswerJudgementResponse,
+    internalPayload: recordRow.internal_payload ?? {},
+    override: overrideRow ? toAdminOverrideRecord(overrideRow) : null,
+    createdAt: queueRow.created_at,
+    updatedAt: queueRow.updated_at,
+  };
+}
+
+export interface RecordAdminLogInput {
+  roomId: string;
+  gameId?: string | null;
+  stageId?: string | null;
+  actorType: AdminLogActorType;
+  actorId: string;
+  action: string;
+  payload?: Record<string, unknown>;
+}
+
+export async function recordAdminLogInStore(
+  input: RecordAdminLogInput,
+): Promise<AdminLogEntry> {
+  const supabase = getSupabaseAdminClient();
+  const nowIso = nowUtcIso();
+  const { data, error } = await supabase
+    .from("admin_logs")
+    .insert({
+      room_id: input.roomId,
+      game_id: input.gameId ?? null,
+      stage_id: input.stageId ?? null,
+      actor_type: input.actorType,
+      actor_id: input.actorId,
+      action: input.action,
+      payload: input.payload ?? {},
+      created_at: nowIso,
+    })
+    .select("*")
+    .single<DbAdminLogRow>();
+
+  if (error || !data) {
+    throw new Error(`Failed to write admin log: ${error?.message ?? "unknown error"}`);
+  }
+
+  return toAdminLogEntry(data);
+}
+
+export interface ListAdminLogsOptions {
+  roomId?: string;
+  actorId?: string;
+  action?: string;
+  limit?: number;
+}
+
+export async function listAdminLogsFromStore(
+  options: ListAdminLogsOptions = {},
+): Promise<AdminLogListResponse> {
+  const supabase = getSupabaseAdminClient();
+  const limit = Math.max(1, Math.min(500, options.limit ?? 100));
+
+  let query = supabase
+    .from("admin_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (options.roomId) {
+    query = query.eq("room_id", options.roomId);
+  }
+  if (options.actorId) {
+    query = query.eq("actor_id", options.actorId);
+  }
+  if (options.action) {
+    query = query.eq("action", options.action);
+  }
+
+  const { data, error } = await query.returns<DbAdminLogRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to list admin logs: ${error.message}`);
+  }
+
+  const items = (data ?? []).map(toAdminLogEntry);
+  return {
+    items,
+    totalCount: items.length,
+  };
+}
+
+/**
+ * Applies an operator override against a manual-review queue item.
+ *
+ * - Verifies the operator is a player with role=admin (caller must do this too).
+ * - Inserts a judgement_overrides row.
+ * - Marks the judgement_review_queue row resolved (approved/rejected).
+ * - Updates the judgement_records row's public_outcome/public_summary/persistence_state.
+ * - Writes an admin_logs audit-trail entry with before/after snapshots.
+ *
+ * Returns a flag indicating whether downstream score_events recalculation is required
+ * (true when the new outcome differs from the AI-provided outcome). Actual score
+ * recalculation is intentionally out of scope here and remains the responsibility of
+ * a separate hint/penalty/score reconciliation pass.
+ */
+export async function applyOperatorOverrideInStore(
+  input: AdminOperatorOverrideRequest,
+): Promise<AdminOperatorOverrideResponse> {
+  const allowedOutcomes = new Set(["correct", "wrong", "needs_review"]);
+  if (!allowedOutcomes.has(input.newPublicOutcome)) {
+    throw new OperatorOverrideError("INVALID_OUTCOME", "허용되지 않은 public outcome입니다.");
+  }
+
+  const operator = await loadOperatorPlayerIfAuthorized(input.operatorPlayerId);
+  if (!operator) {
+    throw new OperatorOverrideError(
+      "OPERATOR_FORBIDDEN",
+      "운영자 권한이 없는 사용자입니다.",
+    );
+  }
+
+  const queueRow = await loadJudgementReviewQueueRow(input.reviewId);
+  if (!queueRow) {
+    throw new OperatorOverrideError("REVIEW_NOT_FOUND", "검토 항목을 찾을 수 없습니다.");
+  }
+
+  if (queueRow.review_status !== "pending") {
+    throw new OperatorOverrideError(
+      "REVIEW_ALREADY_RESOLVED",
+      "이미 처리된 검토 항목입니다.",
+    );
+  }
+
+  const recordRow = await loadJudgementRecordRow(queueRow.judgement_id);
+  if (!recordRow) {
+    throw new OperatorOverrideError(
+      "JUDGEMENT_NOT_FOUND",
+      "판정 레코드를 찾을 수 없습니다.",
+    );
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const nowIso = nowUtcIso();
+  const overrideId = randomUUID();
+  const previousPublicOutcome = recordRow.public_outcome;
+  const previousPublicSummary = recordRow.public_summary;
+  const nextPublicOutcome = input.newPublicOutcome;
+  const nextPublicSummary =
+    typeof input.newPublicSummary === "string" && input.newPublicSummary.trim().length > 0
+      ? input.newPublicSummary.trim()
+      : recordRow.public_summary;
+  const nextReviewStatus: JudgementReviewStatus =
+    input.decision === "approve" ? "approved" : "rejected";
+
+  // 1) Insert override row.
+  const { data: insertedOverride, error: overrideError } = await supabase
+    .from("judgement_overrides")
+    .insert({
+      id: overrideId,
+      review_id: queueRow.review_id,
+      judgement_id: queueRow.judgement_id,
+      room_id: queueRow.room_id,
+      stage_id: queueRow.stage_id,
+      operator_id: operator.id,
+      previous_public_outcome: previousPublicOutcome,
+      new_public_outcome: nextPublicOutcome,
+      override_reason: input.reason,
+      applied_by: "operator",
+      created_at: nowIso,
+    })
+    .select("*")
+    .single<DbJudgementOverrideRow>();
+
+  if (overrideError || !insertedOverride) {
+    throw new OperatorOverrideError(
+      "OVERRIDE_PERSISTENCE_FAILED",
+      `override 기록 저장 실패: ${overrideError?.message ?? "unknown error"}`,
+    );
+  }
+
+  // 2) Mark queue row as resolved.
+  const { data: updatedQueueRow, error: queueUpdateError } = await supabase
+    .from("judgement_review_queue")
+    .update({
+      review_status: nextReviewStatus,
+      review_summary: input.reason,
+      reviewed_by: operator.id,
+      reviewed_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq("review_id", queueRow.review_id)
+    .select("*")
+    .single<DbJudgementReviewQueueRow>();
+
+  if (queueUpdateError || !updatedQueueRow) {
+    throw new OperatorOverrideError(
+      "OVERRIDE_PERSISTENCE_FAILED",
+      `review queue 갱신 실패: ${queueUpdateError?.message ?? "unknown error"}`,
+    );
+  }
+
+  // 3) Update judgement_records to reflect new public outcome.
+  const nextResponse: Record<string, unknown> = {
+    ...recordRow.response,
+    publicOutcome: nextPublicOutcome,
+    publicSummary: nextPublicSummary,
+    needsOperatorOverride: false,
+    operatorOverride: {
+      overrideId,
+      operatorId: operator.id,
+      decision: input.decision,
+      reason: input.reason,
+      appliedAt: nowIso,
+    },
+  };
+
+  const { error: recordUpdateError } = await supabase
+    .from("judgement_records")
+    .update({
+      public_outcome: nextPublicOutcome,
+      public_summary: nextPublicSummary,
+      response: nextResponse,
+      needs_operator_override: false,
+      persistence_state: "overridden",
+      updated_at: nowIso,
+    })
+    .eq("id", queueRow.judgement_id);
+
+  if (recordUpdateError) {
+    throw new OperatorOverrideError(
+      "OVERRIDE_PERSISTENCE_FAILED",
+      `판정 레코드 갱신 실패: ${recordUpdateError.message}`,
+    );
+  }
+
+  // 4) Append an admin_logs audit trail entry (before/after snapshot).
+  await recordAdminLogInStore({
+    roomId: queueRow.room_id,
+    gameId: recordRow.game_id,
+    stageId: queueRow.stage_id,
+    actorType: "operator",
+    actorId: operator.id,
+    action: "operator_override_applied",
+    payload: {
+      reviewId: queueRow.review_id,
+      judgementId: queueRow.judgement_id,
+      overrideId,
+      kind: queueRow.kind,
+      decision: input.decision,
+      before: {
+        publicOutcome: previousPublicOutcome,
+        publicSummary: previousPublicSummary,
+        reviewStatus: queueRow.review_status,
+      },
+      after: {
+        publicOutcome: nextPublicOutcome,
+        publicSummary: nextPublicSummary,
+        reviewStatus: nextReviewStatus,
+      },
+      reason: input.reason,
+    },
+  });
+
+  const scoreRecalculationRequired = previousPublicOutcome !== nextPublicOutcome;
+
+  return {
+    override: toAdminOverrideRecord(insertedOverride),
+    review: toAdminReviewQueueListItem(updatedQueueRow, {
+      ...recordRow,
+      public_outcome: nextPublicOutcome,
+      public_summary: nextPublicSummary,
+      needs_operator_override: false,
+      persistence_state: "overridden",
+      updated_at: nowIso,
+    }),
+    scoreRecalculationRequired,
   };
 }
