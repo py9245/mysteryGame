@@ -78,6 +78,12 @@ import {
   createScoreEvent,
   replayScoreEvents,
 } from "@/server/game/scoring";
+import {
+  LOCK_TTL_SECONDS as INVESTIGATION_LOCK_TTL_SECONDS,
+  REENTRY_COOLDOWN_SECONDS as INVESTIGATION_LOCK_REENTRY_COOLDOWN_SECONDS,
+  selectAdmissibleQueueHead,
+  type InvestigationQueueEntry,
+} from "@/server/game/investigation-lock";
 import { getSupabaseAdminClient } from "@/server/supabase-admin";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { upsertAccountGameResults } from "@/server/account-store";
@@ -330,8 +336,9 @@ const REDACTED_OTHER_PLAYER: RedactedValue = { hidden: true, reason: "other_play
 const REDACTED_STAGE_SECRET: RedactedValue = { hidden: true, reason: "stage_secret" };
 const REDACTED_PRIVATE_CHAT: RedactedValue = { hidden: true, reason: "private_chat" };
 const REDACTED_AI_INTERNAL: RedactedValue = { hidden: true, reason: "ai_internal" };
-const INVESTIGATION_LOCK_SECONDS = 60;
-const INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS = 5;
+const INVESTIGATION_LOCK_SECONDS = INVESTIGATION_LOCK_TTL_SECONDS;
+const INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS =
+  INVESTIGATION_LOCK_REENTRY_COOLDOWN_SECONDS;
 const STAGE_BRIEFING_SECONDS = 60;
 const DEFAULT_STAGE_DURATION_SECONDS = 15 * 60;
 const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
@@ -2138,6 +2145,61 @@ async function applyInvestigationQueueCooldown(
   }
 }
 
+/**
+ * If the active investigation lock has passed its `expires_at`, release it in DB
+ * and apply the 5s re-entry cooldown to the now-expired holder.
+ *
+ * Returns the post-release lock row (or the unchanged row when not expired).
+ * Safe to call even if no lock exists. This is a converging step shared by the
+ * acquire / join / release / snapshot-sync paths so that downstream queue
+ * scheduling always sees a clean lock state.
+ */
+async function ensureExpiredInvestigationLockReleased(
+  roomId: string,
+  stageId: string,
+  lock: DbInvestigationLockRow | null,
+  nowIso: string,
+): Promise<DbInvestigationLockRow | null> {
+  if (
+    !lock ||
+    !lock.locked_by_player_id ||
+    !lock.expires_at ||
+    !hasExpired(lock.expires_at, nowIso)
+  ) {
+    return lock;
+  }
+
+  const expiredHolderId = lock.locked_by_player_id;
+  const supabase = getSupabaseAdminClient();
+  const { data: releasedLock, error: releaseError } = await supabase
+    .from("investigation_locks")
+    .update({
+      locked_by_player_id: null,
+      locked_at: null,
+      expires_at: null,
+      question_count: 0,
+      answer_attempt_count: 0,
+      last_released_by_player_id: expiredHolderId,
+      last_released_at: nowIso,
+      version: lock.version + 1,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("room_id", roomId)
+    .select("*")
+    .single<DbInvestigationLockRow>();
+
+  if (releaseError || !releasedLock) {
+    throw new Error(
+      `Failed to auto-release expired investigation lock: ${releaseError?.message ?? "unknown error"}`,
+    );
+  }
+
+  await applyInvestigationQueueCooldown(stageId, expiredHolderId, nowIso);
+
+  return releasedLock;
+}
+
 async function admitNextInvestigationQueuePlayer(
   roomId: string,
   stageId: string,
@@ -2154,7 +2216,16 @@ async function admitNextInvestigationQueuePlayer(
     return state.activeLock;
   }
 
-  const activeLock = state.activeLock;
+  // Auto-release the lock if its TTL has elapsed before scheduling the next
+  // queue head. This covers the case where the lock owner stopped responding
+  // and no other code path has cleared the expired row yet.
+  const activeLock = await ensureExpiredInvestigationLockReleased(
+    roomId,
+    stageId,
+    state.activeLock,
+    nowIso,
+  );
+
   if (
     activeLock?.locked_by_player_id &&
     (!activeLock.expires_at || !hasExpired(activeLock.expires_at, nowIso))
@@ -2162,9 +2233,19 @@ async function admitNextInvestigationQueuePlayer(
     return activeLock;
   }
 
-  const queuedPlayerState = resolveQueuedInvestigationPlayerStates(state.playerStates).find(
-    (playerState) => playerState.status === "active",
-  );
+  // Use the shared FIFO helper so the ordering rule lives in one place and any
+  // queued player still under their own re-entry cooldown is skipped.
+  const queueEntries: InvestigationQueueEntry<DbPlayerStageStateRow>[] =
+    state.playerStates
+      .filter((playerState) => playerState.status === "active")
+      .map((playerState) => ({
+        playerId: playerState.player_id,
+        queueJoinedAt: playerState.queue_joined_at,
+        queueCooldownEndsAt: playerState.queue_cooldown_ends_at,
+        payload: playerState,
+      }));
+  const head = selectAdmissibleQueueHead(queueEntries, nowIso);
+  const queuedPlayerState = head?.payload ?? null;
 
   if (!queuedPlayerState) {
     return activeLock;
@@ -5365,15 +5446,45 @@ export async function joinInvestigationQueueInStore(
     throw new InvestigationLockError("STAGE_NOT_ACTIVE", "질문방은 브리핑 1분이 끝난 뒤부터 사용할 수 있습니다.");
   }
 
-  const playerState = stateBeforeJoin.playerStates.find((state) => state.player_id === playerId) ?? null;
   const nowIso = nowUtcIso();
+
+  // If the prior lock has already passed its TTL, release it and apply the
+  // cooldown to the expired holder before evaluating this player's join.
+  const normalizedActiveLock = await ensureExpiredInvestigationLockReleased(
+    room.id,
+    stageId,
+    stateBeforeJoin.activeLock,
+    nowIso,
+  );
+
+  const playerState = stateBeforeJoin.playerStates.find((state) => state.player_id === playerId) ?? null;
   const cooldownEndsAt = resolveInvestigationQueueCooldownEndsAt(playerState, nowIso);
 
   if (cooldownEndsAt) {
     throw new InvestigationLockError("QUEUE_COOLDOWN_ACTIVE", `질문방은 ${cooldownEndsAt} 이후에 다시 대기열에 들어갈 수 있습니다.`);
   }
 
-  if (stateBeforeJoin.activeLock?.locked_by_player_id === playerId) {
+  // Mirror the cooldown check against the lock's `last_released_by_player_id`
+  // so the rule still fires even when the player's cached cooldown row was not
+  // touched yet (e.g. lock just auto-expired in step 1 above).
+  if (
+    normalizedActiveLock?.last_released_by_player_id === playerId &&
+    normalizedActiveLock.last_released_at &&
+    !hasExpired(
+      addSeconds(
+        normalizedActiveLock.last_released_at,
+        INVESTIGATION_LOCK_REENTRY_COOLDOWN_SECONDS,
+      ),
+      nowIso,
+    )
+  ) {
+    throw new InvestigationLockError(
+      "QUEUE_COOLDOWN_ACTIVE",
+      "조사실을 막 사용한 직후에는 5초간 다시 대기열에 들어갈 수 없습니다.",
+    );
+  }
+
+  if (normalizedActiveLock?.locked_by_player_id === playerId) {
     throw new InvestigationLockError("LOCK_ALREADY_OWNED", "이미 내가 조사실을 점유하고 있습니다.");
   }
 
@@ -5399,11 +5510,15 @@ export async function joinInvestigationQueueInStore(
   const admittedLock = await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
   const autoAdmitted =
     admittedLock?.locked_by_player_id === playerId ||
-    stateBeforeJoin.activeLock?.locked_by_player_id === playerId;
+    normalizedActiveLock?.locked_by_player_id === playerId;
 
   if (options.includeSnapshot === false) {
     return {
-      lock: admittedLock ? toInvestigationLock(admittedLock) : stateBeforeJoin.activeLock ? toInvestigationLock(stateBeforeJoin.activeLock) : null,
+      lock: admittedLock
+        ? toInvestigationLock(admittedLock)
+        : normalizedActiveLock
+          ? toInvestigationLock(normalizedActiveLock)
+          : null,
       autoAdmitted,
       snapshot: null,
     };
@@ -5499,28 +5614,86 @@ export async function acquireInvestigationLockInStore(
     playerId,
   });
 
+  if (stateBeforeAcquire.currentStage?.status !== "in_progress") {
+    throw new InvestigationLockError("STAGE_NOT_ACTIVE", "질문방은 브리핑 1분이 끝난 뒤부터 열 수 있습니다.");
+  }
+
   const nowIso = nowUtcIso();
   const supabase = getSupabaseAdminClient();
-  const currentLock = stateBeforeAcquire.activeLock;
-  const lockExpired = currentLock ? hasExpired(currentLock.expires_at, nowIso) : false;
-  const queuedPlayerStates = resolveQueuedInvestigationPlayerStates(stateBeforeAcquire.playerStates);
-  const nextQueuedPlayerId = queuedPlayerStates[0]?.player_id ?? null;
 
+  // Step 1: if the prior lock's TTL has elapsed, release it and apply cooldown
+  // to the expired holder before deciding who can acquire. This keeps FIFO
+  // ordering honest after an idle / disconnected previous holder.
+  let currentLock = await ensureExpiredInvestigationLockReleased(
+    room.id,
+    stageId,
+    stateBeforeAcquire.activeLock,
+    nowIso,
+  );
+
+  // Step 2: if the lock is now free and there is a queue, fast-forward the
+  // FIFO head's admission so that any direct acquire-call by the head is a
+  // no-op confirmation (instead of needing a join_lock_queue first).
+  const lockIsCurrentlyHeld =
+    Boolean(currentLock?.locked_by_player_id) &&
+    !(currentLock?.expires_at && hasExpired(currentLock.expires_at, nowIso));
+  if (!lockIsCurrentlyHeld) {
+    const queueEntries: InvestigationQueueEntry<DbPlayerStageStateRow>[] =
+      stateBeforeAcquire.playerStates
+        .filter((playerState) => playerState.status === "active")
+        .map((playerState) => ({
+          playerId: playerState.player_id,
+          queueJoinedAt: playerState.queue_joined_at,
+          queueCooldownEndsAt: playerState.queue_cooldown_ends_at,
+          payload: playerState,
+        }));
+    const admissibleHead = selectAdmissibleQueueHead(queueEntries, nowIso);
+    if (admissibleHead && admissibleHead.playerId !== playerId) {
+      throw new InvestigationLockError(
+        "LOCK_CONFLICT",
+        "질문방 대기열의 앞순위 플레이어가 먼저 입장해야 합니다.",
+      );
+    }
+  }
+
+  // Step 3: enforce the 5s re-entry cooldown. `last_released_by_player_id` is
+  // the source of truth (set on explicit release as well as auto-release in
+  // step 1). The caller's own queue_cooldown_ends_at is used as the secondary
+  // signal so that this check stays consistent with join_lock_queue.
+  const callerPlayerState = stateBeforeAcquire.playerStates.find(
+    (playerState) => playerState.player_id === playerId,
+  );
+  if (
+    currentLock?.last_released_by_player_id === playerId &&
+    currentLock.last_released_at &&
+    !hasExpired(
+      addSeconds(currentLock.last_released_at, INVESTIGATION_LOCK_REENTRY_COOLDOWN_SECONDS),
+      nowIso,
+    )
+  ) {
+    throw new InvestigationLockError(
+      "QUEUE_COOLDOWN_ACTIVE",
+      "조사실을 막 사용한 직후에는 5초간 다시 입장할 수 없습니다.",
+    );
+  }
+  if (
+    callerPlayerState?.queue_cooldown_ends_at &&
+    !hasExpired(callerPlayerState.queue_cooldown_ends_at, nowIso)
+  ) {
+    throw new InvestigationLockError(
+      "QUEUE_COOLDOWN_ACTIVE",
+      "조사실을 막 사용한 직후에는 5초간 다시 입장할 수 없습니다.",
+    );
+  }
+
+  // Step 4: hard conflict — lock currently held by someone else with TTL alive.
   if (
     currentLock &&
     currentLock.locked_by_player_id &&
     currentLock.locked_by_player_id !== playerId &&
-    !lockExpired
+    !(currentLock.expires_at && hasExpired(currentLock.expires_at, nowIso))
   ) {
     throw new InvestigationLockError("LOCK_CONFLICT", "다른 플레이어가 조사실을 사용 중입니다.");
-  }
-
-  if (nextQueuedPlayerId && nextQueuedPlayerId !== playerId) {
-    throw new InvestigationLockError("LOCK_CONFLICT", "질문방 대기열의 앞순위 플레이어가 먼저 입장해야 합니다.");
-  }
-
-  if (stateBeforeAcquire.currentStage?.status !== "in_progress") {
-    throw new InvestigationLockError("STAGE_NOT_ACTIVE", "질문방은 브리핑 1분이 끝난 뒤부터 열 수 있습니다.");
   }
 
   const nextVersion = (currentLock?.version ?? 0) + 1;
