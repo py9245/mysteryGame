@@ -19,7 +19,6 @@ import type {
   RespondPrivateChatResponse,
   RoomSnapshot,
   RoomSettingsResponse,
-  RoomSettingsView,
   SendChatMessageRequest,
   SendChatMessageResponse,
   SetReadyResponse,
@@ -30,24 +29,12 @@ import type {
 import type {
   AnswerAttempt,
   AnswerResult,
-  ChatMessage,
-  ChatChannel,
-  ConnectionStatus,
   Game,
-  HintReveal,
-  InvestigationLock,
-  Player,
-  PlayerStageState,
   PlayerRole,
-  PrivateChatRequest,
   PrivateChatRequestStatus,
-  PrivateChatSession,
   Room,
-  Stage,
   StageEndReason,
-  StageStatus,
   StageTeamAssignment,
-  TeamSlot,
   Question,
   QuestionJudgement,
   ScoreEvent,
@@ -101,308 +88,217 @@ import {
 import { getSupabaseAdminClient } from "@/server/supabase-admin";
 import { isSupabaseEnabled } from "@/server/supabase-admin";
 import { upsertAccountGameResults } from "@/server/account-store";
-import { hashPassword, verifyPassword } from "@/server/auth-password";
+import { verifyPassword } from "@/server/auth-password";
 import type { ActiveRoomMembership } from "@/server/auth-session";
 import { BUNDLED_CASE_CATALOG } from "@/server/local-case-catalog";
 import { addSeconds, diffSeconds, hasExpired, nowUtcIso, remainingSeconds } from "@/server/time";
 import { createTextCompletion } from "@/lib/ai";
 import { generateImage } from "@/lib/ai";
+import type {
+  DbRoomRow,
+  DbPlayerRow,
+  DbTeamSlotRow,
+  DbGameRow,
+  DbStageRow,
+  DbStageTeamAssignmentRow,
+  DbPlayerStageStateRow,
+  DbInvestigationLockRow,
+  DbHintRevealRow,
+  DbScoreEventRow,
+  DbQuestionRow,
+  DbAnswerAttemptRow,
+  DbChatMessageRow,
+  DbPrivateChatRequestRow,
+  DbAdminLogRow,
+  DbCaseLibraryRow,
+  DbPlayerCaseHistoryRow,
+  DbPrivateChatSessionRow,
+} from "./live-store/types";
+import {
+  ROOM_CODE_ALPHABET,
+  DEFAULT_TEAM_LABELS,
+  REDACTED_OTHER_PLAYER,
+  REDACTED_STAGE_SECRET,
+  REDACTED_PRIVATE_CHAT,
+  REDACTED_AI_INTERNAL,
+  INVESTIGATION_LOCK_SECONDS,
+  INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS,
+  STAGE_BRIEFING_SECONDS,
+  DEFAULT_STAGE_DURATION_SECONDS,
+  PRIVATE_CHAT_REQUEST_TTL_SECONDS,
+  PRIVATE_CHAT_MIN_SESSION_SECONDS,
+  PRIVATE_CHAT_COOLDOWN_SECONDS,
+  ROOM_PRESENCE_TTL_SECONDS,
+  PRACTICE_GENERATED_CASE_SENTINEL,
+  PRACTICE_GENERATED_CASE_PREFIX,
+  AUTO_CASE_SELECTION_SENTINEL,
+  CASE_REPLENISH_THRESHOLD,
+  CASE_REPLENISH_COUNT,
+  CASE_BATCH_GENERATION_CONCURRENCY,
+  CASE_REFERENCE_BLUEPRINTS,
+  CASE_DIVERSITY_AXES,
+} from "./live-store/constants";
+import {
+  RoomJoinError,
+  RoomSettingsError,
+  LeaveRoomError,
+  AssignTeamsError,
+  StartStageError,
+  AdvanceStageError,
+  InvestigationLockError,
+  PrivateChatError,
+} from "./live-store/errors";
+import {
+  isUuidLike,
+  isPracticeGeneratedCaseKey,
+  resolvePracticeGeneratedStageId,
+  generateRoomCode,
+  createEntityId,
+} from "./live-store/ids";
+import {
+  normalizeKeywordText,
+  includesNormalized,
+  isRecord,
+  extractJsonObject,
+  asStringArray,
+  resolveKeywordSubset,
+} from "./live-store/text-utils";
+import {
+  normalizeRoomMode,
+  normalizeRoomDirectoryTitle,
+  normalizeRoomTitle,
+  normalizeStageCount,
+  normalizeMaxPlayers,
+  normalizeRoomPasswordHash,
+  resolveRoomMode,
+  resolveRoomTitle,
+  resolveRoomStageCount,
+  resolveRoomPasswordHash,
+  isLegacyMissingRoomColumnsError,
+  isLegacyMissingGuestIdentityColumnError,
+  toRoomSettings,
+  toRoom,
+  toPlayer,
+  toTeamSlot,
+  toGame,
+  toStage,
+  toStageTeamAssignment,
+  toPlayerStageState,
+  toInvestigationLock,
+  toHintReveal,
+  toChatMessage,
+  toPrivateChatRequest,
+  toPrivateChatSession,
+  toScoreEvent,
+} from "./live-store/mappers";
 
-type DbRoomRow = {
-  id: string;
-  code: string;
-  title?: string | null;
-  mode?: RoomMode | null;
-  password_hash?: string | null;
-  stage_count?: number | null;
-  status: Room["status"];
-  max_players: number;
-  created_at: string;
-  updated_at: string;
-};
+// Barrel re-exports for backward compatibility with external callers
+// that import these identifiers from "@/server/live-store".
+export type {
+  DbRoomRow,
+  DbPlayerRow,
+  DbTeamSlotRow,
+  DbGameRow,
+  DbStageRow,
+  DbStageTeamAssignmentRow,
+  DbPlayerStageStateRow,
+  DbInvestigationLockRow,
+  DbHintRevealRow,
+  DbScoreEventRow,
+  DbQuestionRow,
+  DbAnswerAttemptRow,
+  DbChatMessageRow,
+  DbPrivateChatRequestRow,
+  DbAdminLogRow,
+  DbCaseLibraryRow,
+  DbPlayerCaseHistoryRow,
+  DbPrivateChatSessionRow,
+} from "./live-store/types";
+export {
+  ROOM_CODE_ALPHABET,
+  DEFAULT_TEAM_LABELS,
+  REDACTED_OTHER_PLAYER,
+  REDACTED_STAGE_SECRET,
+  REDACTED_PRIVATE_CHAT,
+  REDACTED_AI_INTERNAL,
+  INVESTIGATION_LOCK_SECONDS,
+  INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS,
+  STAGE_BRIEFING_SECONDS,
+  DEFAULT_STAGE_DURATION_SECONDS,
+  PRIVATE_CHAT_REQUEST_TTL_SECONDS,
+  PRIVATE_CHAT_MIN_SESSION_SECONDS,
+  PRIVATE_CHAT_COOLDOWN_SECONDS,
+  ROOM_PRESENCE_TTL_SECONDS,
+  PRACTICE_GENERATED_CASE_SENTINEL,
+  PRACTICE_GENERATED_CASE_PREFIX,
+  AUTO_CASE_SELECTION_SENTINEL,
+  CASE_REPLENISH_THRESHOLD,
+  CASE_REPLENISH_COUNT,
+  CASE_BATCH_GENERATION_CONCURRENCY,
+  CASE_REFERENCE_BLUEPRINTS,
+  CASE_DIVERSITY_AXES,
+} from "./live-store/constants";
+export {
+  RoomJoinError,
+  RoomSettingsError,
+  LeaveRoomError,
+  AssignTeamsError,
+  StartStageError,
+  AdvanceStageError,
+  InvestigationLockError,
+  PrivateChatError,
+} from "./live-store/errors";
+export {
+  isUuidLike,
+  isPracticeGeneratedCaseKey,
+  resolvePracticeGeneratedStageId,
+  generateRoomCode,
+  createEntityId,
+} from "./live-store/ids";
+export {
+  normalizeKeywordText,
+  includesNormalized,
+  isRecord,
+  extractJsonObject,
+  asStringArray,
+  resolveKeywordSubset,
+} from "./live-store/text-utils";
+export {
+  normalizeRoomMode,
+  normalizeRoomDirectoryTitle,
+  normalizeRoomTitle,
+  normalizeStageCount,
+  normalizeMaxPlayers,
+  normalizeRoomPasswordHash,
+  resolveRoomMode,
+  resolveRoomTitle,
+  resolveRoomStageCount,
+  resolveRoomPasswordHash,
+  isLegacyMissingRoomColumnsError,
+  isLegacyMissingGuestIdentityColumnError,
+  toRoomSettings,
+  toRoom,
+  toPlayer,
+  toTeamSlot,
+  toGame,
+  toStage,
+  toStageTeamAssignment,
+  toPlayerStageState,
+  toInvestigationLock,
+  toHintReveal,
+  toChatMessage,
+  toPrivateChatRequest,
+  toPrivateChatSession,
+  toScoreEvent,
+} from "./live-store/mappers";
 
-type DbPlayerRow = {
-  id: string;
-  room_id: string;
-  account_id?: string | null;
-  guest_identity?: string | null;
-  nickname: string;
-  role: PlayerRole;
-  is_ready: boolean;
-  connection_status: ConnectionStatus;
-  total_score: number;
-  solved_count: number;
-  bonus_keyword_count: number;
-  joined_at: string;
-  last_seen_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbTeamSlotRow = {
-  id: string;
-  room_id: string;
-  label: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbGameRow = {
-  id: string;
-  room_id: string;
-  status: Game["status"];
-  current_stage_number: number;
-  started_at: string | null;
-  ended_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbStageRow = {
-  id: string;
-  game_id: string;
-  room_id: string;
-  stage_number: number;
-  case_key: string;
-  status: StageStatus;
-  briefing_started_at: string | null;
-  started_at: string | null;
-  ends_at: string | null;
-  ended_at: string | null;
-  solved_player_ids: string[];
-  end_reason: StageEndReason | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbStageTeamAssignmentRow = {
-  stage_id: string;
-  player_id: string;
-  team_slot_id: string;
-  created_at: string;
-};
-
-type DbPlayerStageStateRow = {
-  stage_id: string;
-  player_id: string;
-  team_slot_id: string | null;
-  status: PlayerStageState["status"];
-  queue_joined_at: string | null;
-  queue_cooldown_ends_at: string | null;
-  question_count: number;
-  answer_attempt_count: number;
-  has_received_inactivity_penalty: boolean;
-  solved_at: string | null;
-  locked_at: string | null;
-  updated_at: string;
-};
-
-type DbInvestigationLockRow = {
-  stage_id: string;
-  room_id: string;
-  locked_by_player_id: string | null;
-  locked_at: string | null;
-  expires_at: string | null;
-  question_count: number;
-  answer_attempt_count: number;
-  last_released_by_player_id: string | null;
-  last_released_at: string | null;
-  version: number;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbHintRevealRow = {
-  id: string;
-  stage_id: string;
-  hint_index: number;
-  trigger_type: string;
-  revealed_at: string;
-};
-
-type DbScoreEventRow = {
-  id: string;
-  room_id: string;
-  game_id: string;
-  stage_id: string | null;
-  player_id: string;
-  type: ScoreEvent["type"];
-  delta: number;
-  quantity: number;
-  reason: string;
-  metadata: Record<string, unknown>;
-  created_at: string;
-};
-
-type DbQuestionRow = {
-  id: string;
-  stage_id: string;
-  player_id: string;
-  team_slot_id: string;
-  content: string;
-  judgement: QuestionJudgement;
-  reason_code: string;
-  judged_at: string | null;
-  created_at: string;
-};
-
-type DbAnswerAttemptRow = {
-  id: string;
-  stage_id: string;
-  player_id: string;
-  team_slot_id: string;
-  content: string;
-  result: AnswerResult;
-  matched_bonus_keywords: string[];
-  missing_required_keywords: string[];
-  reason_code: string;
-  needs_manual_review: boolean;
-  should_lock_player: boolean;
-  created_at: string;
-};
-
-type DbChatMessageRow = {
-  id: string;
-  room_id: string;
-  stage_id: string | null;
-  player_id: string;
-  team_slot_id: string | null;
-  channel: ChatChannel;
-  content: string;
-  created_at: string;
-};
-
-type DbPrivateChatRequestRow = {
-  id: string;
-  stage_id: string;
-  requester_player_id: string;
-  target_player_id: string;
-  status: PrivateChatRequestStatus;
-  created_at: string;
-  expires_at: string;
-  responded_at: string | null;
-  response_reason: string | null;
-  updated_at: string;
-};
-
-type DbAdminLogRow = {
-  id: string;
-  room_id: string;
-  game_id: string | null;
-  stage_id: string | null;
-  actor_type: string;
-  actor_id: string;
-  action: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-};
-
-type DbCaseLibraryRow = {
-  case_key: string;
-  stage_number: number;
-  title: string;
-  public_description: string;
-  image_url: string | null;
-  image_data_url: string | null;
-  question: string;
-  truth: string;
-  required_keywords: string[];
-  bonus_keywords: string[];
-  accepted_answer_summary: string;
-  hints: unknown;
-  is_practice_pool: boolean;
-  origin: string;
-  review_notes: string | null;
-  version: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbPlayerCaseHistoryRow = {
-  id: string;
-  identity_key: string;
-  account_id: string | null;
-  guest_identity: string | null;
-  case_key: string;
-  first_seen_at: string;
-  last_played_at: string;
-  play_count: number;
-  solved_count: number;
-  created_at: string;
-  updated_at: string;
-};
-
-type DbPrivateChatSessionRow = {
-  id: string;
-  stage_id: string;
-  request_id: string;
-  player_a_id: string;
-  player_b_id: string;
-  started_at: string;
-  release_allowed_at: string;
-  ended_at: string | null;
-  closed_by_player_id: string | null;
-};
-
-const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const DEFAULT_TEAM_LABELS = ["Red", "Blue", "Green"] as const;
-const REDACTED_OTHER_PLAYER: RedactedValue = { hidden: true, reason: "other_player" };
-const REDACTED_STAGE_SECRET: RedactedValue = { hidden: true, reason: "stage_secret" };
-const REDACTED_PRIVATE_CHAT: RedactedValue = { hidden: true, reason: "private_chat" };
-const REDACTED_AI_INTERNAL: RedactedValue = { hidden: true, reason: "ai_internal" };
-const INVESTIGATION_LOCK_SECONDS = INVESTIGATION_LOCK_TTL_SECONDS;
-const INVESTIGATION_QUEUE_REENTRY_COOLDOWN_SECONDS =
-  INVESTIGATION_LOCK_REENTRY_COOLDOWN_SECONDS;
-const STAGE_BRIEFING_SECONDS = 60;
-const DEFAULT_STAGE_DURATION_SECONDS = 15 * 60;
-const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
-const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
-const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
-const ROOM_PRESENCE_TTL_SECONDS = 60;
+// DB row types extracted to "./live-store/types".
+// Constants extracted to "./live-store/constants".
+// Hint/penalty thresholds kept here (added after the extraction PR; can move to constants.ts in a follow-up).
 const HINT_TIME_REVEAL_THRESHOLDS_SECONDS = [300, 600] as const;
 const HINT_FIRST_CORRECT_TRIGGER = "first_correct_answer";
 const HINT_TIME_ELAPSED_TRIGGER = "time_elapsed";
 const INACTIVITY_PENALTY_THRESHOLD_SECONDS = 180;
-const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
-const PRACTICE_GENERATED_CASE_PREFIX = "practice-generated-";
-const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
-const CASE_REPLENISH_THRESHOLD = 10;
-const CASE_REPLENISH_COUNT = 10;
-const CASE_BATCH_GENERATION_CONCURRENCY = 4;
-const CASE_REFERENCE_BLUEPRINTS = [
-  {
-    name: "간첩형 반전",
-    publicSetup:
-      "평범하게 출근하던 인물이 공휴일 아침 회사 화장실에서 사망한다.",
-    hiddenTruth:
-      "피해자는 타국 스파이였고, 지하철역 물품보관소 지령과 대통령 암살 임무, 발각 전 자살 명령이 연결된다.",
-    structure:
-      "평범한 루틴 -> 국가적 사건 -> 임시공휴일/지하철역/기사 정독 같은 어긋난 단서 -> 지령과 자살의 전말",
-    keywords: ["자살", "대통령 암살", "간첩", "발각", "지령"],
-  },
-  {
-    name: "착각형 관계 반전",
-    publicSetup:
-      "특별한 날 호텔/레스토랑에서 만난 두 사람 중 한 명이 한 시간 뒤 사망한다.",
-    hiddenTruth:
-      "쌍둥이 대리 만남, 바람, 음식 알레르기, 구급차 지연이 얽혀 고의 살인이 아닌 치명적 착오가 된다.",
-    structure:
-      "오해되는 관계 -> 대리 참석/쌍둥이 -> 전달되지 않은 위험 정보 -> 지연된 구조로 사망",
-    keywords: ["음식 알레르기", "쌍둥이", "착각", "바람"],
-  },
-] as const;
-const CASE_DIVERSITY_AXES = [
-  "병원 야간 당직",
-  "웨딩홀 리허설",
-  "방송국 생방송",
-  "미술관 폐관 시간",
-  "대학교 연구실",
-  "아파트 택배 동선",
-  "호텔 조식 뷔페",
-  "극장 리허설",
-  "수족관 백스테이지",
-  "장례식장 조문",
-] as const;
 
 type CaseSummary = {
   title: string;
@@ -444,468 +340,9 @@ type GeneratedPracticeCasePayload = {
   imageDataUrl?: string | null;
 };
 
-export class RoomJoinError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "ROOM_NOT_JOINABLE"
-      | "ROOM_PASSWORD_REQUIRED"
-      | "ROOM_PASSWORD_INVALID"
-      | "ROOM_FULL"
-      | "NICKNAME_TAKEN",
-    message: string,
-  ) {
-    super(message);
-    this.name = "RoomJoinError";
-  }
-}
-
-export class RoomSettingsError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "REQUESTER_NOT_ALLOWED"
-      | "ROOM_NOT_EDITABLE"
-      | "INVALID_ROOM_MODE"
-      | "PASSWORD_REQUIRED"
-      | "ROOM_TOO_SMALL"
-      | "ROOM_TOO_FULL",
-    message: string,
-  ) {
-    super(message);
-    this.name = "RoomSettingsError";
-  }
-}
-
-export class LeaveRoomError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "PLAYER_NOT_FOUND"
-      | "ROOM_LEAVE_FAILED",
-    message: string,
-  ) {
-    super(message);
-    this.name = "LeaveRoomError";
-  }
-}
-
-export class AssignTeamsError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "GAME_NOT_FOUND"
-      | "REQUESTER_NOT_ALLOWED"
-      | "ROOM_NOT_READY"
-      | "ROOM_NOT_FULL"
-      | "STAGE_NUMBER_MISMATCH"
-      | "STAGE_NOT_ASSIGNABLE",
-    message: string,
-  ) {
-    super(message);
-    this.name = "AssignTeamsError";
-  }
-}
-
-export class StartStageError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "GAME_NOT_FOUND"
-      | "REQUESTER_NOT_ALLOWED"
-      | "STAGE_NOT_FOUND"
-      | "STAGE_NOT_STARTABLE"
-      | "ASSIGNMENTS_NOT_READY",
-    message: string,
-  ) {
-    super(message);
-    this.name = "StartStageError";
-  }
-}
-
-export class AdvanceStageError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "GAME_NOT_FOUND"
-      | "REQUESTER_NOT_ALLOWED"
-      | "STAGE_NOT_READY"
-      | "FINAL_STAGE_NOT_ADVANCABLE",
-    message: string,
-  ) {
-    super(message);
-    this.name = "AdvanceStageError";
-  }
-}
-
-export class InvestigationLockError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "STAGE_NOT_FOUND"
-      | "PLAYER_NOT_FOUND"
-      | "PLAYER_NOT_ACTIVE"
-      | "LOCK_CONFLICT"
-      | "LOCK_NOT_OWNED"
-      | "LOCK_LIMIT_REACHED"
-      | "TEAM_SLOT_MISMATCH"
-      | "STAGE_NOT_ACTIVE"
-      | "QUEUE_ALREADY_JOINED"
-      | "QUEUE_NOT_JOINED"
-      | "QUEUE_COOLDOWN_ACTIVE"
-      | "LOCK_ALREADY_OWNED",
-    message: string,
-  ) {
-    super(message);
-    this.name = "InvestigationLockError";
-  }
-}
-
-export class PrivateChatError extends Error {
-  constructor(
-    public readonly code:
-      | "ROOM_NOT_FOUND"
-      | "STAGE_NOT_FOUND"
-      | "PLAYER_NOT_FOUND"
-      | "REQUEST_NOT_FOUND"
-      | "SESSION_NOT_FOUND"
-      | "REQUESTER_NOT_ALLOWED"
-      | "RESPONDER_NOT_ALLOWED"
-      | "SESSION_NOT_ALLOWED"
-      | "SAME_PLAYER"
-      | "SAME_TEAM"
-      | "TARGET_BUSY"
-      | "REQUESTER_BUSY"
-      | "REQUEST_COOLDOWN"
-      | "ACTIVE_REQUEST_EXISTS"
-      | "REQUEST_NOT_PENDING"
-      | "REQUEST_EXPIRED"
-      | "SESSION_LOCKED"
-      | "STAGE_NOT_ACTIVE"
-      | "PLAYER_NOT_ACTIVE",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PrivateChatError";
-  }
-}
-
-function isUuidLike(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function isPracticeGeneratedCaseKey(caseKey: string): boolean {
-  return caseKey.startsWith(PRACTICE_GENERATED_CASE_PREFIX);
-}
-
-function resolvePracticeGeneratedStageId(caseKey: string): string | null {
-  if (!isPracticeGeneratedCaseKey(caseKey)) {
-    return null;
-  }
-
-  const stageId = caseKey.slice(PRACTICE_GENERATED_CASE_PREFIX.length);
-  return isUuidLike(stageId) ? stageId : null;
-}
-
-function generateRoomCode(length = 4): string {
-  let result = "";
-  for (let index = 0; index < length; index += 1) {
-    result += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)] ?? "A";
-  }
-  return result;
-}
-
-function createEntityId(): string {
-  return randomUUID();
-}
-
-function normalizeRoomMode(mode: unknown, fallback: RoomMode = "public"): RoomMode {
-  return mode === "secret" || mode === "practice" || mode === "public" ? mode : fallback;
-}
-
-function normalizeRoomDirectoryTitle(title: unknown, roomCode: string): string {
-  if (typeof title === "string" && title.trim().length > 0) {
-    return title.trim();
-  }
-
-  return `${roomCode} 사건방`;
-}
-
-function normalizeRoomTitle(title: unknown, fallback: string): string {
-  if (typeof title !== "string") {
-    return fallback;
-  }
-
-  const normalized = title.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function normalizeStageCount(mode: RoomMode, requested: number | null | undefined): number {
-  if (mode === "practice") {
-    return 1;
-  }
-
-  if (requested === 1 || requested === 3) {
-    return requested;
-  }
-
-  return 3;
-}
-
-function normalizeMaxPlayers(mode: RoomMode, requested: number | null | undefined): number {
-  if (mode === "practice") {
-    return 1;
-  }
-
-  if (typeof requested === "number" && Number.isInteger(requested) && requested >= 2 && requested <= 6) {
-    return requested;
-  }
-
-  return 6;
-}
-
-function normalizeRoomPasswordHash(mode: RoomMode, password: string | null | undefined): Promise<string | null> {
-  if (mode !== "secret") {
-    return Promise.resolve(null);
-  }
-
-  if (typeof password !== "string" || password.trim().length < 4) {
-    throw new Error("비밀방은 4자 이상 비밀번호가 필요합니다.");
-  }
-
-  return hashPassword(password.trim());
-}
-
-function resolveRoomMode(row: Pick<DbRoomRow, "mode">): RoomMode {
-  return normalizeRoomMode(row.mode, "public");
-}
-
-function resolveRoomTitle(row: Pick<DbRoomRow, "title" | "code">): string {
-  return normalizeRoomDirectoryTitle(row.title, row.code);
-}
-
-function resolveRoomStageCount(row: Pick<DbRoomRow, "stage_count" | "mode">): number {
-  const mode = resolveRoomMode(row);
-  if (typeof row.stage_count === "number" && Number.isFinite(row.stage_count)) {
-    return Math.max(1, Math.floor(row.stage_count));
-  }
-
-  return mode === "practice" ? 1 : 3;
-}
-
-function resolveRoomPasswordHash(row: Pick<DbRoomRow, "password_hash">): string | null {
-  return typeof row.password_hash === "string" && row.password_hash.length > 0
-    ? row.password_hash
-    : null;
-}
-
-function isLegacyMissingRoomColumnsError(error: { message?: string } | null | undefined): boolean {
-  const message = error?.message ?? "";
-  return (
-    message.includes("Could not find the 'mode' column of 'rooms'") ||
-    message.includes("Could not find the 'title' column of 'rooms'") ||
-    message.includes("Could not find the 'password_hash' column of 'rooms'") ||
-    message.includes("Could not find the 'stage_count' column of 'rooms'")
-  );
-}
-
-function isLegacyMissingGuestIdentityColumnError(error: { message?: string } | null | undefined): boolean {
-  const message = error?.message ?? "";
-  return message.includes("Could not find the 'guest_identity' column of 'players'");
-}
-
-function toRoomSettings(row: DbRoomRow): RoomSettingsView {
-  const mode = resolveRoomMode(row);
-  return {
-    roomId: row.id,
-    title: resolveRoomTitle(row),
-    mode,
-    stageCount: resolveRoomStageCount(row),
-    maxPlayers: row.max_players,
-    passwordProtected: mode === "secret" || resolveRoomPasswordHash(row) !== null,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toRoom(row: DbRoomRow): Room {
-  return {
-    id: row.id,
-    code: row.code,
-    status: row.status,
-    maxPlayers: row.max_players,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toPlayer(row: DbPlayerRow): Player {
-  return {
-    id: row.id,
-    nickname: row.nickname,
-    roomId: row.room_id,
-    role: row.role,
-    isReady: row.is_ready,
-    connectionStatus: row.connection_status,
-    totalScore: row.total_score,
-    solvedCount: row.solved_count,
-    bonusKeywordCount: row.bonus_keyword_count,
-    joinedAt: row.joined_at,
-    lastSeenAt: row.last_seen_at,
-  };
-}
-
-function toTeamSlot(row: DbTeamSlotRow): TeamSlot {
-  return {
-    id: row.id,
-    roomId: row.room_id,
-    label: row.label,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toGame(row: DbGameRow): Game {
-  return {
-    id: row.id,
-    roomId: row.room_id,
-    status: row.status,
-    currentStageNumber: row.current_stage_number,
-    startedAt: row.started_at,
-    endedAt: row.ended_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toStage(row: DbStageRow): Stage {
-  return {
-    id: row.id,
-    gameId: row.game_id,
-    roomId: row.room_id,
-    stageNumber: row.stage_number,
-    caseKey: row.case_key,
-    status: row.status,
-    briefingStartedAt: row.briefing_started_at,
-    startedAt: row.started_at,
-    endsAt: row.ends_at,
-    endedAt: row.ended_at,
-    solvedPlayerIds: row.solved_player_ids,
-    endReason: row.end_reason,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toStageTeamAssignment(row: DbStageTeamAssignmentRow): StageTeamAssignment {
-  return {
-    stageId: row.stage_id,
-    playerId: row.player_id,
-    teamSlotId: row.team_slot_id,
-    createdAt: row.created_at,
-  };
-}
-
-function toPlayerStageState(row: DbPlayerStageStateRow): PlayerStageState {
-  return {
-    stageId: row.stage_id,
-    playerId: row.player_id,
-    teamSlotId: row.team_slot_id,
-    status: row.status,
-    queueStatus: row.queue_joined_at ? "waiting" : "idle",
-    queueJoinedAt: row.queue_joined_at,
-    queueCooldownEndsAt: row.queue_cooldown_ends_at,
-    questionCount: row.question_count,
-    answerAttemptCount: row.answer_attempt_count,
-    hasReceivedInactivityPenalty: row.has_received_inactivity_penalty,
-    solvedAt: row.solved_at,
-    lockedAt: row.locked_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toInvestigationLock(row: DbInvestigationLockRow): InvestigationLock {
-  return {
-    stageId: row.stage_id,
-    roomId: row.room_id,
-    lockedByPlayerId: row.locked_by_player_id,
-    lockedAt: row.locked_at,
-    expiresAt: row.expires_at,
-    questionCount: row.question_count,
-    answerAttemptCount: row.answer_attempt_count,
-    lastReleasedByPlayerId: row.last_released_by_player_id,
-    lastReleasedAt: row.last_released_at,
-    version: row.version,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toHintReveal(row: DbHintRevealRow): HintReveal {
-  return {
-    id: row.id,
-    stageId: row.stage_id,
-    hintIndex: row.hint_index,
-    triggerType: row.trigger_type,
-    revealedAt: row.revealed_at,
-  };
-}
-
-function toChatMessage(row: DbChatMessageRow): ChatMessage {
-  return {
-    id: row.id,
-    roomId: row.room_id,
-    stageId: row.stage_id,
-    playerId: row.player_id,
-    teamSlotId: row.team_slot_id,
-    channel: row.channel,
-    content: row.content,
-    createdAt: row.created_at,
-  };
-}
-
-function toPrivateChatRequest(row: DbPrivateChatRequestRow): PrivateChatRequest {
-  return {
-    id: row.id,
-    stageId: row.stage_id,
-    requesterPlayerId: row.requester_player_id,
-    targetPlayerId: row.target_player_id,
-    status: row.status,
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-    respondedAt: row.responded_at,
-    responseReason: row.response_reason,
-  };
-}
-
-function toPrivateChatSession(row: DbPrivateChatSessionRow): PrivateChatSession {
-  return {
-    id: row.id,
-    stageId: row.stage_id,
-    requestId: row.request_id,
-    playerAId: row.player_a_id,
-    playerBId: row.player_b_id,
-    startedAt: row.started_at,
-    releaseAllowedAt: row.release_allowed_at,
-    endedAt: row.ended_at,
-    closedByPlayerId: row.closed_by_player_id,
-  };
-}
-
-function toScoreEvent(row: DbScoreEventRow): ScoreEvent {
-  return {
-    id: row.id,
-    roomId: row.room_id,
-    gameId: row.game_id,
-    stageId: row.stage_id,
-    playerId: row.player_id,
-    type: row.type,
-    delta: row.delta,
-    quantity: row.quantity,
-    reason: row.reason,
-    metadata: row.metadata,
-    createdAt: row.created_at,
-  };
-}
+// Error classes extracted to "./live-store/errors".
+// Tiny utils (ids) extracted to "./live-store/ids".
+// Mappers (normalize*/resolveRoom*/to*) extracted to "./live-store/mappers".
 
 function buildScoreLedger(
   players: DbPlayerRow[],
@@ -923,14 +360,6 @@ function buildScoreLedger(
     snapshots: replayed,
     byPlayerId,
   };
-}
-
-function normalizeKeywordText(value: string): string {
-  return value.toLowerCase().replace(/[\s.,!?"'“”‘’(){}\[\]<>~`·、。！？\-_/]/g, "");
-}
-
-function includesNormalized(haystack: string, needle: string): boolean {
-  return normalizeKeywordText(haystack).includes(normalizeKeywordText(needle));
 }
 
 function mapQuestionJudgementToPublicReply(judgement: QuestionJudgement): string {
@@ -961,55 +390,8 @@ function mapQuestionJudgementToStoredJudgement(judgement: QuestionJudgement): Qu
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function extractJsonObject(text: string | null): Record<string, unknown> | null {
-  if (!text) {
-    return null;
-  }
-
-  const trimmed = text.trim();
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fencedMatch?.[1]?.trim() ?? trimmed;
-  const startIndex = candidate.indexOf("{");
-  const endIndex = candidate.lastIndexOf("}");
-
-  if (startIndex < 0 || endIndex <= startIndex) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(candidate.slice(startIndex, endIndex + 1)) as unknown;
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
-
-function resolveKeywordSubset(sourceKeywords: string[], rawMatches: string[]): string[] {
-  const normalizedMatches = rawMatches.map((value) => normalizeKeywordText(value)).filter((value) => value.length > 0);
-  const resolved = sourceKeywords.filter((keyword) => {
-    const normalizedKeyword = normalizeKeywordText(keyword);
-    return normalizedMatches.some(
-      (candidate) =>
-        candidate === normalizedKeyword ||
-        candidate.includes(normalizedKeyword) ||
-        normalizedKeyword.includes(candidate),
-    );
-  });
-
-  return Array.from(new Set(resolved));
-}
+// Text utilities (isRecord, extractJsonObject, asStringArray, resolveKeywordSubset)
+// extracted to "./live-store/text-utils".
 
 function buildVisibleHintTexts(caseFile: CaseFile, visibleHints: DbHintRevealRow[]): string[] {
   return visibleHints
