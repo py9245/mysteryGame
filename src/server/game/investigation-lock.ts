@@ -5,7 +5,10 @@ import type {
 } from "../../contracts/game";
 import { addSeconds, hasExpired } from "../time";
 
-export const LOCK_TTL_SECONDS = 20;
+// Production-aligned investigation lock constants.
+// `LOCK_TTL_SECONDS` matches the value enforced by the live store (60s)
+// and the frontend's optimistic countdown. Keep these three in lockstep.
+export const LOCK_TTL_SECONDS = 60;
 export const REENTRY_COOLDOWN_SECONDS = 5;
 export const MAX_QUESTIONS_PER_LOCK = 3;
 export const MAX_ANSWER_ATTEMPTS_PER_LOCK = 1;
@@ -80,6 +83,75 @@ export function getCooldownEndsAt(
   }
 
   return addSeconds(lock.lastReleasedAt, REENTRY_COOLDOWN_SECONDS);
+}
+
+export function isInReentryCooldown(
+  lock: InvestigationLock,
+  playerId: EntityId,
+  nowIso: IsoTimestamp,
+): boolean {
+  const cooldownEndsAt = getCooldownEndsAt(lock, playerId);
+  return Boolean(cooldownEndsAt && !hasExpired(cooldownEndsAt, nowIso));
+}
+
+/**
+ * Select the FIFO head of an investigation queue.
+ *
+ * Sort key: `queueJoinedAt` ascending; ties broken by stable `playerId` lex order.
+ * Entries whose `queueJoinedAt` is null/empty are excluded — they are considered
+ * outside the queue.
+ *
+ * Optional `nowIso` + cooldown filter lets the caller skip entries still under
+ * their `queueCooldownEndsAt` window so the same player who just released cannot
+ * be auto-admitted before the 5s cooldown elapses.
+ */
+export interface InvestigationQueueEntry<T = unknown> {
+  playerId: EntityId;
+  queueJoinedAt: IsoTimestamp | null | undefined;
+  queueCooldownEndsAt?: IsoTimestamp | null;
+  payload?: T;
+}
+
+export function sortInvestigationQueueFifo<T>(
+  entries: ReadonlyArray<InvestigationQueueEntry<T>>,
+): InvestigationQueueEntry<T>[] {
+  return [...entries]
+    .filter(
+      (entry) =>
+        typeof entry.queueJoinedAt === "string" &&
+        entry.queueJoinedAt.length > 0,
+    )
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.queueJoinedAt ?? "");
+      const rightTime = Date.parse(right.queueJoinedAt ?? "");
+
+      if (
+        Number.isFinite(leftTime) &&
+        Number.isFinite(rightTime) &&
+        leftTime !== rightTime
+      ) {
+        return leftTime - rightTime;
+      }
+
+      return left.playerId.localeCompare(right.playerId);
+    });
+}
+
+export function selectAdmissibleQueueHead<T>(
+  entries: ReadonlyArray<InvestigationQueueEntry<T>>,
+  nowIso: IsoTimestamp,
+): InvestigationQueueEntry<T> | null {
+  const sorted = sortInvestigationQueueFifo(entries);
+  for (const entry of sorted) {
+    if (
+      entry.queueCooldownEndsAt &&
+      !hasExpired(entry.queueCooldownEndsAt, nowIso)
+    ) {
+      continue;
+    }
+    return entry;
+  }
+  return null;
 }
 
 export function acquireInvestigationLock(
