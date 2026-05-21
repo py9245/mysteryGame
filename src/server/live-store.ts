@@ -90,6 +90,7 @@ import {
   buildInactivityPenaltyEvents,
   createScoreEvent,
   replayScoreEvents,
+  SCORE_EVENT_DEFAULTS,
 } from "@/server/game/scoring";
 import {
   LOCK_TTL_SECONDS as INVESTIGATION_LOCK_TTL_SECONDS,
@@ -8804,11 +8805,13 @@ export async function listAdminLogsFromStore(
  * - Marks the judgement_review_queue row resolved (approved/rejected).
  * - Updates the judgement_records row's public_outcome/public_summary/persistence_state.
  * - Writes an admin_logs audit-trail entry with before/after snapshots.
+ * - Reconciles score_events via additive reversal/replacement events when the
+ *   public outcome shifts between correct/wrong (best-effort; immutable ledger).
  *
- * Returns a flag indicating whether downstream score_events recalculation is required
- * (true when the new outcome differs from the AI-provided outcome). Actual score
- * recalculation is intentionally out of scope here and remains the responsibility of
- * a separate hint/penalty/score reconciliation pass.
+ * The returned `scoreRecalculationRequired` flag indicates whether downstream score
+ * reconciliation is still pending after this call. It is `false` when recalculation
+ * succeeded or was a no-op (same outcome / non-applicable kind), and `true` only when
+ * recalculation was attempted but failed (the failure is also written to admin_logs).
  */
 export async function applyOperatorOverrideInStore(
   input: AdminOperatorOverrideRequest,
@@ -8968,7 +8971,55 @@ export async function applyOperatorOverrideInStore(
     },
   });
 
-  const scoreRecalculationRequired = previousPublicOutcome !== nextPublicOutcome;
+  // 5) Reconcile score_events via additive reversal/replacement (immutable ledger).
+  //    Best-effort: failures are logged but do not roll back the override write.
+  let scoreRecalculationRequired = false;
+  let scoreRecalculation: AdminOperatorOverrideResponse["scoreRecalculation"];
+  try {
+    const recalc = await recalculateScoresForPlayerAfterOverride({
+      playerId: queueRow.player_id,
+      stageId: queueRow.stage_id,
+      beforeOutcome: previousPublicOutcome,
+      afterOutcome: nextPublicOutcome,
+      judgementId: queueRow.judgement_id,
+      operatorId: operator.id,
+      overrideId,
+    });
+    scoreRecalculation = {
+      applied: recalc.applied,
+      eventCount: recalc.eventCount,
+      reason: recalc.reason,
+    };
+  } catch (recalcError) {
+    scoreRecalculationRequired = true;
+    scoreRecalculation = {
+      applied: false,
+      eventCount: 0,
+      reason: "failed",
+    };
+    try {
+      await recordAdminLogInStore({
+        roomId: queueRow.room_id,
+        gameId: recordRow.game_id,
+        stageId: queueRow.stage_id,
+        actorType: "system",
+        actorId: operator.id,
+        action: "operator_override_score_recalc_failed",
+        payload: {
+          reviewId: queueRow.review_id,
+          judgementId: queueRow.judgement_id,
+          overrideId,
+          kind: queueRow.kind,
+          before: { publicOutcome: previousPublicOutcome },
+          after: { publicOutcome: nextPublicOutcome },
+          error:
+            recalcError instanceof Error ? recalcError.message : String(recalcError),
+        },
+      });
+    } catch {
+      // Best-effort: swallow secondary logging errors so the override response stays consistent.
+    }
+  }
 
   return {
     override: toAdminOverrideRecord(insertedOverride),
@@ -8981,5 +9032,256 @@ export async function applyOperatorOverrideInStore(
       updated_at: nowIso,
     }),
     scoreRecalculationRequired,
+    scoreRecalculation,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Operator override -> score reconciliation
+// ---------------------------------------------------------------------------
+
+export interface RecalculateScoresAfterOverrideInput {
+  playerId: string;
+  stageId: string;
+  beforeOutcome: string;
+  afterOutcome: string;
+  judgementId: string;
+  operatorId: string;
+  /**
+   * Override row id (judgement_overrides.id). Used as an idempotency key embedded in
+   * the reversal/replacement score_events' metadata so a retry will not double-apply.
+   */
+  overrideId: string;
+}
+
+export type RecalculateScoresAfterOverrideReason =
+  | "no_change"
+  | "non_applicable_kind"
+  | "already_applied"
+  | "applied"
+  | "no_op_outcome_pair"
+  | "judgement_missing";
+
+export interface RecalculateScoresAfterOverrideResult {
+  applied: boolean;
+  /** Number of reversal/replacement score_events appended. */
+  eventCount: number;
+  /** Machine-readable explanation of the outcome. */
+  reason: RecalculateScoresAfterOverrideReason;
+}
+
+type RecalcOutcome = "correct" | "wrong" | "needs_review" | "other";
+
+function classifyOverrideOutcome(value: string): RecalcOutcome {
+  if (value === "correct" || value === "wrong" || value === "needs_review") {
+    return value;
+  }
+  return "other";
+}
+
+/**
+ * Reconciles `score_events` for a player after an operator override changes the
+ * public outcome of an answer judgement. The ledger is strictly immutable, so this
+ * helper only ever appends new events:
+ *
+ *  - wrong -> correct: append a `wrong_answer_cost` reversal with `delta = -default`
+ *    to cancel the original wrong-answer penalty.
+ *  - correct -> wrong: append a `wrong_answer_cost` replacement with the default
+ *    penalty `delta`. Any prior `bonus_keyword_reward` events implied by the
+ *    judgement record's matchedBonusKeywords are reversed in parallel (each
+ *    reward had a negative delta; the reversal flips the sign).
+ *  - wrong <-> needs_review: appends/reverses the wrong_answer_cost analogously.
+ *  - correct <-> needs_review: reverses bonus rewards only.
+ *  - same outcome / question-kind judgement: no-op.
+ *
+ * Idempotency: every reversal/replacement event embeds the originating `overrideId`
+ * in its metadata, and this helper short-circuits when any score_event for the same
+ * stage+player already references this overrideId.
+ */
+export async function recalculateScoresForPlayerAfterOverride(
+  input: RecalculateScoresAfterOverrideInput,
+): Promise<RecalculateScoresAfterOverrideResult> {
+  const before = classifyOverrideOutcome(input.beforeOutcome);
+  const after = classifyOverrideOutcome(input.afterOutcome);
+
+  if (before === after) {
+    return { applied: false, eventCount: 0, reason: "no_change" };
+  }
+
+  const recordRow = await loadJudgementRecordRow(input.judgementId);
+  if (!recordRow) {
+    return { applied: false, eventCount: 0, reason: "judgement_missing" };
+  }
+
+  // Question-kind judgements never produce outcome-dependent score events
+  // (question_cost is charged regardless of YES/NO/PARTIAL/IRRELEVANT).
+  if (recordRow.kind !== "answer") {
+    return { applied: false, eventCount: 0, reason: "non_applicable_kind" };
+  }
+
+  if (!recordRow.game_id) {
+    // Score events require a non-null game_id. Without one we cannot append.
+    return { applied: false, eventCount: 0, reason: "non_applicable_kind" };
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  // --- Idempotency guard -------------------------------------------------
+  // Find any existing reversal/replacement events keyed on this overrideId.
+  const { data: existingEvents, error: existingError } = await supabase
+    .from("score_events")
+    .select("*")
+    .eq("stage_id", input.stageId)
+    .eq("player_id", input.playerId)
+    .returns<DbScoreEventRow[]>();
+
+  if (existingError) {
+    throw new Error(
+      `Failed to load score_events for idempotency check: ${existingError.message}`,
+    );
+  }
+
+  const alreadyApplied = (existingEvents ?? []).some((event) => {
+    const meta = event.metadata as Record<string, unknown> | null;
+    return (
+      meta !== null &&
+      typeof meta === "object" &&
+      (meta as { overrideId?: unknown }).overrideId === input.overrideId
+    );
+  });
+
+  if (alreadyApplied) {
+    return { applied: false, eventCount: 0, reason: "already_applied" };
+  }
+
+  // --- Outcome-pair handling --------------------------------------------
+  const internal = (recordRow.internal_payload ?? {}) as {
+    matchedBonusKeywords?: unknown;
+  };
+  const matchedBonusKeywords = Array.isArray(internal.matchedBonusKeywords)
+    ? internal.matchedBonusKeywords.filter(
+        (entry): entry is string => typeof entry === "string",
+      )
+    : [];
+
+  const wrongDefaultDelta = SCORE_EVENT_DEFAULTS.wrong_answer_cost.delta;
+  const bonusDefaultDelta = SCORE_EVENT_DEFAULTS.bonus_keyword_reward.delta;
+  const nowIso = nowUtcIso();
+  const events: ScoreEvent[] = [];
+
+  // wrong -> correct or wrong -> needs_review: reverse the wrong_answer_cost.
+  if (before === "wrong" && (after === "correct" || after === "needs_review")) {
+    events.push(
+      createScoreEvent({
+        id: createEntityId(),
+        roomId: recordRow.room_id,
+        gameId: recordRow.game_id,
+        stageId: input.stageId,
+        playerId: input.playerId,
+        type: "wrong_answer_cost",
+        delta: -wrongDefaultDelta,
+        createdAt: nowIso,
+        reason: "operator_override_reversal:wrong_answer_cost",
+        metadata: {
+          kind: "operator_override_reversal",
+          sourceJudgementId: input.judgementId,
+          sourceOperatorId: input.operatorId,
+          overrideId: input.overrideId,
+          beforeOutcome: input.beforeOutcome,
+          afterOutcome: input.afterOutcome,
+          reversedScoreEventType: "wrong_answer_cost",
+        },
+      }),
+    );
+  }
+
+  // correct -> wrong or correct -> needs_review: reverse the bonus rewards.
+  if (
+    before === "correct" &&
+    (after === "wrong" || after === "needs_review") &&
+    matchedBonusKeywords.length > 0
+  ) {
+    for (const keyword of matchedBonusKeywords) {
+      events.push(
+        createScoreEvent({
+          id: createEntityId(),
+          roomId: recordRow.room_id,
+          gameId: recordRow.game_id,
+          stageId: input.stageId,
+          playerId: input.playerId,
+          type: "bonus_keyword_reward",
+          delta: -bonusDefaultDelta,
+          createdAt: nowIso,
+          reason: "operator_override_reversal:bonus_keyword_reward",
+          metadata: {
+            kind: "operator_override_reversal",
+            sourceJudgementId: input.judgementId,
+            sourceOperatorId: input.operatorId,
+            overrideId: input.overrideId,
+            beforeOutcome: input.beforeOutcome,
+            afterOutcome: input.afterOutcome,
+            reversedScoreEventType: "bonus_keyword_reward",
+            keyword,
+          },
+        }),
+      );
+    }
+  }
+
+  // correct -> wrong or needs_review -> wrong: stamp the wrong-answer penalty.
+  if (after === "wrong" && (before === "correct" || before === "needs_review")) {
+    events.push(
+      createScoreEvent({
+        id: createEntityId(),
+        roomId: recordRow.room_id,
+        gameId: recordRow.game_id,
+        stageId: input.stageId,
+        playerId: input.playerId,
+        type: "wrong_answer_cost",
+        delta: wrongDefaultDelta,
+        createdAt: nowIso,
+        reason: "operator_override_replacement:wrong_answer_cost",
+        metadata: {
+          kind: "operator_override_replacement",
+          sourceJudgementId: input.judgementId,
+          sourceOperatorId: input.operatorId,
+          overrideId: input.overrideId,
+          beforeOutcome: input.beforeOutcome,
+          afterOutcome: input.afterOutcome,
+          replacementScoreEventType: "wrong_answer_cost",
+        },
+      }),
+    );
+  }
+
+  // needs_review -> correct currently has no score event to issue (correct
+  // outcomes have no base score event; bonus rewards are unknown without a
+  // matched-keyword list, which `needs_review` runs do not produce).
+  if (events.length === 0) {
+    return { applied: false, eventCount: 0, reason: "no_op_outcome_pair" };
+  }
+
+  await persistScoreEventsAndSyncTotals(recordRow.room_id, events);
+
+  // Audit-trail entry for the reversal/replacement events themselves so the
+  // ledger change is discoverable from admin_logs.
+  await recordAdminLogInStore({
+    roomId: recordRow.room_id,
+    gameId: recordRow.game_id,
+    stageId: input.stageId,
+    actorType: "system",
+    actorId: input.operatorId,
+    action: "operator_override_score_recalculated",
+    payload: {
+      overrideId: input.overrideId,
+      judgementId: input.judgementId,
+      playerId: input.playerId,
+      before: { publicOutcome: input.beforeOutcome },
+      after: { publicOutcome: input.afterOutcome },
+      eventIds: events.map((event) => event.id),
+      eventCount: events.length,
+    },
+  });
+
+  return { applied: true, eventCount: events.length, reason: "applied" };
 }

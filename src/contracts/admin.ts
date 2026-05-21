@@ -89,10 +89,37 @@ export interface AdminOperatorOverrideRequest {
   reason: string;
 }
 
+export type AdminOperatorOverrideScoreRecalcReason =
+  | "no_change"
+  | "non_applicable_kind"
+  | "already_applied"
+  | "applied"
+  | "no_op_outcome_pair"
+  | "judgement_missing"
+  | "failed";
+
+export interface AdminOperatorOverrideScoreRecalcSummary {
+  /** Whether reversal/replacement score_events were actually appended for this override. */
+  applied: boolean;
+  /** Number of reversal/replacement score_events appended (0 when no-op or failed). */
+  eventCount: number;
+  /** Machine-readable explanation of the recalculation result. */
+  reason: AdminOperatorOverrideScoreRecalcReason;
+}
+
 export interface AdminOperatorOverrideResponse {
   override: JudgementOverrideRecord;
   review: AdminReviewQueueListItem;
+  /**
+   * Indicates whether downstream score reconciliation is still pending after this
+   * override call. `false` when reconciliation succeeded or was a deterministic
+   * no-op (same outcome, non-applicable judgement kind, etc.). `true` only when
+   * reconciliation was attempted but failed - the failure is also recorded in
+   * `admin_logs` and the override write itself is not rolled back.
+   */
   scoreRecalculationRequired: boolean;
+  /** Detail of the score_events reconciliation attempt. */
+  scoreRecalculation?: AdminOperatorOverrideScoreRecalcSummary;
 }
 
 export interface AdminLogListResponse {
