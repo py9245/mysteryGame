@@ -2172,27 +2172,29 @@ async function admitNextInvestigationQueuePlayer(
 
   const supabase = getSupabaseAdminClient();
 
-  const { data: nextLockRow, error: nextLockError } = await supabase
-    .from("investigation_locks")
-    .upsert({
-      stage_id: stageId,
-      room_id: roomId,
-      locked_by_player_id: queuedPlayerState.player_id,
-      locked_at: nowIso,
-      expires_at: addSeconds(nowIso, INVESTIGATION_LOCK_SECONDS),
-      question_count: 0,
-      answer_attempt_count: 0,
-      last_released_by_player_id: activeLock?.last_released_by_player_id ?? null,
-      last_released_at: activeLock?.last_released_at ?? null,
-      version: (activeLock?.version ?? 0) + 1,
-      created_at: activeLock?.created_at ?? nowIso,
-      updated_at: nowIso,
-    })
-    .select("*")
-    .single<DbInvestigationLockRow>();
-
-  if (nextLockError || !nextLockRow) {
-    throw new Error(`Failed to admit next queued investigation player: ${nextLockError?.message ?? "unknown error"}`);
+  let nextLockRow: DbInvestigationLockRow;
+  try {
+    nextLockRow = await casAcquireInvestigationLockRow({
+      supabase,
+      stageId,
+      roomId,
+      playerId: queuedPlayerState.player_id,
+      nowIso,
+      expiresAt: addSeconds(nowIso, INVESTIGATION_LOCK_SECONDS),
+      nextVersion: (activeLock?.version ?? 0) + 1,
+      currentLock: activeLock,
+    });
+  } catch (admissionError) {
+    if (
+      admissionError instanceof InvestigationLockError &&
+      admissionError.code === "LOCK_CONFLICT"
+    ) {
+      // Another writer (e.g. a player directly acquiring, a concurrent admit,
+      // or the TTL expiry path) advanced the lock first. Yield gracefully —
+      // the caller will broadcast and clients will resync from the new state.
+      return null;
+    }
+    throw admissionError;
   }
 
   const { error: queueClearError } = await supabase
@@ -5478,6 +5480,112 @@ export async function leaveInvestigationQueueInStore(
   };
 }
 
+// PG unique_violation code (e.g. on `stage_id` primary key). Used to detect
+// concurrent inserts when no prior lock row existed.
+const POSTGRES_UNIQUE_VIOLATION_CODE = "23505";
+
+type SupabaseAdminClient = ReturnType<typeof getSupabaseAdminClient>;
+
+interface CasAcquireInvestigationLockInput {
+  supabase: SupabaseAdminClient;
+  stageId: string;
+  roomId: string;
+  playerId: string;
+  nowIso: string;
+  expiresAt: string;
+  nextVersion: number;
+  currentLock: DbInvestigationLockRow | null;
+}
+
+/**
+ * Acquire (or take over) an investigation lock row with optimistic concurrency.
+ *
+ * - When no prior row exists, inserts a new row. A concurrent inserter will hit
+ *   the `stage_id` primary-key unique constraint (PG error 23505) and we map
+ *   that to `LOCK_CONFLICT` so the caller can retry from a fresh snapshot.
+ * - When a prior row exists, runs `UPDATE ... WHERE stage_id = $1 AND
+ *   version = $2`. PostgREST returns the updated rows via `.select()`; if the
+ *   array is empty the predicate matched zero rows (another writer bumped the
+ *   version first), which also surfaces as `LOCK_CONFLICT`.
+ */
+async function casAcquireInvestigationLockRow(
+  input: CasAcquireInvestigationLockInput,
+): Promise<DbInvestigationLockRow> {
+  const { supabase, stageId, roomId, playerId, nowIso, expiresAt, nextVersion, currentLock } = input;
+
+  if (!currentLock) {
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("investigation_locks")
+      .insert({
+        stage_id: stageId,
+        room_id: roomId,
+        locked_by_player_id: playerId,
+        locked_at: nowIso,
+        expires_at: expiresAt,
+        question_count: 0,
+        answer_attempt_count: 0,
+        last_released_by_player_id: null,
+        last_released_at: null,
+        version: nextVersion,
+        created_at: nowIso,
+        updated_at: nowIso,
+      })
+      .select("*")
+      .single<DbInvestigationLockRow>();
+
+    if (insertError) {
+      const insertErrorWithCode = insertError as typeof insertError & { code?: string };
+      if (insertErrorWithCode.code === POSTGRES_UNIQUE_VIOLATION_CODE) {
+        throw new InvestigationLockError(
+          "LOCK_CONFLICT",
+          "다른 플레이어가 먼저 조사실을 점유했습니다. 다시 시도해 주세요.",
+        );
+      }
+      throw new Error(`Failed to acquire investigation lock: ${insertError.message}`);
+    }
+
+    if (!insertedRow) {
+      throw new Error("Failed to acquire investigation lock: no row returned after insert");
+    }
+
+    return insertedRow;
+  }
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("investigation_locks")
+    .update({
+      room_id: roomId,
+      locked_by_player_id: playerId,
+      locked_at: nowIso,
+      expires_at: expiresAt,
+      question_count: 0,
+      answer_attempt_count: 0,
+      last_released_by_player_id: currentLock.last_released_by_player_id ?? null,
+      last_released_at: currentLock.last_released_at ?? null,
+      version: nextVersion,
+      updated_at: nowIso,
+    })
+    .eq("stage_id", stageId)
+    .eq("version", currentLock.version)
+    .select("*")
+    .returns<DbInvestigationLockRow[]>();
+
+  if (updateError) {
+    throw new Error(`Failed to acquire investigation lock: ${updateError.message}`);
+  }
+
+  const updatedRow = updatedRows?.[0];
+  if (!updatedRow) {
+    // No row matched the version predicate → another writer beat us.
+    throw new InvestigationLockError(
+      "LOCK_CONFLICT",
+      "조사실 상태가 방금 변경되었습니다. 다시 시도해 주세요.",
+    );
+  }
+
+  return updatedRow;
+}
+
 export async function acquireInvestigationLockInStore(
   roomId: string,
   stageId: string,
@@ -5525,28 +5633,16 @@ export async function acquireInvestigationLockInStore(
 
   const nextVersion = (currentLock?.version ?? 0) + 1;
   const expiresAt = addSeconds(nowIso, INVESTIGATION_LOCK_SECONDS);
-  const { data: lockRow, error: lockError } = await supabase
-    .from("investigation_locks")
-    .upsert({
-      stage_id: stageId,
-      room_id: room.id,
-      locked_by_player_id: playerId,
-      locked_at: nowIso,
-      expires_at: expiresAt,
-      question_count: 0,
-      answer_attempt_count: 0,
-      last_released_by_player_id: currentLock?.last_released_by_player_id ?? null,
-      last_released_at: currentLock?.last_released_at ?? null,
-      version: nextVersion,
-      created_at: currentLock?.created_at ?? nowIso,
-      updated_at: nowIso,
-    })
-    .select("*")
-    .single<DbInvestigationLockRow>();
-
-  if (lockError || !lockRow) {
-    throw new Error(`Failed to acquire investigation lock: ${lockError?.message ?? "unknown error"}`);
-  }
+  const lockRow = await casAcquireInvestigationLockRow({
+    supabase,
+    stageId,
+    roomId: room.id,
+    playerId,
+    nowIso,
+    expiresAt,
+    nextVersion,
+    currentLock,
+  });
 
   const { error: playerStateError } = await supabase
     .from("player_stage_states")
@@ -5606,7 +5702,7 @@ export async function releaseInvestigationLockInStore(
 
   const nowIso = nowUtcIso();
   const supabase = getSupabaseAdminClient();
-  const { data: lockRow, error: releaseError } = await supabase
+  const { data: releasedRows, error: releaseError } = await supabase
     .from("investigation_locks")
     .update({
       locked_by_player_id: null,
@@ -5620,11 +5716,24 @@ export async function releaseInvestigationLockInStore(
       updated_at: nowIso,
     })
     .eq("stage_id", stageId)
+    .eq("version", currentLock.version)
     .select("*")
-    .single<DbInvestigationLockRow>();
+    .returns<DbInvestigationLockRow[]>();
 
-  if (releaseError || !lockRow) {
-    throw new Error(`Failed to release investigation lock: ${releaseError?.message ?? "unknown error"}`);
+  if (releaseError) {
+    throw new Error(`Failed to release investigation lock: ${releaseError.message}`);
+  }
+
+  const lockRow = releasedRows?.[0];
+  if (!lockRow) {
+    // The lock row was mutated between the snapshot read and our CAS update.
+    // Typical causes: TTL auto-expiry path (ensureExpiredInvestigationLockReleased)
+    // or admit-next ran concurrently. Surface as LOCK_CONFLICT so the caller can
+    // refetch and decide.
+    throw new InvestigationLockError(
+      "LOCK_CONFLICT",
+      "조사실 상태가 방금 변경되었습니다. 화면을 새로고침 후 다시 시도해 주세요.",
+    );
   }
 
   await applyInvestigationQueueCooldown(stageId, playerId, nowIso);
@@ -6518,7 +6627,9 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
   }
 
   if (lock?.locked_by_player_id && hasExpired(lock.expires_at, nowIso)) {
-    const { error: lockResetError } = await supabase
+    // CAS on `version` so we don't clobber a fresh acquire/release/admit that
+    // landed between the snapshot read above and this auto-expiry write.
+    const { data: expiredRows, error: lockResetError } = await supabase
       .from("investigation_locks")
       .update({
         locked_by_player_id: null,
@@ -6531,15 +6642,23 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
         version: lock.version + 1,
         updated_at: nowIso,
       })
-      .eq("stage_id", lock.stage_id);
+      .eq("stage_id", lock.stage_id)
+      .eq("version", lock.version)
+      .select("*")
+      .returns<DbInvestigationLockRow[]>();
 
     if (lockResetError) {
       throw new Error(`Failed to reset expired investigation lock: ${lockResetError.message}`);
     }
 
-    await applyInvestigationQueueCooldown(stage.id, lock.locked_by_player_id, nowIso);
-    if (!willStageExpireNow) {
-      await admitNextInvestigationQueuePlayer(roomId, stage.id, nowIso);
+    // If no row matched the version predicate another writer already advanced
+    // the lock — skip both the cooldown and admit so we don't act on a stale
+    // owner. The next sync tick will reconcile.
+    if (expiredRows && expiredRows.length > 0) {
+      await applyInvestigationQueueCooldown(stage.id, lock.locked_by_player_id, nowIso);
+      if (!willStageExpireNow) {
+        await admitNextInvestigationQueuePlayer(roomId, stage.id, nowIso);
+      }
     }
   }
 
