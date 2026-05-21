@@ -74,6 +74,7 @@ import {
   buildQuestionCostEvent,
   buildWrongAnswerCostEvent,
   buildBonusRewardEvents,
+  buildInactivityPenaltyEvent,
   buildInactivityPenaltyEvents,
   createScoreEvent,
   replayScoreEvents,
@@ -338,6 +339,10 @@ const PRIVATE_CHAT_REQUEST_TTL_SECONDS = 15;
 const PRIVATE_CHAT_MIN_SESSION_SECONDS = 30;
 const PRIVATE_CHAT_COOLDOWN_SECONDS = 10;
 const ROOM_PRESENCE_TTL_SECONDS = 60;
+const HINT_TIME_REVEAL_THRESHOLDS_SECONDS = [300, 600] as const;
+const HINT_FIRST_CORRECT_TRIGGER = "first_correct_answer";
+const HINT_TIME_ELAPSED_TRIGGER = "time_elapsed";
+const INACTIVITY_PENALTY_THRESHOLD_SECONDS = 180;
 const PRACTICE_GENERATED_CASE_SENTINEL = "__practice_generated__";
 const PRACTICE_GENERATED_CASE_PREFIX = "practice-generated-";
 const AUTO_CASE_SELECTION_SENTINEL = "__auto_case__";
@@ -6345,6 +6350,265 @@ function buildStageEndPenaltyEvents(input: {
   });
 }
 
+function resolveAvailableHintCount(caseFile: CaseFile): number {
+  return Array.isArray(caseFile.hints) ? caseFile.hints.length : 0;
+}
+
+function resolveNextHintIndex(visibleHints: DbHintRevealRow[], availableHintCount: number): number | null {
+  if (availableHintCount <= 0) {
+    return null;
+  }
+
+  const usedIndices = new Set(visibleHints.map((hint) => hint.hint_index));
+  for (let index = 0; index < availableHintCount; index += 1) {
+    if (!usedIndices.has(index)) {
+      return index;
+    }
+  }
+  return null;
+}
+
+async function recordHintRevealIfAbsent(input: {
+  stageId: string;
+  hintIndex: number;
+  triggerType: string;
+  nowIso: string;
+}): Promise<DbHintRevealRow | null> {
+  if (!Number.isInteger(input.hintIndex) || input.hintIndex < 0) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  // Idempotency check: skip if this stage already has a reveal at this index.
+  const { data: existing, error: existingError } = await supabase
+    .from("hint_reveals")
+    .select("*")
+    .eq("stage_id", input.stageId)
+    .eq("hint_index", input.hintIndex)
+    .limit(1)
+    .returns<DbHintRevealRow[]>();
+
+  if (existingError) {
+    throw new Error(`Failed to inspect hint reveals: ${existingError.message}`);
+  }
+
+  if (existing && existing.length > 0) {
+    return existing[0] ?? null;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("hint_reveals")
+    .insert({
+      stage_id: input.stageId,
+      hint_index: input.hintIndex,
+      trigger_type: input.triggerType,
+      revealed_at: input.nowIso,
+    })
+    .select("*")
+    .single<DbHintRevealRow>();
+
+  if (insertError) {
+    // If a concurrent insert created the row, fall back to fetching it.
+    const message = insertError.message ?? "";
+    if (message.includes("duplicate") || message.includes("unique")) {
+      const { data: refetched } = await supabase
+        .from("hint_reveals")
+        .select("*")
+        .eq("stage_id", input.stageId)
+        .eq("hint_index", input.hintIndex)
+        .limit(1)
+        .returns<DbHintRevealRow[]>();
+      return refetched?.[0] ?? null;
+    }
+    throw new Error(`Failed to insert hint reveal: ${message || "unknown error"}`);
+  }
+
+  return inserted ?? null;
+}
+
+function resolveStageElapsedSeconds(stage: DbStageRow, nowIso: string): number | null {
+  const startedAt = resolveStageTimerStart(stage);
+  if (!startedAt) {
+    return null;
+  }
+  const cutoff = stage.ended_at ?? (stage.ends_at && hasExpired(stage.ends_at, nowIso) ? stage.ends_at : nowIso);
+  return diffSeconds(startedAt, cutoff);
+}
+
+async function maybeRevealFirstCorrectHint(input: {
+  stage: DbStageRow;
+  caseFile: CaseFile;
+  visibleHints: DbHintRevealRow[];
+  previouslySolvedPlayerIds: string[];
+  newlySolvedPlayerId: string;
+  nowIso: string;
+}): Promise<DbHintRevealRow | null> {
+  // Only trigger on the very first correct answer of this stage.
+  if (input.previouslySolvedPlayerIds.includes(input.newlySolvedPlayerId)) {
+    return null;
+  }
+  if (input.previouslySolvedPlayerIds.length > 0) {
+    return null;
+  }
+
+  const availableHintCount = resolveAvailableHintCount(input.caseFile);
+  const nextIndex = resolveNextHintIndex(input.visibleHints, availableHintCount);
+  if (nextIndex === null) {
+    return null;
+  }
+
+  return recordHintRevealIfAbsent({
+    stageId: input.stage.id,
+    hintIndex: nextIndex,
+    triggerType: HINT_FIRST_CORRECT_TRIGGER,
+    nowIso: input.nowIso,
+  });
+}
+
+async function maybeRevealTimeElapsedHints(input: {
+  stage: DbStageRow;
+  caseFile: CaseFile;
+  visibleHints: DbHintRevealRow[];
+  nowIso: string;
+}): Promise<void> {
+  if (input.stage.status !== "in_progress") {
+    return;
+  }
+
+  const elapsed = resolveStageElapsedSeconds(input.stage, input.nowIso);
+  if (elapsed === null || elapsed <= 0) {
+    return;
+  }
+
+  const availableHintCount = resolveAvailableHintCount(input.caseFile);
+  if (availableHintCount <= 0) {
+    return;
+  }
+
+  // Idempotency: each crossed threshold consumes one slot. Existing
+  // time-elapsed hints already cover the earliest thresholds in order, so we
+  // skip thresholds that have already produced a reveal.
+  const timeElapsedHintCount = input.visibleHints.filter(
+    (hint) => hint.trigger_type === HINT_TIME_ELAPSED_TRIGGER,
+  ).length;
+
+  const accumulatedHints = [...input.visibleHints];
+  for (let thresholdIndex = timeElapsedHintCount; thresholdIndex < HINT_TIME_REVEAL_THRESHOLDS_SECONDS.length; thresholdIndex += 1) {
+    const thresholdSeconds = HINT_TIME_REVEAL_THRESHOLDS_SECONDS[thresholdIndex];
+    if (typeof thresholdSeconds !== "number" || elapsed < thresholdSeconds) {
+      break;
+    }
+
+    const nextIndex = resolveNextHintIndex(accumulatedHints, availableHintCount);
+    if (nextIndex === null) {
+      return;
+    }
+
+    const inserted = await recordHintRevealIfAbsent({
+      stageId: input.stage.id,
+      hintIndex: nextIndex,
+      triggerType: HINT_TIME_ELAPSED_TRIGGER,
+      nowIso: input.nowIso,
+    });
+
+    if (inserted) {
+      accumulatedHints.push(inserted);
+    }
+  }
+}
+
+function hasReceivedInactivityPenaltyScoreEvent(
+  scoreEvents: DbScoreEventRow[],
+  stageId: string,
+  playerId: string,
+): boolean {
+  return scoreEvents.some(
+    (event) =>
+      event.stage_id === stageId &&
+      event.player_id === playerId &&
+      event.type === "inactivity_penalty",
+  );
+}
+
+async function maybeApplyInactivityPenalties(input: {
+  roomId: string;
+  game: DbGameRow;
+  stage: DbStageRow;
+  playerStates: DbPlayerStageStateRow[];
+  scoreEvents: DbScoreEventRow[];
+  nowIso: string;
+}): Promise<void> {
+  if (input.stage.status !== "in_progress") {
+    return;
+  }
+
+  const elapsed = resolveStageElapsedSeconds(input.stage, input.nowIso);
+  if (elapsed === null || elapsed < INACTIVITY_PENALTY_THRESHOLD_SECONDS) {
+    return;
+  }
+
+  const penaltyEvents: ScoreEvent[] = [];
+  const penalizedPlayerIds: string[] = [];
+
+  for (const playerState of input.playerStates) {
+    // Only active players that have asked zero questions are penalized.
+    // Solved/locked/timed-out players are excluded automatically by status.
+    if (playerState.status !== "active") {
+      continue;
+    }
+    if (playerState.question_count > 0) {
+      continue;
+    }
+    if (playerState.has_received_inactivity_penalty) {
+      continue;
+    }
+    // Defensive double-check against ledger to keep idempotency even if the
+    // boolean flag drifts (e.g. partial write).
+    if (hasReceivedInactivityPenaltyScoreEvent(input.scoreEvents, input.stage.id, playerState.player_id)) {
+      continue;
+    }
+
+    penaltyEvents.push(
+      buildInactivityPenaltyEvent({
+        roomId: input.roomId,
+        gameId: input.game.id,
+        stageId: input.stage.id,
+        playerId: playerState.player_id,
+        createdAt: input.nowIso,
+        createId: createEntityId,
+        thresholdSeconds: INACTIVITY_PENALTY_THRESHOLD_SECONDS,
+        metadata: {
+          stageElapsedSeconds: elapsed,
+          questionCount: playerState.question_count,
+        },
+      }),
+    );
+    penalizedPlayerIds.push(playerState.player_id);
+  }
+
+  if (penaltyEvents.length === 0) {
+    return;
+  }
+
+  await persistScoreEventsAndSyncTotals(input.roomId, penaltyEvents);
+
+  // Mark the player_stage_states flag so subsequent syncs short-circuit fast.
+  const supabase = getSupabaseAdminClient();
+  const { error: flagError } = await supabase
+    .from("player_stage_states")
+    .update({
+      has_received_inactivity_penalty: true,
+      updated_at: input.nowIso,
+    })
+    .eq("stage_id", input.stage.id)
+    .in("player_id", penalizedPlayerIds);
+
+  if (flagError) {
+    throw new Error(`Failed to flag inactivity penalty: ${flagError.message}`);
+  }
+}
+
 function sumTimeTickQuantityForPlayer(
   scoreEvents: DbScoreEventRow[],
   stageId: string,
@@ -6500,6 +6764,30 @@ async function syncDerivedStageState(roomId: string): Promise<void> {
 
   if (timeTickEvents.length > 0) {
     await persistScoreEventsAndSyncTotals(roomId, timeTickEvents);
+  }
+
+  // Hint automation + inactivity penalty automation. These are skipped if the
+  // stage is not actively in progress. Each helper has its own idempotency
+  // guards so repeated syncDerivedStageState invocations are safe.
+  if (stage.status === "in_progress" && !willStageExpireNow) {
+    const caseFile = await loadCaseFile(stage.case_key);
+    if (caseFile) {
+      await maybeRevealTimeElapsedHints({
+        stage,
+        caseFile,
+        visibleHints: state.visibleHints,
+        nowIso,
+      });
+    }
+
+    await maybeApplyInactivityPenalties({
+      roomId,
+      game,
+      stage,
+      playerStates: state.playerStates,
+      scoreEvents: state.scoreEvents,
+      nowIso,
+    });
   }
 
   const lock = state.activeLock;
@@ -6999,6 +7287,7 @@ export async function submitAnswerInStore(
     createdAt: nowIso,
   });
 
+  const previousSolvedPlayerIds = [...currentStage.solved_player_ids];
   const updatedSolvedPlayerIds = resolution.shouldLockPlayer
     ? Array.from(new Set([...currentStage.solved_player_ids, playerId]))
     : currentStage.solved_player_ids;
@@ -7043,7 +7332,29 @@ export async function submitAnswerInStore(
       throw new Error(`Failed to reset investigation lock after solve: ${lockResetError.message}`);
     }
 
+    // First correct answer of this stage reveals the next hint for everyone.
+    // Skipped when the stage is finishing because the reveal payload would
+    // collide with the stage_result/revealed transition. The helper is
+    // idempotent via the (stage_id, hint_index) check.
     if (!shouldEndStage) {
+      const firstCorrectHint = await maybeRevealFirstCorrectHint({
+        stage: currentStage,
+        caseFile,
+        visibleHints: state.visibleHints,
+        previouslySolvedPlayerIds: previousSolvedPlayerIds,
+        newlySolvedPlayerId: playerId,
+        nowIso,
+      });
+
+      if (
+        firstCorrectHint &&
+        !state.visibleHints.some((hint) => hint.id === firstCorrectHint.id)
+      ) {
+        // Append in-place so the snapshot built below from `state` reflects
+        // the freshly revealed hint without an extra DB round-trip.
+        state.visibleHints.push(firstCorrectHint);
+      }
+
       await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
     }
   } else {
@@ -7152,7 +7463,15 @@ export async function submitAnswerInStore(
         playerIds: state.playerStates.map((playerState) => playerState.player_id),
         solvedPlayerIds: updatedSolvedPlayerIds,
         endReason: "two_players_solved",
-      }),
+      }).filter(
+        (event) =>
+          !state.scoreEvents.some(
+            (existing) =>
+              existing.stage_id === event.stageId &&
+              existing.player_id === event.playerId &&
+              existing.type === event.type,
+          ),
+      ),
     );
   }
 

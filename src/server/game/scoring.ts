@@ -157,6 +157,27 @@ export function buildInactivityPenaltyEvents(
   });
 }
 
+export function buildInactivityPenaltyEvent(
+  input: Omit<CreateScoreEventInput, "id" | "type"> & {
+    createId: () => EntityId;
+    thresholdSeconds: number;
+  },
+): ScoreEvent {
+  return createScoreEvent({
+    id: input.createId(),
+    roomId: input.roomId,
+    gameId: input.gameId,
+    stageId: input.stageId,
+    playerId: input.playerId,
+    type: "inactivity_penalty",
+    createdAt: input.createdAt,
+    metadata: {
+      thresholdSeconds: input.thresholdSeconds,
+      ...(input.metadata ?? {}),
+    },
+  });
+}
+
 export function replayScoreEvents(
   playerIds: EntityId[],
   events: ScoreEvent[],
