@@ -27,6 +27,8 @@ import {
 } from "./private-chat-command";
 import { GameplayInvestigationModal } from "./GameplayInvestigationModal";
 import type { InvestigationLockView } from "@/contracts/view";
+import { emitToast } from "@/components/feedback/toast-bus";
+import { useKeyboardShortcut } from "@/lib/keyboard-shortcuts";
 
 const OPTIMISTIC_INVESTIGATION_LOCK_SECONDS = 60;
 const OPTIMISTIC_INVESTIGATION_REENTRY_COOLDOWN_SECONDS = 5;
@@ -85,7 +87,7 @@ export function GameplayClientShell({
 }) {
   const [runtimeSnapshot] = useState(runtime);
   const [snapshot, setSnapshot, syncMeta] = useRoomRealtimeSnapshot(initialSnapshot, {
-    fallbackIntervalMs: 3_000,
+    fallbackIntervalMs: 1_500,
   });
   const [nowMs, setNowMs] = useState(Date.now());
   const [isSubmittingPrivateChat, setIsSubmittingPrivateChat] = useState(false);
@@ -207,6 +209,175 @@ export function GameplayClientShell({
     }
   }, [displayedSnapshot.me.playerId, displayedSnapshot.stage?.investigation?.lockedByPlayerId]);
 
+  // ── UX micro-feedback (toasts + queue cues). Read-only side effects. ──
+  const previousLockOwnerRef = useRef<string | null>(
+    initialSnapshot.stage?.investigation?.lockedByPlayerId ?? null,
+  );
+  const previousQueuePositionRef = useRef<number | null>(
+    initialSnapshot.stage?.investigation?.queuePosition ?? null,
+  );
+  const previousAnswerOutcomeRef = useRef<string | null>(null);
+  const previousIncomingRequestIdsRef = useRef<Set<string>>(new Set());
+  const queueSoonNotifiedRef = useRef(false);
+
+  // Lock owner change toasts (acquired / lost / expired).
+  useEffect(() => {
+    const currentOwner = displayedSnapshot.stage?.investigation?.lockedByPlayerId ?? null;
+    const previousOwner = previousLockOwnerRef.current;
+
+    if (previousOwner !== currentOwner) {
+      const myId = displayedSnapshot.me.playerId;
+
+      if (currentOwner === myId && previousOwner !== myId) {
+        setInvestigationHistory([]);
+        emitToast({
+          tone: "success",
+          title: "질문방 입장",
+          detail: "내 차례입니다. 60초 안에 단서를 좁히세요.",
+          durationMs: 3500,
+        });
+      } else if (previousOwner === myId && currentOwner !== myId) {
+        emitToast({
+          tone: "info",
+          title: "질문방 종료",
+          detail: "점유 시간이 끝났습니다.",
+          durationMs: 3200,
+        });
+      }
+    }
+
+    previousLockOwnerRef.current = currentOwner;
+  }, [displayedSnapshot.stage?.investigation?.lockedByPlayerId, displayedSnapshot.me.playerId]);
+
+  // Queue position transitions (joined / about to be next / left).
+  useEffect(() => {
+    const currentPosition = displayedSnapshot.stage?.investigation?.queuePosition ?? null;
+    const previousPosition = previousQueuePositionRef.current;
+
+    if (previousPosition === null && currentPosition !== null) {
+      emitToast({
+        tone: "info",
+        title: "대기열 참가",
+        detail: `현재 ${currentPosition}번 순번입니다.`,
+        durationMs: 2800,
+      });
+      queueSoonNotifiedRef.current = false;
+    } else if (previousPosition !== null && currentPosition === null) {
+      // Going to null because lock acquired is handled above; only show toast
+      // for explicit cancel cases (lock owner did not change to me).
+      const currentOwner = displayedSnapshot.stage?.investigation?.lockedByPlayerId ?? null;
+      if (currentOwner !== displayedSnapshot.me.playerId) {
+        emitToast({
+          tone: "info",
+          title: "대기열 이탈",
+          detail: "대기열에서 빠졌습니다.",
+          durationMs: 2400,
+        });
+      }
+      queueSoonNotifiedRef.current = false;
+    } else if (
+      currentPosition !== null &&
+      previousPosition !== null &&
+      currentPosition <= 2 &&
+      previousPosition > 2 &&
+      !queueSoonNotifiedRef.current
+    ) {
+      emitToast({
+        tone: "warn",
+        title: "곧 차례입니다",
+        detail: `대기열 ${currentPosition}번 — 곧 자동 입장합니다.`,
+        durationMs: 3200,
+      });
+      queueSoonNotifiedRef.current = true;
+    } else if (currentPosition !== null && currentPosition > 2) {
+      queueSoonNotifiedRef.current = false;
+    }
+
+    previousQueuePositionRef.current = currentPosition;
+  }, [
+    displayedSnapshot.stage?.investigation?.queuePosition,
+    displayedSnapshot.stage?.investigation?.lockedByPlayerId,
+    displayedSnapshot.me.playerId,
+  ]);
+
+  // Answer outcome toast (correct / wrong) — only when result actually changes.
+  useEffect(() => {
+    const answerResult = displayedSnapshot.stage?.lastAnswerResult;
+    if (!answerResult || typeof answerResult !== "object" || !("publicOutcome" in answerResult)) {
+      return;
+    }
+
+    const outcome = String(answerResult.publicOutcome ?? "");
+    const lastEventAt =
+      typeof (answerResult as { publicCreatedAt?: unknown }).publicCreatedAt === "string"
+        ? String((answerResult as { publicCreatedAt?: unknown }).publicCreatedAt)
+        : outcome;
+    const fingerprint = `${outcome}:${lastEventAt}`;
+
+    if (previousAnswerOutcomeRef.current === fingerprint) {
+      return;
+    }
+
+    // Skip the initial render so we do not toast stale snapshot data.
+    if (previousAnswerOutcomeRef.current === null) {
+      previousAnswerOutcomeRef.current = fingerprint;
+      return;
+    }
+
+    previousAnswerOutcomeRef.current = fingerprint;
+
+    if (outcome === "correct") {
+      emitToast({
+        tone: "success",
+        title: "정답입니다",
+        detail: "공개 응답이 정답으로 인정되었습니다.",
+        durationMs: 4000,
+      });
+    } else if (outcome === "wrong" || outcome === "incorrect") {
+      emitToast({
+        tone: "error",
+        title: "오답입니다",
+        detail: "다른 각도로 다시 정리해 보세요.",
+        durationMs: 3600,
+      });
+    }
+  }, [displayedSnapshot.stage?.lastAnswerResult]);
+
+  // Incoming 1:1 chat request toast.
+  useEffect(() => {
+    const privateChat = displayedSnapshot.privateChat;
+    const incomingCandidate =
+      privateChat && typeof privateChat === "object" && "incomingRequests" in privateChat
+        ? (privateChat as { incomingRequests: unknown }).incomingRequests
+        : null;
+    const incomingRequests = Array.isArray(incomingCandidate)
+      ? (incomingCandidate as Array<{ id?: string; requesterNickname?: string }>)
+      : [];
+
+    const currentIds = new Set<string>();
+    incomingRequests.forEach((req) => {
+      if (req && typeof req.id === "string") {
+        currentIds.add(req.id);
+      }
+    });
+
+    incomingRequests.forEach((req) => {
+      if (!req || typeof req.id !== "string") return;
+      if (!previousIncomingRequestIdsRef.current.has(req.id)) {
+        const nickname =
+          typeof req.requesterNickname === "string" ? req.requesterNickname : "상대 플레이어";
+        emitToast({
+          tone: "info",
+          title: "1:1 채팅 요청",
+          detail: `${nickname}님이 단독 대화를 신청했습니다.`,
+          durationMs: 5000,
+        });
+      }
+    });
+
+    previousIncomingRequestIdsRef.current = currentIds;
+  }, [displayedSnapshot.privateChat]);
+
   useEffect(() => {
     async function refreshStageBoundarySnapshot() {
       const stageNumber =
@@ -310,6 +481,33 @@ export function GameplayClientShell({
   })();
   const hasStageContext = Boolean(displayedSnapshot.stage?.stageId);
 
+  // J shortcut — queue join/leave toggle when modal is closed.
+  const isInProgress = displayedSnapshot.stage?.status === "in_progress";
+  useKeyboardShortcut(
+    "j",
+    () => {
+      if (isInvestigationOpen) return false;
+      if (!hasStageContext) return false;
+      if (isLockedByMe) return false;
+      if (isLockedByOther && !isQueued) {
+        // Try to join the queue while another player is using the lock.
+        if (queueCooldownSeconds === 0 && isInProgress) {
+          void handleJoinQueue();
+        }
+        return;
+      }
+      if (isQueued) {
+        void handleLeaveQueue();
+        return;
+      }
+      if (queueCooldownSeconds > 0 || !isInProgress) {
+        return;
+      }
+      void handleJoinQueue();
+    },
+    { enabled: !isInvestigationOpen, allowInInput: false },
+  );
+
   async function refreshCurrentSnapshot() {
     const stageNumber = snapshot.stage?.stageNumber ?? currentStageNumber ?? snapshot.game?.currentStageNumber ?? 1;
     const params = new URLSearchParams({
@@ -344,7 +542,7 @@ export function GameplayClientShell({
     }
   }
 
-  function scheduleSnapshotRefresh(delayMs = 350) {
+  function scheduleSnapshotRefresh(delayMs = 120) {
     window.setTimeout(() => {
       void refreshCurrentSnapshot();
     }, delayMs);

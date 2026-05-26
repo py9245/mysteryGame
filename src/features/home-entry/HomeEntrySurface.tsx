@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CurrentViewer } from "@/contracts/account";
 import type {
@@ -27,6 +27,11 @@ import {
 import { RulebookLauncher } from "@/components/rulebook/RulebookLauncher";
 import { RoomModePicker } from "@/components/room/RoomModePicker";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
+import { emitToast } from "@/components/feedback/toast-bus";
+import {
+  useEscapeShortcut,
+  useKeyboardShortcut,
+} from "@/lib/keyboard-shortcuts";
 
 type RoomLaunchMode = "public" | "secret" | "practice";
 
@@ -182,9 +187,21 @@ export function HomeEntrySurface({
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
   const [launchResultMessage, setLaunchResultMessage] = useState<string | null>(null);
 
+  const joinCodeInputRef = useRef<HTMLInputElement | null>(null);
   const accountViewer = isAccountViewer(viewer) ? viewer.account : null;
   const showJoinSurface = surfaceMode === "combined" || surfaceMode === "join";
   const showCreateSurface = surfaceMode === "combined" || surfaceMode === "create";
+  const trimmedJoinCode = joinRoomCode.trim();
+  const joinCodeLength = trimmedJoinCode.length;
+  const isJoinCodeReady = joinCodeLength >= 4 && joinCodeLength <= 6;
+  const isJoinCodeInvalid = joinCodeLength > 0 && joinCodeLength < 4;
+  const joinCodeFieldState: "ready" | "invalid" | "partial" | "empty" = isJoinCodeReady
+    ? "ready"
+    : isJoinCodeInvalid
+      ? "invalid"
+      : joinCodeLength > 0
+        ? "partial"
+        : "empty";
   const displayNickname = (viewer?.nickname ?? guestPreviewNickname) || "이름 준비 중";
   const hasPlayableIdentity = Boolean(viewer?.nickname && viewer.nickname.trim().length >= 2);
   const roomModeSummary = useMemo(() => getRoomModeSummary(roomLaunchMode), [roomLaunchMode]);
@@ -196,7 +213,7 @@ export function HomeEntrySurface({
   const resolvedStageCount = roomLaunchMode === "practice" ? 1 : Math.max(1, Math.min(5, stageCountDraft));
   const resolvedMaxPlayers = roomLaunchMode === "practice" ? 1 : 6;
   const canCreate = hasPlayableIdentity && isRoomTitleReady && isSecretPasswordReady && !isSubmitting;
-  const canJoin = hasPlayableIdentity && joinRoomCode.trim().length > 0 && !isJoining;
+  const canJoin = hasPlayableIdentity && isJoinCodeReady && !isJoining;
   const lobbyStartHref = showJoinSurface ? "#quick-join" : "#create-room";
   const secondarySurfaceHref = showJoinSurface ? "/rooms/create" : "/rooms/join";
   const secondarySurfaceLabel = showJoinSurface ? "방 만들기" : "방 입장";
@@ -288,12 +305,6 @@ export function HomeEntrySurface({
   }, [initialViewer, isGuestIdentityBooting]);
 
   useEffect(() => {
-    if (!registerNickname.trim() && viewer?.nickname) {
-      setRegisterNickname(viewer.nickname);
-    }
-  }, [registerNickname, viewer]);
-
-  useEffect(() => {
     let mounted = true;
 
     async function loadRoomDirectory() {
@@ -347,6 +358,37 @@ export function HomeEntrySurface({
     };
   }, []);
 
+  // Press "/" to jump focus to the join-code input (only when join surface
+  // is visible and no modal is open). Disabled while inside an input.
+  useKeyboardShortcut(
+    "/",
+    () => {
+      if (!showJoinSurface) {
+        return false;
+      }
+      if (isAuthModalOpen || isRoomSettingsOpen) {
+        return false;
+      }
+      joinCodeInputRef.current?.focus();
+      joinCodeInputRef.current?.select();
+      return true;
+    },
+    { enabled: showJoinSurface, preventDefault: true },
+  );
+
+  // Escape closes any open modal (allowInInput is already set by the helper).
+  useEscapeShortcut(
+    () => {
+      if (isAuthModalOpen) {
+        setIsAuthModalOpen(false);
+      }
+      if (isRoomSettingsOpen) {
+        setIsRoomSettingsOpen(false);
+      }
+    },
+    isAuthModalOpen || isRoomSettingsOpen,
+  );
+
   function openAuthModal(nextMode: "register" | "login") {
     setAuthMode(nextMode);
     setAuthError(null);
@@ -387,12 +429,22 @@ export function HomeEntrySurface({
   async function handleCreateRoom() {
     if (!hasPlayableIdentity) {
       setIdentityError("플레이 이름을 준비하는 중입니다. 잠시 뒤 다시 시도해 주세요.");
+      emitToast({
+        tone: "warn",
+        title: "이름 준비 중",
+        detail: "잠시 뒤 다시 시도해 주세요.",
+      });
       return;
     }
 
     if (!isRoomTitleReady || !isSecretPasswordReady) {
       setLaunchResultMessage(roomSettingsStatusMessage);
       setIsRoomSettingsOpen(true);
+      emitToast({
+        tone: "info",
+        title: "방 설정을 마저 정리해 주세요",
+        detail: roomSettingsStatusMessage,
+      });
       return;
     }
 
@@ -415,6 +467,11 @@ export function HomeEntrySurface({
     if (nextResult.ok && nextResult.response) {
       setCreateResult(null);
       setJoinResult(null);
+      emitToast({
+        tone: "success",
+        title: `${roomModeSummary.label} 생성 완료`,
+        detail: `${trimmedRoomTitle} · 대기방으로 이동합니다.`,
+      });
       const nextHref = appendRoomContextToHref("/lobby", nextResult.response.snapshot);
       if (typeof window !== "undefined") {
         window.location.assign(nextHref);
@@ -426,12 +483,24 @@ export function HomeEntrySurface({
 
     setCreateResult(nextResult);
     setIsSubmitting(false);
+    emitToast({
+      tone: "error",
+      title: "방 생성 실패",
+      detail: nextResult.errorMessage ?? "방 생성 요청에 실패했습니다.",
+    });
   }
 
   async function handleJoinSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!canJoin) {
+      if (!isJoinCodeReady && joinCodeLength > 0) {
+        emitToast({
+          tone: "warn",
+          title: "코드를 확인해 주세요",
+          detail: "입장 코드는 4~6자입니다.",
+        });
+      }
       return;
     }
 
@@ -445,6 +514,11 @@ export function HomeEntrySurface({
     if (nextResult.ok && nextResult.response) {
       setCreateResult(null);
       setJoinResult(null);
+      emitToast({
+        tone: "success",
+        title: "입장 성공",
+        detail: `${nextResult.request.roomCode} · 대기방으로 이동합니다.`,
+      });
       const nextHref = appendRoomContextToHref("/lobby", nextResult.response.snapshot, nextResult.request.roomCode);
       if (typeof window !== "undefined") {
         window.location.assign(nextHref);
@@ -457,6 +531,11 @@ export function HomeEntrySurface({
     setJoinResult(nextResult);
     setCreateResult(null);
     setIsJoining(false);
+    emitToast({
+      tone: "error",
+      title: "입장 실패",
+      detail: nextResult.errorMessage ?? "방 참가 요청에 실패했습니다.",
+    });
   }
 
   async function handleDirectoryJoin(roomCode: string, roomPassword?: string) {
@@ -474,12 +553,22 @@ export function HomeEntrySurface({
       setJoinResult(nextResult);
       setCreateResult(null);
       await refreshRoomDirectory();
+      emitToast({
+        tone: "error",
+        title: "입장 실패",
+        detail: nextResult.errorMessage ?? "방 입장에 실패했습니다.",
+      });
       throw new Error(nextResult.errorMessage ?? "방 입장에 실패했습니다.");
     }
 
     if (nextResult.response) {
       setCreateResult(null);
       setJoinResult(null);
+      emitToast({
+        tone: "success",
+        title: "입장 성공",
+        detail: `${roomCode} · 대기방으로 이동합니다.`,
+      });
       const nextHref = appendRoomContextToHref("/lobby", nextResult.response.snapshot, roomCode);
       if (typeof window !== "undefined") {
         window.location.assign(nextHref);
@@ -520,9 +609,19 @@ export function HomeEntrySurface({
       setRegisterAge("");
       setAuthSuccessMessage("회원가입이 완료되었습니다. 이제 전적이 같은 계정에 누적됩니다.");
       setIsAuthModalOpen(false);
+      emitToast({
+        tone: "success",
+        title: "회원가입 완료",
+        detail: "이제 전적이 계정에 누적됩니다.",
+      });
       await refreshRoomDirectory();
     } else {
       setAuthError(result.errorMessage ?? "회원가입에 실패했습니다.");
+      emitToast({
+        tone: "error",
+        title: "회원가입 실패",
+        detail: result.errorMessage ?? "회원가입에 실패했습니다.",
+      });
     }
 
     setIsSubmittingAuth(false);
@@ -545,9 +644,19 @@ export function HomeEntrySurface({
       setLoginPassword("");
       setAuthSuccessMessage("로그인되었습니다. 이제 기록과 닉네임이 계정 기준으로 이어집니다.");
       setIsAuthModalOpen(false);
+      emitToast({
+        tone: "success",
+        title: "로그인 완료",
+        detail: "기록과 닉네임이 계정 기준으로 이어집니다.",
+      });
       await refreshRoomDirectory();
     } else {
       setAuthError(result.errorMessage ?? "로그인에 실패했습니다.");
+      emitToast({
+        tone: "error",
+        title: "로그인 실패",
+        detail: result.errorMessage ?? "로그인에 실패했습니다.",
+      });
     }
 
     setIsSubmittingAuth(false);
@@ -563,8 +672,18 @@ export function HomeEntrySurface({
     if (result.ok) {
       setViewer(result.viewer);
       setAuthSuccessMessage("로그아웃되었습니다. 원하면 지금 바로 임시 이름으로 계속 플레이할 수 있습니다.");
+      emitToast({
+        tone: "info",
+        title: "로그아웃 완료",
+        detail: "임시 이름으로 계속 플레이할 수 있습니다.",
+      });
     } else {
       setAuthError(result.errorMessage ?? "로그아웃에 실패했습니다.");
+      emitToast({
+        tone: "error",
+        title: "로그아웃 실패",
+        detail: result.errorMessage ?? "로그아웃에 실패했습니다.",
+      });
     }
 
     setIsLoggingOut(false);
@@ -612,12 +731,25 @@ export function HomeEntrySurface({
       {launchResultMessage ? <p className="message-note">{launchResultMessage}</p> : null}
 
       <section className="home-hero-layout mt-home-stage">
-        <article className="panel panel-accent home-hero-main mt-command-card">
+        <article className="panel panel-accent home-hero-main mt-command-card uiux-home-hero">
           <div className="mt-command-topline">
-            <span className="status-badge" data-tone={hasPlayableIdentity ? "live" : "alert"}>
+            <span
+              className="status-badge"
+              data-tone={hasPlayableIdentity ? "live" : "alert"}
+              aria-live="polite"
+            >
               {hasPlayableIdentity ? "입장 가능" : "이름 준비 중"}
             </span>
-            <span className="room-code-chip">{displayNickname}</span>
+            <span
+              className="room-code-chip track-a-identity-chip"
+              data-tone={accountViewer ? "account" : "guest"}
+              title={accountViewer ? "계정 닉네임" : "게스트 닉네임"}
+            >
+              <span className="track-a-identity-chip-tag" aria-hidden="true">
+                {accountViewer ? "계정" : "게스트"}
+              </span>
+              {displayNickname}
+            </span>
           </div>
 
           <div className="mt-command-body">
@@ -629,13 +761,17 @@ export function HomeEntrySurface({
             <article className="metric-card metric-card-emphasis">
               <span className="metric-label">플레이어</span>
               <strong className="metric-value">{displayNickname}</strong>
-              <span className="metric-detail">{accountViewer ? "계정 전적 저장" : "게스트 즉시 플레이"}</span>
+              <span className="metric-detail">{accountViewer ? "계정 전적 저장" : "게스트 즉시 플레이 (이름 고정)"}</span>
             </article>
             {showJoinSurface ? (
               <article className="metric-card">
                 <span className="metric-label">입장 가능한 방</span>
-                <strong className="metric-value">{isDirectoryLoading ? "확인 중" : `${roomDirectory.length}개`}</strong>
-                <span className="metric-detail">코드 입력 또는 공개방 선택</span>
+                <strong className="metric-value">
+                  {isDirectoryLoading ? "확인 중" : roomDirectoryError ? "확인 실패" : `${roomDirectory.length}개`}
+                </strong>
+                <span className="metric-detail">
+                  {roomDirectoryError ? "잠시 뒤 새로고침" : "코드 입력 또는 공개방 선택"}
+                </span>
               </article>
             ) : null}
             {showCreateSurface ? (
@@ -648,18 +784,30 @@ export function HomeEntrySurface({
           </div>
 
           <div className="home-hero-actions">
-            <a className="button-primary" href={heroPrimaryHref}>
+            <a className="button-primary uiux-home-hero-primary" href={heroPrimaryHref}>
               {heroPrimaryLabel}
             </a>
             <a className="button-secondary" href={heroSecondaryHref}>
               {heroSecondaryLabel}
             </a>
+            {!accountViewer ? (
+              <button
+                className="button-secondary track-a-auth-link"
+                type="button"
+                onClick={() => openAuthModal("login")}
+              >
+                계정으로 전적 저장
+              </button>
+            ) : null}
           </div>
         </article>
 
         <aside className="home-side-stack mt-action-stack">
           {showJoinSurface ? (
-            <article className="panel home-action-card mt-glass-card" id="quick-join">
+            <article
+              className="panel home-action-card mt-glass-card uiux-home-side-stack-item"
+              id="quick-join"
+            >
               <div className="composer-header">
                 <div>
                   <h2 className="panel-title">코드 입장</h2>
@@ -671,16 +819,37 @@ export function HomeEntrySurface({
               </div>
 
               <form onSubmit={handleJoinSubmit} className="field-group mt-join-form">
-                <label className="field">
+                <label className="field uiux-home-code-field">
                   <span>입장 코드</span>
                   <input
-                    className="text-input text-input-hero"
+                    ref={joinCodeInputRef}
+                    className="text-input text-input-hero uiux-home-code-input"
                     type="text"
                     value={joinRoomCode}
                     onChange={(event) => setJoinRoomCode(event.target.value.toUpperCase())}
                     placeholder="예: A7K3"
                     maxLength={6}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    inputMode="text"
+                    aria-label="입장 코드 (4자에서 6자)"
+                    aria-describedby="uiux-home-code-help"
+                    aria-invalid={isJoinCodeInvalid}
+                    data-state={joinCodeFieldState}
                   />
+                  <div className="uiux-home-code-meta" id="uiux-home-code-help">
+                    <span
+                      className="uiux-home-code-counter"
+                      data-state={joinCodeFieldState}
+                      aria-live="polite"
+                    >
+                      {joinCodeLength}/6
+                    </span>
+                    <span className="uiux-home-code-hint">
+                      <kbd>/</kbd> 키로 코드 입력 빠르게 포커스
+                    </span>
+                  </div>
                 </label>
                 <label className="field">
                   <span>비밀번호</span>
@@ -690,9 +859,15 @@ export function HomeEntrySurface({
                     value={joinRoomPassword}
                     onChange={(event) => setJoinRoomPassword(event.target.value)}
                     placeholder="비밀방만 입력"
+                    autoComplete="off"
                   />
                 </label>
-                <button className="button-primary" type="submit" disabled={!canJoin}>
+                <button
+                  className="button-primary"
+                  type="submit"
+                  disabled={!canJoin}
+                  aria-label={isJoining ? "입장 진행 중" : "입력한 코드로 입장"}
+                >
                   {isJoining ? "입장 중" : "입장하기"}
                 </button>
               </form>
@@ -700,28 +875,34 @@ export function HomeEntrySurface({
           ) : null}
 
           {showCreateSurface ? (
-            <article className="panel panel-muted home-action-card mt-glass-card" id="create-room">
+            <article
+              className="panel panel-muted home-action-card mt-glass-card uiux-home-side-stack-item"
+              id="create-room"
+            >
               <div className="composer-header">
                 <div>
                   <h2 className="panel-title">방 만들기</h2>
                   <p className="panel-copy">핵심 설정만 정리하고, 생성 성공 즉시 자동으로 대기방에 입장합니다.</p>
                 </div>
-                <span className="status-badge" data-tone="live">
+                <span className="status-badge" data-tone="live" aria-live="polite">
                   {roomModeSummary.label}
                 </span>
               </div>
 
               <RoomModePicker value={roomLaunchMode} onChange={setRoomLaunchMode} />
 
-              <div className="metric-grid mt-room-create-summary">
-                <article className="metric-card">
+              <div
+                className="metric-grid mt-room-create-summary uiux-home-create-mode-swap"
+                key={roomLaunchMode}
+              >
+                <article className="metric-card uiux-home-create-summary">
                   <span className="metric-label">방 제목</span>
                   <strong className="metric-value">{trimmedRoomTitle || "새로운 사건"}</strong>
                   <span className="metric-detail">{roomSettingsStatusMessage}</span>
                 </article>
-                <article className="metric-card">
+                <article className="metric-card uiux-home-create-summary">
                   <span className="metric-label">구성</span>
-                  <strong className="metric-value">
+                  <strong className="metric-value num-tabular">
                     {resolvedStageCount}스테이지 · {resolvedMaxPlayers}명
                   </strong>
                   <span className="metric-detail">{roomModeSummary.settingsPolicy}</span>
@@ -732,7 +913,13 @@ export function HomeEntrySurface({
                 <button className="button-secondary" type="button" onClick={() => setIsRoomSettingsOpen(true)}>
                   설정 수정
                 </button>
-                <button className="button-primary" type="button" onClick={handleCreateRoom} disabled={!canCreate}>
+                <button
+                  className="button-primary"
+                  type="button"
+                  onClick={handleCreateRoom}
+                  disabled={!canCreate}
+                  aria-label={isSubmitting ? "방 생성 진행 중" : `${roomModeSummary.label} 열기`}
+                >
                   {isSubmitting ? "방 여는 중" : `${roomModeSummary.label} 열기`}
                 </button>
               </div>
@@ -756,30 +943,50 @@ export function HomeEntrySurface({
       ) : null}
 
       {showJoinSurface ? (
-        <section className="panel home-directory-panel mt-directory-section" id="open-rooms">
-          <div className="room-section-header">
-            <div>
-              <h2 className="panel-title">열린 공개방</h2>
-              <p className="panel-copy">지금 바로 들어갈 수 있는 방부터 확인합니다.</p>
+        <section className="panel home-directory-panel mt-directory-section track-a-directory-section" id="open-rooms">
+          <div className="room-section-header track-a-directory-header">
+            <div className="track-a-directory-header-copy">
+              <p className="eyebrow">Open Rooms</p>
+              <h2 className="panel-title">열린 방 목록</h2>
+              <p className="panel-copy">지금 바로 들어갈 수 있는 사건방을 확인합니다.</p>
             </div>
-            <button className="button-secondary button-compact" type="button" onClick={refreshRoomDirectory} disabled={isDirectoryLoading}>
-              {isDirectoryLoading ? "새로고침 중" : "새로고침"}
-            </button>
+            <div className="action-row track-a-directory-header-actions">
+              <span className="status-badge" data-tone={isDirectoryLoading ? "alert" : roomDirectoryError ? "alert" : "live"}>
+                {isDirectoryLoading
+                  ? "불러오는 중"
+                  : roomDirectoryError
+                    ? "갱신 실패"
+                    : `${roomDirectory.length}개 열림`}
+              </span>
+              <button className="button-secondary button-compact" type="button" onClick={refreshRoomDirectory} disabled={isDirectoryLoading}>
+                {isDirectoryLoading ? "새로고침 중" : "새로고침"}
+              </button>
+            </div>
           </div>
-          {roomDirectoryError ? <p className="message-negative">{roomDirectoryError}</p> : null}
+          {roomDirectoryError ? (
+            <div className="track-a-directory-error">
+              <p className="message-negative">{roomDirectoryError}</p>
+              <button className="button-secondary button-compact" type="button" onClick={refreshRoomDirectory} disabled={isDirectoryLoading}>
+                다시 시도
+              </button>
+            </div>
+          ) : null}
           <RoomDirectoryPanel rooms={roomDirectory} onJoinRoom={handleDirectoryJoin} isLoading={isDirectoryLoading} />
         </section>
       ) : null}
 
       {accountViewer && showAccountHistory ? (
-        <section className="panel panel-muted mt-record-panel" id="my-records">
+        <section className="panel panel-muted mt-record-panel track-a-record-panel" id="my-records">
           <div className="composer-header">
             <div>
+              <p className="eyebrow">My Casebook</p>
               <h2 className="panel-title">내 기록</h2>
-              <p className="panel-copy">최근 로그인 {formatDateTime(accountViewer.lastLoginAt)}</p>
+              <p className="panel-copy">
+                {accountViewer.email} · 최근 로그인 {formatDateTime(accountViewer.lastLoginAt)}
+              </p>
             </div>
             <span className="status-badge" data-tone="live">
-              저장됨
+              계정 저장됨
             </span>
           </div>
 
@@ -808,7 +1015,7 @@ export function HomeEntrySurface({
       {!accountViewer && isAuthModalOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setIsAuthModalOpen(false)}>
           <section
-            className="modal-shell"
+            className="modal-shell uiux-scale-in"
             role="dialog"
             aria-modal="true"
             aria-label="로그인 또는 회원가입"
@@ -938,7 +1145,7 @@ export function HomeEntrySurface({
       {isRoomSettingsOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setIsRoomSettingsOpen(false)}>
           <section
-            className="modal-shell"
+            className="modal-shell uiux-scale-in"
             role="dialog"
             aria-modal="true"
             aria-label="방장 설정"
@@ -1029,7 +1236,7 @@ export function HomeEntrySurface({
       ) : null}
 
       <div className="mobile-home-cta-spacer" />
-      <div className="mobile-home-cta-bar">
+      <div className="mobile-home-cta-bar uiux-home-mobile-bar" role="region" aria-label="모바일 빠른 작업">
         {showJoinSurface ? (
           <a className="button-secondary" href="#quick-join">
             코드 입장

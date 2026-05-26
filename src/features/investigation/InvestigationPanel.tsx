@@ -15,7 +15,7 @@ function getPublicReply(snapshot: RoomSnapshot) {
     return judgement.publicReply;
   }
 
-  return "중요하지 않습니다.";
+  return null;
 }
 
 function getPublicOutcome(snapshot: RoomSnapshot) {
@@ -24,7 +24,7 @@ function getPublicOutcome(snapshot: RoomSnapshot) {
     return result.publicOutcome;
   }
 
-  return "needs_review";
+  return null;
 }
 
 function toCount(value: number | { hidden: true } | null | undefined): number {
@@ -97,6 +97,9 @@ export function InvestigationPanel({
     snapshot.players.find((player) => player.playerId === lockOwner)?.nickname ??
     (lockOwner === snapshot.me.playerId ? snapshot.me.nickname : null);
   const isLockedByMe = lockOwner === snapshot.me.playerId;
+  const publicReply = getPublicReply(snapshot);
+  const publicOutcome = getPublicOutcome(snapshot);
+  const hasRecentJudgement = publicReply !== null || publicOutcome !== null;
 
   return (
     <section className="page-shell" id="investigation">
@@ -189,15 +192,32 @@ export function InvestigationPanel({
         </section>
         <section className="hero-aside investigation-side">
           <InvestigationLimitMeter snapshot={snapshot} />
-          <section className="panel panel-muted investigation-summary">
-            <h3 className="panel-title">최근 판정</h3>
-            <QuestionJudgeBadge resultKey="stage.questionJudge.YES" publicReply={getPublicReply(snapshot)} />
-            <AnswerJudgeBadge
-              successKey="stage.answerResult.success"
-              failureKey="stage.answerResult.failure"
-              needsReviewKey="review.answer.needsReview"
-              publicOutcome={getPublicOutcome(snapshot)}
-            />
+          <section className="panel panel-muted investigation-summary track-d-judgement-summary">
+            <div className="composer-header">
+              <div>
+                <h3 className="panel-title">마지막 판정</h3>
+                <p className="panel-copy">방금 받은 공개 응답만 남깁니다.</p>
+              </div>
+            </div>
+            {hasRecentJudgement ? (
+              <div className="track-d-judgement-stack">
+                {publicReply !== null ? (
+                  <QuestionJudgeBadge resultKey="stage.questionJudge.YES" publicReply={publicReply} />
+                ) : null}
+                {publicOutcome !== null ? (
+                  <AnswerJudgeBadge
+                    successKey="stage.answerResult.success"
+                    failureKey="stage.answerResult.failure"
+                    needsReviewKey="review.answer.needsReview"
+                    publicOutcome={publicOutcome}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <p className="message-note track-d-judgement-empty">
+                질문이나 정답을 보내면 공개 응답이 이 자리에 정리됩니다.
+              </p>
+            )}
           </section>
         </section>
       </div>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import { ToastHost } from "@/components/feedback/ToastHost";
 
 export const metadata = {
   title: "Mystery Time",
@@ -9,7 +10,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
-      <body className="mt-root">{children}</body>
+      <body className="mt-root">
+        {children}
+        <ToastHost />
+      </body>
     </html>
   );
 }

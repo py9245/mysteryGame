@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
@@ -67,7 +68,10 @@ export function StageBriefingPanel({ snapshot: initialSnapshot }: { snapshot: Ro
         </div>
       </header>
       <div className="hero-grid">
-        <section className="panel panel-accent hero-card briefing-main">
+        <section
+          className="panel panel-accent hero-card briefing-main uiux-stage-enter"
+          style={{ "--uiux-stage-delay": "80ms" } as CSSProperties}
+        >
           <div className="briefing-hero-cta">
             <h3 className="panel-title">사건 공개 설명</h3>
             <p className="panel-copy">{snapshot.stage?.publicDescription ?? "아직 공개된 사건 설명이 없습니다."}</p>
@@ -82,7 +86,10 @@ export function StageBriefingPanel({ snapshot: initialSnapshot }: { snapshot: Ro
           </div>
         </section>
       </div>
-      <section className="panel panel-muted briefing-hints">
+      <section
+        className="panel panel-muted briefing-hints uiux-stage-enter"
+        style={{ "--uiux-stage-delay": "200ms" } as CSSProperties}
+      >
         <h3 className="panel-title">현재 공개된 힌트</h3>
         <StageRuleBulletList snapshot={snapshot} />
       </section>

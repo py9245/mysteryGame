@@ -510,7 +510,7 @@ async function resolveQuestionJudgement(input: {
 
   try {
     const completion = await createTextCompletion({
-      timeoutMs: 7_000,
+      timeoutMs: 2_500,
       messages: [
         {
           role: "developer",
@@ -4915,6 +4915,8 @@ export async function joinInvestigationQueueInStore(
     normalizedActiveLock?.locked_by_player_id === playerId;
 
   if (options.includeSnapshot === false) {
+    await broadcastSync(room.id);
+
     return {
       lock: admittedLock
         ? toInvestigationLock(admittedLock)
@@ -4980,6 +4982,8 @@ export async function leaveInvestigationQueueInStore(
   }
 
   if (options.includeSnapshot === false) {
+    await broadcastSync(room.id);
+
     return {
       snapshot: null,
     };
@@ -5233,6 +5237,8 @@ export async function acquireInvestigationLockInStore(
   }
 
   if (options.includeSnapshot === false) {
+    await broadcastSync(room.id);
+
     return {
       lock: toInvestigationLock(lockRow),
       snapshot: null,
@@ -5313,6 +5319,8 @@ export async function releaseInvestigationLockInStore(
   await admitNextInvestigationQueuePlayer(room.id, stageId, nowIso);
 
   if (options.includeSnapshot === false) {
+    await broadcastSync(room.id);
+
     return {
       lock: toInvestigationLock(lockRow),
       snapshot: null,

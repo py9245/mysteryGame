@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { RoomSnapshot } from "@/contracts/api";
 import { appendRoomContextToHref } from "@/features/room-context/room-context";
 
@@ -10,6 +13,16 @@ function resolveRoomCode(snapshot: RoomSnapshot, requestedRoomCode?: string): st
   return requestedRoomCode ?? snapshot.room.code;
 }
 
+type FlowLink = {
+  href: string;
+  label: string;
+  matcher: (pathname: string) => boolean;
+};
+
+function startsWith(prefix: string) {
+  return (pathname: string) => pathname.startsWith(prefix);
+}
+
 export function SampleFlowNavigation({
   snapshot,
   currentStageNumber,
@@ -19,6 +32,7 @@ export function SampleFlowNavigation({
   currentStageNumber?: number;
   requestedRoomCode?: string;
 }) {
+  const pathname = usePathname() ?? "";
   const roomCode = resolveRoomCode(snapshot, requestedRoomCode);
   const stageNumber = resolveStageNumber(snapshot, currentStageNumber);
   const lobbyHref = `/lobby?roomId=${encodeURIComponent(snapshot.room.id)}&roomCode=${encodeURIComponent(roomCode)}`;
@@ -29,42 +43,38 @@ export function SampleFlowNavigation({
   const stageResultsHref = appendRoomContextToHref(`/stage/${stageNumber}/results`, snapshot, roomCode);
   const gameResultsHref = appendRoomContextToHref("/game/results", snapshot, roomCode);
 
+  const links: FlowLink[] = [
+    { href: "/", label: "메인", matcher: (p) => p === "/" },
+    { href: "/rooms", label: "게임 시작", matcher: (p) => p === "/rooms" },
+    { href: "/rooms/join", label: "방 입장", matcher: startsWith("/rooms/join") },
+    { href: "/rooms/create", label: "방 만들기", matcher: startsWith("/rooms/create") },
+    { href: roomHref, label: "방 현황", matcher: startsWith("/room/") },
+    { href: lobbyHref, label: "대기방", matcher: startsWith("/lobby") },
+    { href: briefingHref, label: "브리핑", matcher: (p) => p.includes("/briefing") },
+    { href: gameplayHref, label: "게임중", matcher: (p) => p.includes("/gameplay") },
+    { href: investigationHref, label: "조사실", matcher: (p) => p.includes("/investigation") },
+    { href: stageResultsHref, label: "스테이지 결과", matcher: (p) => /\/stage\/\d+\/results/.test(p) },
+    { href: gameResultsHref, label: "최종 결과", matcher: startsWith("/game/results") },
+  ];
+
   return (
     <nav aria-label="Game flow navigation" className="nav-strip">
       <ul className="nav-links">
-        <li>
-          <Link className="nav-link" href="/">메인</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href="/rooms">게임 시작</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href="/rooms/join">방 입장</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href="/rooms/create">방 만들기</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={roomHref}>방 현황</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={lobbyHref}>대기방</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={briefingHref}>브리핑</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={gameplayHref}>게임중</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={investigationHref}>조사실</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={stageResultsHref}>스테이지 결과</Link>
-        </li>
-        <li>
-          <Link className="nav-link" href={gameResultsHref}>최종 결과</Link>
-        </li>
+        {links.map((link) => {
+          const isActive = link.matcher(pathname);
+          return (
+            <li key={link.label}>
+              <Link
+                className="nav-link uiux-realtime-flow-step"
+                href={link.href}
+                data-active={isActive || undefined}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

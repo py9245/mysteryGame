@@ -26,12 +26,19 @@ function shouldRefreshRoomSnapshot(): boolean {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
 
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 function buildSnapshotEndpoint(snapshot: RoomSnapshot): string {
   const stageNumber = snapshot.stage?.stageNumber ?? snapshot.game?.currentStageNumber ?? 1;
   const params = new URLSearchParams({
-    playerId: snapshot.me.playerId,
     stageNumber: String(stageNumber),
   });
+
+  if (isUuidLike(snapshot.me.playerId)) {
+    params.set("playerId", snapshot.me.playerId);
+  }
 
   return `/api/room/${encodeURIComponent(snapshot.room.id)}?${params.toString()}`;
 }
@@ -95,6 +102,17 @@ export function useRoomRealtimeSnapshot(
         scheduledRefreshId = null;
       }
 
+      if (!isUuidLike(snapshotRef.current.me.playerId)) {
+        if (mounted) {
+          setSyncMeta((current) => ({
+            ...current,
+            status: "stale",
+            lastErrorAt: Date.now(),
+          }));
+        }
+        return;
+      }
+
       if (!shouldRefreshRoomSnapshot()) {
         return;
       }
@@ -154,14 +172,34 @@ export function useRoomRealtimeSnapshot(
 
       scheduledRefreshId = window.setTimeout(() => {
         void refreshSnapshot();
-      }, 100); // 100ms debounce
+      }, 100);
+    }
+
+    const isRealtimeAvailable = hasSupabaseBrowserEnv();
+
+    if (!isUuidLike(snapshotRef.current.me.playerId)) {
+      setSyncMeta((current) => ({
+        ...current,
+        isRealtimeAvailable,
+        isRealtimeConnected: false,
+        status: "stale",
+        lastErrorAt: Date.now(),
+      }));
+      return () => {
+        mounted = false;
+        if (scheduledRefreshId !== null) {
+          window.clearTimeout(scheduledRefreshId);
+        }
+        if (fallbackRefreshId !== null) {
+          window.clearInterval(fallbackRefreshId);
+        }
+      };
     }
 
     fallbackRefreshId = window.setInterval(() => {
       void refreshSnapshot();
     }, fallbackIntervalMs);
 
-    const isRealtimeAvailable = hasSupabaseBrowserEnv();
     setSyncMeta((current) => ({
       ...current,
       isRealtimeAvailable,
@@ -206,9 +244,7 @@ export function useRoomRealtimeSnapshot(
           .on(
             "broadcast",
             { event: "sync" },
-            () => {
-              void refreshSnapshot(); // Broadcast sync triggers immediate fetch
-            }
+            scheduleRefresh,
           )
           .subscribe((status) => {
             if (!mounted) {
@@ -245,9 +281,7 @@ export function useRoomRealtimeSnapshot(
             .on(
               "broadcast",
               { event: "sync" },
-              () => {
-                void refreshSnapshot();
-              }
+              scheduleRefresh,
             )
             .subscribe((status) => {
               if (!mounted) {

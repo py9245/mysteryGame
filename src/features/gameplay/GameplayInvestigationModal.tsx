@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import type { RoomSnapshot } from "@/contracts/api";
+import { useEscapeShortcut, useKeyboardShortcut } from "@/lib/keyboard-shortcuts";
+
+const MAX_QUESTIONS_PER_LOCK = 3;
+const MAX_ANSWER_ATTEMPTS_PER_LOCK = 1;
 
 function toCount(value: number | { hidden: true } | null | undefined): number {
   return typeof value === "number" ? value : 0;
@@ -84,6 +88,37 @@ export function GameplayInvestigationModal({
     }
   }, [isOpen, isDraftEditable, investigationMode]);
 
+  useEscapeShortcut(onClose, isOpen);
+
+  // Q/A mode-switch shortcuts (outside the textarea only).
+  useKeyboardShortcut(
+    "q",
+    () => {
+      if (!isOpen || !isDraftEditable) return false;
+      onInvestigationModeChange?.("question");
+    },
+    { enabled: isOpen && isDraftEditable, allowInInput: false },
+  );
+
+  useKeyboardShortcut(
+    "a",
+    () => {
+      if (!isOpen || !isDraftEditable) return false;
+      onInvestigationModeChange?.("answer");
+    },
+    { enabled: isOpen && isDraftEditable, allowInInput: false },
+  );
+
+  // Lock body scroll while modal is open (focus mode).
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isOpen]);
+
   if (!isOpen) {
     return null;
   }
@@ -93,9 +128,13 @@ export function GameplayInvestigationModal({
   const remainingQuestions = toCount(snapshot.stage?.investigation?.questionCountRemaining);
   const remainingAnswers = toCount(snapshot.stage?.investigation?.answerAttemptCountRemaining);
   const isAnswerMode = investigationMode === "answer";
+  const isFinalQuestion = remainingQuestions === 1;
+  const isFinalAnswer = remainingAnswers === 1;
+  const isModeLimitedOut = isAnswerMode ? remainingAnswers === 0 : remainingQuestions === 0;
   const canSend = isDraftEditable && investigationDraft.trim().length > 0 && !isAnySubmitting &&
     (isAnswerMode ? remainingAnswers > 0 : remainingQuestions > 0);
   const timerCritical = remainingSeconds <= 10;
+  const timerExtreme = remainingSeconds <= 5 && remainingSeconds > 0;
 
   function handleSend() {
     if (!canSend) {
@@ -122,55 +161,96 @@ export function GameplayInvestigationModal({
   }
 
   const placeholder = isAnswerMode
-    ? "정답을 확정해서 입력하세요. (예: 범인은 조카이고 와인잔에 독을 넣었습니다)"
-    : "AI 수사관에게 예/아니오로 답할 수 있는 질문을 던지세요.";
+    ? "정답을 입력하세요. (예: 범인은 조카이고 와인잔에 독을 넣었습니다)"
+    : "예/아니오로 답할 수 있는 질문을 입력하세요.";
 
   return (
-    <div className="modal-backdrop investigation-modal-backdrop" role="presentation" onClick={onClose}>
+    <div
+      className="modal-backdrop investigation-modal-backdrop track-d-investigation-backdrop uiux-gameplay-case-modal-backdrop-enter"
+      role="presentation"
+      onClick={onClose}
+    >
       <section
-        className="modal-shell gameplay-investigation-modal gameplay-investigation-chat-modal"
+        className={`modal-shell gameplay-investigation-modal gameplay-investigation-chat-modal track-d-investigation-shell uiux-investigation-modal-mode uiux-gameplay-case-modal-enter`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="gameplay-investigation-title"
+        aria-label="질문방 단독 면담"
+        data-mode={investigationMode}
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="gameplay-investigation-chat-header">
+        <header className="gameplay-investigation-chat-header track-d-investigation-header">
           <div className="gameplay-investigation-heading">
-            <p className="eyebrow">AI 수사관</p>
+            <p className="eyebrow">AI 수사관 단독 면담</p>
             <h2 className="gameplay-investigation-title" id="gameplay-investigation-title">
               질문방
             </h2>
+            <p className="track-d-investigation-subtitle">
+              {isDraftEditable
+                ? "지금 이 시간만 단서를 좁힐 수 있습니다."
+                : "차례가 오면 자동으로 입력이 열립니다."}
+            </p>
           </div>
-          <div className="gameplay-investigation-meter-strip" aria-label="질문방 남은 자원">
+          <div
+            className="gameplay-investigation-meter-strip track-d-investigation-meter-strip"
+            aria-label="질문방 남은 자원"
+          >
             <span
-              className={`investigation-meter${timerCritical ? " is-critical" : ""}`}
+              className={`investigation-meter num-tabular${timerCritical ? " is-critical" : ""}${timerExtreme ? " uiux-investigation-meter-extreme" : ""}`}
               data-meter="timer"
+              aria-live={timerCritical ? "polite" : "off"}
             >
-              <span className="investigation-meter-label">시간</span>
+              <span className="investigation-meter-label">남은 시간</span>
               <span className="investigation-meter-value">{remainingSeconds}s</span>
             </span>
-            <span className="investigation-meter" data-meter="question">
+            <span
+              className={`investigation-meter track-d-meter-question${isFinalQuestion ? " track-d-meter-final" : ""}`}
+              data-meter="question"
+            >
               <span className="investigation-meter-label">질문</span>
-              <span className="investigation-meter-value">{remainingQuestions}</span>
+              <span className="investigation-meter-value num-tabular">
+                {remainingQuestions}
+                <span className="track-d-meter-divider">/{MAX_QUESTIONS_PER_LOCK}</span>
+              </span>
             </span>
-            <span className="investigation-meter" data-meter="answer">
+            <span
+              className={`investigation-meter track-d-meter-answer${isFinalAnswer ? " track-d-meter-final" : ""}`}
+              data-meter="answer"
+            >
               <span className="investigation-meter-label">정답</span>
-              <span className="investigation-meter-value">{remainingAnswers}</span>
+              <span className="investigation-meter-value num-tabular">
+                {remainingAnswers}
+                <span className="track-d-meter-divider">/{MAX_ANSWER_ATTEMPTS_PER_LOCK}</span>
+              </span>
             </span>
           </div>
           <button
-            className="button-secondary investigation-exit-button"
+            className="button-secondary investigation-exit-button track-d-investigation-exit"
             type="button"
             onClick={onReleaseLock}
             disabled={!isDraftEditable || isAnySubmitting}
+            aria-label="질문방 나가기"
           >
             나가기
           </button>
         </header>
 
+        {isAnswerMode && isDraftEditable && !isModeLimitedOut ? (
+          <div className="uiux-investigation-mode-warning" role="status" aria-live="polite">
+            <span className="uiux-investigation-mode-warning-icon" aria-hidden="true">!</span>
+            <span>
+              정답 모드입니다. 시도는 {" "}
+              <span className="uiux-investigation-mode-warning-attempts num-tabular">
+                {remainingAnswers}/{MAX_ANSWER_ATTEMPTS_PER_LOCK}회
+              </span>
+              {" "}남았습니다. 한 문장으로 핵심을 정리해 제출하세요.
+            </span>
+          </div>
+        ) : null}
+
         <div className="gameplay-investigation-chat-body" ref={scrollRef}>
           {investigationHistory.length === 0 ? (
-            <div className="gameplay-investigation-empty">
+            <div className="gameplay-investigation-empty uiux-fade-up">
               <div className="investigation-empty-icon" aria-hidden="true">?</div>
               <p className="investigation-empty-title">단서를 좁혀보세요</p>
               <p className="investigation-empty-copy">
@@ -187,7 +267,10 @@ export function GameplayInvestigationModal({
             <ul className="gameplay-investigation-chat-list">
               {investigationHistory.map((item) => (
                 <li key={item.id} className="gameplay-investigation-chat-turn">
-                  <article className="chat-message chat-message-mine investigation-bubble-mine" data-kind={item.type}>
+                  <article
+                    className="chat-message chat-message-mine investigation-bubble-mine uiux-investigation-bubble-enter"
+                    data-kind={item.type}
+                  >
                     <div className="chat-message-top">
                       <span className={`investigation-kind-tag investigation-kind-${item.type}`}>
                         {item.type === "answer" ? "정답 제출" : "질문"}
@@ -197,7 +280,7 @@ export function GameplayInvestigationModal({
                     <p>{item.content}</p>
                   </article>
                   {item.isPending ? (
-                    <article className="chat-message chat-message-system investigation-bubble-ai is-pending">
+                    <article className="chat-message chat-message-system investigation-bubble-ai is-pending uiux-investigation-bubble-ai-enter">
                       <div className="chat-message-top">
                         <strong className="chat-author">AI 수사관</strong>
                         <span className="chat-meta">분석 중</span>
@@ -210,7 +293,9 @@ export function GameplayInvestigationModal({
                     </article>
                   ) : item.response ? (
                     <article
-                      className={`chat-message chat-message-system investigation-bubble-ai is-${item.tone}`}
+                      className={`chat-message chat-message-system investigation-bubble-ai is-${item.tone} uiux-investigation-bubble-ai-enter${
+                        item.tone === "positive" ? " uiux-investigation-bubble-ai-positive" : ""
+                      }${item.tone === "negative" ? " uiux-investigation-bubble-ai-negative" : ""}`}
                     >
                       <div className="chat-message-top">
                         <strong className="chat-author">AI 수사관</strong>
@@ -227,7 +312,7 @@ export function GameplayInvestigationModal({
           )}
         </div>
 
-        <footer className="gameplay-investigation-chat-composer">
+        <footer className="gameplay-investigation-chat-composer track-d-investigation-composer">
           <div
             className="investigation-mode-switch"
             role="tablist"
@@ -237,25 +322,55 @@ export function GameplayInvestigationModal({
               type="button"
               role="tab"
               aria-selected={!isAnswerMode}
+              aria-keyshortcuts="Q"
               className={!isAnswerMode ? "is-active" : ""}
               onClick={() => onInvestigationModeChange?.("question")}
               disabled={isAnySubmitting}
+              title="질문 모드 (Q)"
             >
               <span className="investigation-mode-label">질문</span>
-              <span className="investigation-mode-count">{remainingQuestions}</span>
+              <span className="investigation-mode-count num-tabular">{remainingQuestions}</span>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={isAnswerMode}
+              aria-keyshortcuts="A"
               className={isAnswerMode ? "is-active" : ""}
               onClick={() => onInvestigationModeChange?.("answer")}
               disabled={isAnySubmitting}
+              title="정답 모드 (A)"
             >
               <span className="investigation-mode-label">정답</span>
-              <span className="investigation-mode-count">{remainingAnswers}</span>
+              <span className="investigation-mode-count num-tabular">{remainingAnswers}</span>
             </button>
+            <span className="uiux-investigation-mode-switch-helper" aria-hidden="true">
+              <kbd>Q</kbd>
+              질문
+              <kbd>A</kbd>
+              정답
+            </span>
           </div>
+          <p
+            className={`track-d-composer-helper${isModeLimitedOut ? " track-d-composer-helper-warn" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            {!isDraftEditable
+              ? "차례가 오면 입력이 풀립니다."
+              : isModeLimitedOut
+                ? isAnswerMode
+                  ? "이번 입장에서는 정답 시도가 모두 끝났습니다."
+                  : "이번 입장에서는 질문 기회가 모두 끝났습니다."
+                : isAnswerMode
+                  ? isFinalAnswer
+                    ? "마지막 정답 시도입니다. 신중히 한 문장으로 정리하세요."
+                    : "한 문장으로 진실을 정리해 제출하세요."
+                  : isFinalQuestion
+                    ? "마지막 질문입니다. 예/아니오로 답할 수 있는 형태가 좋습니다."
+                    : "예/아니오로 답할 수 있는 짧은 질문을 던지세요."}
+            <span className="track-d-composer-shortcut">Enter 전송 · Shift+Enter 줄바꿈 · Esc 닫기 · Q/A 모드</span>
+          </p>
           <div className="investigation-composer-input">
             <textarea
               ref={textareaRef}
@@ -271,6 +386,7 @@ export function GameplayInvestigationModal({
                   handleSend();
                 }
               }}
+              aria-label={isAnswerMode ? "정답 입력" : "질문 입력"}
             />
             <button
               className={`button-primary investigation-send-button${isAnswerMode ? " is-answer" : ""}`}
@@ -278,7 +394,18 @@ export function GameplayInvestigationModal({
               onClick={handleSend}
               disabled={!canSend}
             >
-              {isAnySubmitting ? "전송 중" : isAnswerMode ? "정답 제출" : "질문 보내기"}
+              {isAnySubmitting ? (
+                <span className="track-d-send-loading" aria-live="polite">
+                  전송 중
+                  <span className="track-d-send-dot" />
+                  <span className="track-d-send-dot" />
+                  <span className="track-d-send-dot" />
+                </span>
+              ) : isAnswerMode ? (
+                "정답 제출"
+              ) : (
+                "질문 보내기"
+              )}
             </button>
           </div>
         </footer>

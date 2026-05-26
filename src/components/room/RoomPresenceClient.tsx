@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 function buildPresenceEndpoint(roomId: string): string {
   return `/api/room/${encodeURIComponent(roomId)}/presence`;
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 export function RoomPresenceClient({
@@ -17,7 +21,17 @@ export function RoomPresenceClient({
   stageNumber?: number;
   intervalMs?: number;
 }) {
+  const stageNumberRef = useRef(stageNumber);
+
   useEffect(() => {
+    stageNumberRef.current = stageNumber;
+  }, [stageNumber]);
+
+  useEffect(() => {
+    if (!isUuidLike(playerId)) {
+      return;
+    }
+
     let stopped = false;
 
     async function ping() {
@@ -29,7 +43,7 @@ export function RoomPresenceClient({
           },
           body: JSON.stringify({
             playerId,
-            stageNumber,
+            stageNumber: stageNumberRef.current,
           }),
           cache: "no-store",
         });
@@ -50,7 +64,7 @@ export function RoomPresenceClient({
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [intervalMs, playerId, roomId, stageNumber]);
+  }, [intervalMs, playerId, roomId]);
 
   return null;
 }

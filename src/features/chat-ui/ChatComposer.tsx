@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { buildChatMessageViewModels, resolveChatTeamLabel } from "./chat-message-view-model";
 import {
   buildSendChatMessageRequest,
@@ -10,6 +10,16 @@ import {
   type SubmittedChatPreview,
 } from "./send-chat-message";
 import type { ChatSnapshot } from "./chat-ui-types";
+
+const MAX_MESSAGE_LENGTH = 600;
+const COUNTER_WARN_AT = 480;
+const COUNTER_ALERT_AT = 560;
+
+function resolveCounterTone(length: number): "default" | "warn" | "alert" {
+  if (length >= COUNTER_ALERT_AT) return "alert";
+  if (length >= COUNTER_WARN_AT) return "warn";
+  return "default";
+}
 
 export function ChatComposer({
   snapshot,
@@ -22,6 +32,7 @@ export function ChatComposer({
   submitLabel,
   disabled = false,
   disabledMessage,
+  textareaRef,
 }: {
   snapshot: ChatSnapshot;
   onSubmittedPreview?: (preview: SubmittedChatPreview) => void;
@@ -33,6 +44,7 @@ export function ChatComposer({
   submitLabel?: string;
   disabled?: boolean;
   disabledMessage?: string;
+  textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const hasTeamChannel = snapshot.me.teamSlotId !== null;
   const teamLabel = resolveChatTeamLabel(snapshot.me.teamSlotId, snapshot.teamSlots) ?? "미배정";
@@ -42,11 +54,14 @@ export function ChatComposer({
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedPreview, setSubmittedPreview] = useState<SubmittedChatPreview | null>(null);
+  const localTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewViewModel = submittedPreview
     ? buildChatMessageViewModels([submittedPreview.message], snapshot, { submittedPreview })[0] ?? null
     : null;
+  const trimmedLength = content.trim().length;
   const canSubmit =
-    content.trim().length > 0 &&
+    trimmedLength > 0 &&
+    trimmedLength <= MAX_MESSAGE_LENGTH &&
     !isSubmitting &&
     !disabled &&
     (channel !== "team" || hasTeamChannel);
@@ -70,6 +85,27 @@ export function ChatComposer({
         ? "1:1 대화 상대에게 보낼 내용을 입력하세요."
         : "전체 플레이어에게 공유할 내용을 입력하세요.");
   const resolvedSubmitLabel = submitLabel ?? "메시지 보내기";
+
+  const setTextareaNode = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      localTextareaRef.current = node;
+      if (textareaRef) {
+        textareaRef.current = node;
+      }
+    },
+    [textareaRef],
+  );
+
+  useEffect(() => {
+    // Once a successful submit completes, refocus the textarea for fast follow-up.
+    if (!isSubmitting && submittedPreview?.status === "success") {
+      const node = localTextareaRef.current;
+      if (node && typeof window !== "undefined") {
+        const focus = () => node.focus({ preventScroll: true });
+        window.requestAnimationFrame(focus);
+      }
+    }
+  }, [isSubmitting, submittedPreview]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,6 +150,9 @@ export function ChatComposer({
     event.currentTarget.form?.requestSubmit();
   }
 
+  const counterTone = resolveCounterTone(content.length);
+  const remaining = MAX_MESSAGE_LENGTH - content.length;
+
   return (
     <section className={compact ? "chat-section chat-composer-compact" : "chat-section"}>
       <h4>{heading}</h4>
@@ -140,17 +179,52 @@ export function ChatComposer({
           <label htmlFor="composer-message">메시지</label>
           <textarea
             id="composer-message"
+            ref={setTextareaNode}
             className="text-area"
             rows={compact ? 2 : 3}
             value={content}
+            maxLength={MAX_MESSAGE_LENGTH + 40}
             onChange={(event) => setContent(event.target.value)}
             onKeyDown={handleTextareaKeyDown}
             placeholder={resolvedPlaceholder}
+            aria-label={heading}
+            disabled={disabled}
           />
         </div>
-        <button className="button-primary" type="submit" disabled={!canSubmit}>
-          {isSubmitting ? "전송 중..." : resolvedSubmitLabel}
+        <button
+          className="button-primary"
+          type="submit"
+          disabled={!canSubmit}
+          aria-disabled={!canSubmit}
+        >
+          {isSubmitting ? (
+            <span className="uiux-chat-sending" aria-live="polite">
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span className="sr-only">전송 중</span>
+            </span>
+          ) : (
+            resolvedSubmitLabel
+          )}
         </button>
+        <div className="uiux-chat-composer-meta">
+          <span className="uiux-chat-composer-hint">
+            <kbd className="uiux-chat-kbd">Enter</kbd>
+            전송
+            <span aria-hidden="true">·</span>
+            <kbd className="uiux-chat-kbd">Shift</kbd>+
+            <kbd className="uiux-chat-kbd">Enter</kbd>
+            줄바꿈
+          </span>
+          <span
+            className="uiux-chat-counter num-tabular"
+            data-tone={counterTone === "default" ? undefined : counterTone}
+            aria-label={`잔여 글자 수 ${remaining}`}
+          >
+            {Math.max(0, remaining)}자 남음
+          </span>
+        </div>
       </form>
       {disabled && disabledMessage ? <p className="message-note">{disabledMessage}</p> : null}
       {submittedPreview === null ? (

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { RoomSnapshot } from "@/contracts/api";
 
+const DEFAULT_CASE_IMAGE_ASPECT = 1.6;
+
 export function CaseImageFrame({ snapshot }: { snapshot: RoomSnapshot }) {
   const title = snapshot.stage?.publicTitle ?? "사건 이미지";
   const description = snapshot.stage?.publicDescription ?? "현장 이미지 준비 중";
@@ -39,19 +41,23 @@ export function CaseImageFrame({ snapshot }: { snapshot: RoomSnapshot }) {
     };
   }, [isZoomed]);
 
-  const frameStyle =
-    imageAspectRatio && Number.isFinite(imageAspectRatio)
-      ? ({ "--case-image-aspect": String(imageAspectRatio) } as CSSProperties)
-      : undefined;
+  const effectiveAspect =
+    imageAspectRatio && Number.isFinite(imageAspectRatio) ? imageAspectRatio : DEFAULT_CASE_IMAGE_ASPECT;
+  const frameStyle = {
+    "--case-image-aspect": String(effectiveAspect),
+  } as CSSProperties;
   const frameClassName = [
     "image-frame",
     "case-image-frame",
+    "track-c-case-image-frame",
     imageUrl ? "has-case-image" : "",
     imageLoadState === "failed" ? "case-image-frame-failed" : "",
+    imageLoadState === "loading" ? "track-c-case-image-frame--loading" : "",
   ]
     .filter(Boolean)
     .join(" ");
   const shouldRenderImage = Boolean(imageUrl && imageLoadState !== "failed");
+  const showSkeleton = Boolean(imageUrl) && imageLoadState === "loading";
 
   function handleImageLoad(event: SyntheticEvent<HTMLImageElement>) {
     const image = event.currentTarget;
@@ -64,6 +70,13 @@ export function CaseImageFrame({ snapshot }: { snapshot: RoomSnapshot }) {
   return (
     <>
       <figure className={frameClassName} style={frameStyle}>
+        <span className="track-c-case-image-frame__tape" aria-hidden="true" />
+        {showSkeleton ? (
+          <div
+            className="uiux-gameplay-case-image-skeleton"
+            aria-hidden="true"
+          />
+        ) : null}
         {shouldRenderImage ? (
           <button
             type="button"
@@ -81,24 +94,28 @@ export function CaseImageFrame({ snapshot }: { snapshot: RoomSnapshot }) {
             <span className="case-image-zoom-hint" aria-hidden="true">크게 보기</span>
           </button>
         ) : (
-          <div className="case-image-fallback">
-            <span className="status-badge" data-tone="alert">이미지 준비 중</span>
+          <div className="case-image-fallback track-c-case-image-frame__fallback uiux-gameplay-case-fallback-shimmer">
+            <span className="status-badge" data-tone="alert">
+              {imageLoadState === "loading" ? "이미지 불러오는 중" : "이미지 준비 중"}
+            </span>
             <strong>{title}</strong>
             <p>{description}</p>
           </div>
         )}
-        <figcaption className="image-caption">사건 분위기를 보여주는 참고 이미지</figcaption>
+        <figcaption className="image-caption track-c-case-image-frame__caption">
+          현장에서 확보한 참고 이미지
+        </figcaption>
       </figure>
 
       {isZoomed && imageUrl && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="modal-backdrop case-image-modal-backdrop"
+              className="modal-backdrop case-image-modal-backdrop uiux-gameplay-case-modal-backdrop-enter"
               role="presentation"
               onClick={() => setIsZoomed(false)}
             >
               <section
-                className="case-image-modal"
+                className="case-image-modal uiux-gameplay-case-modal-enter"
                 role="dialog"
                 aria-modal="true"
                 aria-label={`${title} 확대 이미지`}

@@ -11,8 +11,14 @@ export function TeamChatPanel({
   return (
     <section className="chat-section">
       <h4>{teamLabel ?? "미배정"} 팀 채팅</h4>
-      <p className="panel-copy">{teamLabel ? "같은 팀만 보는 대화입니다." : "팀이 배정되면 팀 대화가 열립니다."}</p>
-      <ChatMessageList emptyMessage="아직 팀 채팅이 없습니다." messages={messages} />
+      <p className="panel-copy">
+        {teamLabel ? "같은 팀만 보는 대화입니다." : "팀이 배정되면 팀 대화가 열립니다."}
+      </p>
+      <ChatMessageList
+        emptyMessage="아직 팀 채팅이 없습니다."
+        emptyHint={teamLabel ? "Shift+Enter로 줄을 바꿀 수 있습니다." : undefined}
+        messages={messages}
+      />
     </section>
   );
 }

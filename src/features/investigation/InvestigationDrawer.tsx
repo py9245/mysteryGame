@@ -99,8 +99,15 @@ export function InvestigationDrawer({
     queueCooldownSeconds,
   });
 
+  const remainingSeconds = snapshot.stage?.investigation?.remainingSeconds ?? 0;
+  const isTimerCritical = isLockedByMe && remainingSeconds > 0 && remainingSeconds <= 10;
+
   return (
-    <aside className="panel panel-accent investigation-lock-panel">
+    <aside
+      className={`panel panel-accent investigation-lock-panel track-d-drawer${
+        isLockedByMe ? " track-d-drawer-mine" : ""
+      }${isTimerCritical ? " track-d-drawer-critical" : ""}`}
+    >
       <div className="composer-header">
         <div>
           <h3 className="panel-title">조사실 점유 상태</h3>
@@ -110,25 +117,33 @@ export function InvestigationDrawer({
           {statusCopy.label}
         </span>
       </div>
-      <p className="panel-copy">{statusCopy.detail}</p>
+      <p className="panel-copy track-d-drawer-detail">{statusCopy.detail}</p>
       <div className="metric-grid investigation-meter-grid">
-        <article className="metric-card metric-card-emphasis">
+        <article
+          className={`metric-card metric-card-emphasis track-d-drawer-timer${
+            isTimerCritical ? " track-d-drawer-timer-critical" : ""
+          }${isTimerCritical && remainingSeconds <= 5 ? " uiux-investigation-meter-extreme" : ""}`}
+        >
           <span className="metric-label">남은 점유 시간</span>
-          <strong className="metric-value">{snapshot.stage?.investigation?.remainingSeconds ?? 0}s</strong>
-          <span className="metric-detail">시간 안에 질문과 정답 시도를 끝내야 합니다.</span>
+          <strong className="metric-value num-tabular">{remainingSeconds}s</strong>
+          <span className="metric-detail">
+            {isLockedByMe
+              ? "시간 안에 질문과 정답 시도를 끝내야 합니다."
+              : "다른 플레이어가 비우거나 시간이 끝나면 다음 차례로 넘어갑니다."}
+          </span>
         </article>
         <article className="metric-card">
           <span className="metric-label">현재 대기열</span>
-          <strong className="metric-value">{waitingPlayerCount}명</strong>
+          <strong className="metric-value num-tabular">{waitingPlayerCount}명</strong>
           <span className="metric-detail">
-            {isQueued ? `내 순번 ${queuePosition ?? "-"}번` : "대기열 참가 전"}
+            {isQueued ? `내 순번 ${queuePosition ?? "-"}번 · 곧 자동 입장` : "대기열 참가 전"}
           </span>
         </article>
       </div>
       <div className="composer-footer">
         {isLockedByMe ? null : (
           <button
-            className="button-primary"
+            className="button-primary track-d-drawer-cta"
             type="button"
             onClick={isQueued ? onLeaveQueue : canJoinQueue ? onJoinQueue : onAcquireLock}
             disabled={isQueued ? !canLeaveQueue || isSubmitting : !canJoinQueue || isSubmitting}
@@ -153,8 +168,16 @@ export function InvestigationDrawer({
           {isSubmitting && canReleaseLock ? "정리 중..." : isLockedByMe ? "질문방 나가기" : "점유 중일 때만 가능"}
         </button>
       </div>
-      {statusMessage ? <p className="message-positive">{statusMessage}</p> : null}
-      {errorMessage ? <p className="message-negative">{errorMessage}</p> : null}
+      {statusMessage ? (
+        <p className="message-positive" role="status" aria-live="polite">
+          {statusMessage}
+        </p>
+      ) : null}
+      {errorMessage ? (
+        <p className="message-negative" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
     </aside>
   );
 }

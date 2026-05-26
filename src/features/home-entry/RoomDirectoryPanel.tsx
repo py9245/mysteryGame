@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useEscapeShortcut } from "@/lib/keyboard-shortcuts";
 
 export type DirectoryRoom = {
   code: string;
@@ -14,6 +15,8 @@ export type DirectoryRoom = {
   joinable: boolean;
 };
 
+type ModeFilter = "all" | "public" | "secret" | "practice";
+
 function modeLabel(mode: DirectoryRoom["mode"]) {
   switch (mode) {
     case "secret":
@@ -22,6 +25,17 @@ function modeLabel(mode: DirectoryRoom["mode"]) {
       return "연습방";
     default:
       return "공개방";
+  }
+}
+
+function modeIcon(mode: DirectoryRoom["mode"]) {
+  switch (mode) {
+    case "secret":
+      return "LOCK";
+    case "practice":
+      return "SOLO";
+    default:
+      return "OPEN";
   }
 }
 
@@ -82,6 +96,26 @@ function occupancyWidth(room: DirectoryRoom) {
   return Math.min(100, Math.round((room.currentPlayers / room.maxPlayers) * 100));
 }
 
+function occupancyTone(room: DirectoryRoom): "open" | "filling" | "full" {
+  if (!room.joinable || room.currentPlayers >= room.maxPlayers) {
+    return "full";
+  }
+
+  const ratio = room.maxPlayers > 0 ? room.currentPlayers / room.maxPlayers : 0;
+  if (ratio >= 0.66) {
+    return "filling";
+  }
+
+  return "open";
+}
+
+const MODE_FILTERS: ReadonlyArray<{ id: ModeFilter; label: string }> = [
+  { id: "all", label: "전체" },
+  { id: "public", label: "공개" },
+  { id: "secret", label: "비밀" },
+  { id: "practice", label: "연습" },
+];
+
 export function RoomDirectoryPanel({
   rooms,
   onJoinRoom,
@@ -93,18 +127,23 @@ export function RoomDirectoryPanel({
 }) {
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<"newest" | "least_players">("newest");
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
   const [passwordDraft, setPasswordDraft] = useState("");
   const [selectedRoom, setSelectedRoom] = useState<DirectoryRoom | null>(null);
   const [busyRoomCode, setBusyRoomCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasSearchQuery = search.trim().length > 0;
+  const hasModeFilter = modeFilter !== "all";
 
   const visibleRooms = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const filtered = rooms.filter((room) =>
-      normalizeDirectoryText(room.title).toLowerCase().includes(query) ||
-      normalizeDirectoryText(room.code).toLowerCase().includes(query),
-    );
+    const filtered = rooms.filter((room) => {
+      const matchesQuery =
+        normalizeDirectoryText(room.title).toLowerCase().includes(query) ||
+        normalizeDirectoryText(room.code).toLowerCase().includes(query);
+      const matchesMode = modeFilter === "all" || room.mode === modeFilter;
+      return matchesQuery && matchesMode;
+    });
 
     return [...filtered].sort((left, right) => {
       if (sortMode === "least_players") {
@@ -115,7 +154,7 @@ export function RoomDirectoryPanel({
 
       return right.createdAt.localeCompare(left.createdAt);
     });
-  }, [rooms, search, sortMode]);
+  }, [rooms, search, sortMode, modeFilter]);
 
   async function handleJoin(room: DirectoryRoom) {
     const action = resolveRoomAction(room);
@@ -160,9 +199,22 @@ export function RoomDirectoryPanel({
     }
   }
 
+  function resetFilters() {
+    setSearch("");
+    setModeFilter("all");
+  }
+
+  useEscapeShortcut(
+    () => {
+      setSelectedRoom(null);
+      setPasswordDraft("");
+    },
+    Boolean(selectedRoom),
+  );
+
   return (
     <>
-      <div className="room-directory-toolbar mt-directory-toolbar">
+      <div className="room-directory-toolbar mt-directory-toolbar track-a-directory-toolbar">
         <input
           className="text-input"
           type="search"
@@ -189,24 +241,69 @@ export function RoomDirectoryPanel({
         </div>
       </div>
 
+      <div className="track-a-directory-filters" role="group" aria-label="방 종류 필터">
+        {MODE_FILTERS.map((filter) => {
+          const isActive = modeFilter === filter.id;
+          return (
+            <button
+              key={filter.id}
+              type="button"
+              className={`track-a-filter-chip${isActive ? " is-active" : ""}`}
+              data-tone={filter.id}
+              onClick={() => setModeFilter(filter.id)}
+              aria-pressed={isActive}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+      </div>
+
       {isLoading ? (
-        <div className="modal-card room-empty-state mt-skeleton-card">
-          <strong>방 목록 확인 중</strong>
-          <p>열려 있는 방을 불러오고 있습니다.</p>
+        <div
+          className="uiux-home-skeleton-grid"
+          role="status"
+          aria-live="polite"
+          aria-label="방 목록을 불러오는 중"
+        >
+          {[0, 1, 2].map((index) => (
+            <div className="uiux-home-skeleton-card" key={index}>
+              <div className="uiux-skeleton uiux-home-skeleton-line uiux-home-skeleton-line--sm" />
+              <div className="uiux-skeleton uiux-home-skeleton-line uiux-home-skeleton-line--lg" />
+              <div className="uiux-skeleton uiux-home-skeleton-line uiux-home-skeleton-line--md" />
+              <div className="uiux-skeleton uiux-home-skeleton-line uiux-home-skeleton-line--bar" />
+              <div className="uiux-skeleton uiux-home-skeleton-line uiux-home-skeleton-line--btn" />
+            </div>
+          ))}
+          <span className="sr-only">방 목록을 불러오고 있습니다.</span>
         </div>
       ) : rooms.length === 0 ? (
-        <div className="modal-card room-empty-state">
-          <strong>열린 방이 없습니다.</strong>
-          <p>새 방을 만들거나 초대 코드를 직접 입력하세요.</p>
+        <div
+          className="modal-card room-empty-state track-a-directory-state uiux-fade-up"
+          role="status"
+        >
+          <div className="track-a-state-icon" aria-hidden="true">/</div>
+          <strong>열린 방이 없습니다</strong>
+          <p>새 방을 만들거나 초대 코드를 직접 입력해 보세요.</p>
         </div>
       ) : visibleRooms.length === 0 ? (
-        <div className="modal-card room-empty-state">
-          <strong>검색 결과가 없습니다.</strong>
-          <p>코드나 제목을 다시 확인하세요.</p>
-          {hasSearchQuery ? (
-            <div className="action-row">
-              <button className="button-secondary" type="button" onClick={() => setSearch("")}>
-                검색 지우기
+        <div
+          className="modal-card room-empty-state track-a-directory-state uiux-fade-up"
+          role="status"
+        >
+          <div className="track-a-state-icon" aria-hidden="true">?</div>
+          <strong>조건에 맞는 방이 없습니다</strong>
+          <p>
+            {hasSearchQuery && hasModeFilter
+              ? "검색어와 종류 필터를 모두 해제하면 더 많은 방이 보입니다."
+              : hasSearchQuery
+                ? "코드나 제목을 다시 확인해 보세요."
+                : "다른 종류의 방을 골라 보세요."}
+          </p>
+          {(hasSearchQuery || hasModeFilter) ? (
+            <div className="action-row uiux-home-empty-cta">
+              <button className="button-secondary button-compact" type="button" onClick={resetFilters}>
+                필터 초기화
               </button>
             </div>
           ) : null}
@@ -216,21 +313,44 @@ export function RoomDirectoryPanel({
           {visibleRooms.map((room) => {
             const action = resolveRoomAction(room);
             const width = occupancyWidth(room);
+            const tone = occupancyTone(room);
+
+            const ariaLabel = action.disabled
+              ? `${modeLabel(room.mode)} ${room.title} (${action.description})`
+              : `${modeLabel(room.mode)} ${room.title} 입장 (${room.currentPlayers}/${room.maxPlayers}명)`;
 
             return (
               <li
                 key={room.code}
-                className="room-directory-card mt-room-card"
+                className="room-directory-card mt-room-card track-a-room-card uiux-home-room-card"
                 data-state={action.disabled ? "disabled" : "active"}
                 data-tone={action.tone}
+                data-mode={room.mode}
+                aria-label={ariaLabel}
               >
                 <div className="room-directory-card-top">
                   <div className="mt-room-title-block">
-                    <div className="chip-row">
-                      <span className="status-badge" data-tone={action.disabled ? "alert" : "live"}>
+                    <div className="chip-row track-a-room-chips">
+                      <span
+                        className="status-badge track-a-mode-badge"
+                        data-mode={room.mode}
+                      >
+                        <span className="track-a-mode-badge-icon" aria-hidden="true">
+                          {modeIcon(room.mode)}
+                        </span>
+                        {modeLabel(room.mode)}
+                      </span>
+                      {room.passwordProtected ? (
+                        <span className="status-badge track-a-lock-badge" data-tone="lock">
+                          비밀번호
+                        </span>
+                      ) : null}
+                      <span
+                        className="status-badge"
+                        data-tone={action.disabled ? "alert" : action.tone === "secret" ? "lock" : "live"}
+                      >
                         {action.description}
                       </span>
-                      <span className="status-badge">{modeLabel(room.mode)}</span>
                     </div>
                     <h3 className="panel-title">{room.title}</h3>
                   </div>
@@ -240,12 +360,16 @@ export function RoomDirectoryPanel({
                 <div className="room-occupancy-block">
                   <div className="meta-row room-occupancy-meta">
                     <span>{room.stageCount}스테이지</span>
-                    <span>
+                    <span className="track-a-occupancy-text" data-tone={tone}>
                       {room.currentPlayers}/{room.maxPlayers}명
                     </span>
                   </div>
                   <div className="room-occupancy-meter" aria-hidden="true">
-                    <div className="room-occupancy-fill" style={{ width: `${width}%` }} />
+                    <div
+                      className="room-occupancy-fill track-a-occupancy-fill"
+                      data-tone={tone}
+                      style={{ width: `${width}%` }}
+                    />
                   </div>
                 </div>
 
@@ -254,6 +378,8 @@ export function RoomDirectoryPanel({
                   type="button"
                   onClick={() => handleJoin(room)}
                   disabled={busyRoomCode === room.code || action.disabled}
+                  data-tone={action.tone}
+                  aria-label={action.disabled ? action.label : `${room.code} 코드로 ${action.label}`}
                 >
                   {busyRoomCode === room.code ? "확인 중" : action.label}
                 </button>
@@ -266,9 +392,16 @@ export function RoomDirectoryPanel({
       {errorMessage ? <p className="message-negative">{errorMessage}</p> : null}
 
       {selectedRoom ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedRoom(null)}>
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            setSelectedRoom(null);
+            setPasswordDraft("");
+          }}
+        >
           <section
-            className="modal-shell"
+            className="modal-shell uiux-scale-in"
             role="dialog"
             aria-modal="true"
             aria-label="비밀방 비밀번호 입력"
@@ -279,7 +412,14 @@ export function RoomDirectoryPanel({
                 <h3 className="panel-title">비밀방 입장</h3>
                 <p className="panel-copy">{selectedRoom.title}</p>
               </div>
-              <button className="button-secondary" type="button" onClick={() => setSelectedRoom(null)}>
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => {
+                  setSelectedRoom(null);
+                  setPasswordDraft("");
+                }}
+              >
                 닫기
               </button>
             </div>
@@ -304,6 +444,7 @@ export function RoomDirectoryPanel({
                   value={passwordDraft}
                   onChange={(event) => setPasswordDraft(event.target.value)}
                   placeholder="비밀번호 입력"
+                  autoFocus
                 />
               </label>
               <button className="button-primary" type="button" onClick={confirmSecretRoomJoin}>

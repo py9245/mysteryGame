@@ -12,6 +12,10 @@ function normalizePlayerId(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ roomId: string }> },
@@ -57,6 +61,10 @@ export async function POST(
       },
       { status: 400 },
     );
+  }
+
+  if (!isUuidLike(playerId)) {
+    return new Response(null, { status: 204 });
   }
 
   try {

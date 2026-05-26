@@ -32,11 +32,18 @@ export function IdentityPanel({
 }) {
   const isAccount = viewer?.kind === "account";
   const isGuest = viewer?.kind === "guest";
+  const statusLabel = isAccount ? "계정 로그인" : isGuest ? "게스트 임시" : "이름 준비 중";
+  const identityKind = isAccount ? "account" : isGuest ? "guest" : "pending";
 
   return (
-    <section className="panel panel-accent identity-panel">
+    <section
+      className="panel panel-accent identity-panel track-a-identity-panel uiux-realtime-identity-glow"
+      data-kind={identityKind}
+      aria-label={`내 신분: ${statusLabel}`}
+    >
       <div className="composer-header">
         <div>
+          <p className="eyebrow">Player Profile</p>
           <h2 className="panel-title">내 상태</h2>
           <p className="panel-copy">
             {isGuestBooting
@@ -46,16 +53,26 @@ export function IdentityPanel({
                 : "계정으로 들어오면 닉네임 수정과 전적 누적이 이어집니다."}
           </p>
         </div>
-        <span className="status-badge" data-tone={isAccount ? "live" : "alert"}>
-          {isAccount ? "계정" : isGuest ? "게스트" : "준비 중"}
+        <span
+          className="status-badge track-a-identity-status"
+          data-tone={isAccount ? "live" : isGuest ? "guest" : "alert"}
+        >
+          {statusLabel}
         </span>
       </div>
 
       {isGuest ? (
-        <div className="identity-spotlight">
-          <span className="metric-label">게스트 닉네임</span>
-          <strong className="metric-value">{nickname}</strong>
-          <p className="panel-copy">이번 브라우저에서는 이 이름으로 고정되며, 게스트 상태에서는 직접 수정하지 않습니다.</p>
+        <div className="identity-spotlight track-a-identity-spotlight">
+          <div className="track-a-identity-spotlight-head">
+            <span className="metric-label">게스트 닉네임</span>
+            <span className="status-badge track-a-identity-mini" data-tone="guest">
+              임시
+            </span>
+          </div>
+          <strong className="metric-value track-a-identity-nickname">{nickname}</strong>
+          <p className="panel-copy">
+            이번 브라우저에서는 이 이름으로 고정되며, 게스트 상태에서는 직접 수정하지 않습니다. 전적을 누적하려면 계정으로 전환하세요.
+          </p>
         </div>
       ) : null}
 
@@ -76,15 +93,24 @@ export function IdentityPanel({
             <button className="button-primary" type="button" onClick={onSaveNickname} disabled={isSavingNickname}>
               {isSavingNickname ? "저장 중..." : "닉네임 저장"}
             </button>
-            <button className="button-secondary" type="button" onClick={onLogout} disabled={isLoggingOut}>
+            <button
+              className="button-secondary track-a-leave-button"
+              type="button"
+              onClick={onLogout}
+              disabled={isLoggingOut}
+            >
               {isLoggingOut ? "정리 중..." : "로그아웃"}
             </button>
           </div>
         </div>
       ) : null}
 
+      <div className="uiux-realtime-identity-divider" aria-hidden="true">
+        {isAccount ? "Verified" : isGuest ? "Guest" : "Pending"}
+      </div>
+
       <div className="metric-grid">
-        <div className="metric-card">
+        <div className={`metric-card${isAccount ? " metric-card-emphasis" : ""}`}>
           <span className="metric-label">현재 닉네임</span>
           <strong className="metric-value">{nickname || "대기 중"}</strong>
           <span className="metric-detail">{isGuest ? "방 생성과 입장에 그대로 사용됩니다." : "저장 후 모든 방에서 같은 이름으로 이어집니다."}</span>

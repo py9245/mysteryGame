@@ -192,6 +192,7 @@ export function LobbyShell({
             me={snapshot.me}
             teamSlots={snapshot.teamSlots}
             viewMode={snapshot.viewMode}
+            players={snapshot.players}
             isHost={isHost}
             isPracticeMode={isPracticeMode}
             compact
@@ -202,7 +203,11 @@ export function LobbyShell({
           />
 
           {isHost ? (
-            <section className="panel panel-accent panel-compact lobby-host-card mt-host-card">
+            <section
+              className="panel panel-accent panel-compact lobby-host-card mt-host-card uiux-lobby-host-card"
+              data-can-start={canStartGame ? "true" : "false"}
+              aria-label="방장 시작 패널"
+            >
               <div className="composer-header">
                 <div>
                   <h3 className="panel-title">시작</h3>
@@ -210,16 +215,34 @@ export function LobbyShell({
                     {isPracticeMode ? "바로 시작할 수 있습니다." : readyMetricDetail}
                   </p>
                 </div>
-                <span className="status-badge">{isPracticeMode ? "연습" : "방장"}</span>
+                <span className="status-badge" data-tone={canStartGame ? "live" : undefined}>
+                  {isPracticeMode ? "연습" : "방장"}
+                </span>
               </div>
               <button
                 className="button-primary"
                 type="button"
                 onClick={onStartGame}
                 disabled={!canStartGame || isHostActionSubmitting}
+                aria-label={canStartGame ? "사건 시작" : "참가자 준비 대기 중"}
               >
                 {isHostActionSubmitting ? "시작 중" : startButtonLabel}
               </button>
+              {!isPracticeMode ? (
+                <p className="uiux-lobby-host-hint">
+                  {canStartGame ? (
+                    <>
+                      <strong>준비 완료.</strong>
+                      <span>
+                        <span className="uiux-lobby-host-hint-kbd" aria-hidden="true">Enter</span>
+                        로 바로 시작
+                      </span>
+                    </>
+                  ) : (
+                    <span>참가자 준비를 기다리는 중입니다.</span>
+                  )}
+                </p>
+              ) : null}
             </section>
           ) : null}
 

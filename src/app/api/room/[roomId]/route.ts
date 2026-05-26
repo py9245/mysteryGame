@@ -41,6 +41,10 @@ function normalizeRequiredString(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 function validateUpdateRoomSettingsRequest(
   body: unknown,
   roomId: string,
@@ -112,9 +116,24 @@ export async function GET(
   if (isSupabaseEnabled()) {
     try {
       const searchParams = new URL(request.url).searchParams;
-      const playerId = searchParams.get("playerId")?.trim() || undefined;
-      const snapshot = await getRoomSnapshotFromStore(roomRef, playerId, {
+      const requestedPlayerId = searchParams.get("playerId")?.trim() || undefined;
+
+      if (requestedPlayerId && !isUuidLike(requestedPlayerId)) {
+        return Response.json(
+          {
+            ok: false,
+            error: {
+              code: "INVALID_PLAYER_ID",
+              message: "유효하지 않은 플레이어 식별자입니다.",
+            },
+          },
+          { status: 400 },
+        );
+      }
+
+      const snapshot = await getRoomSnapshotFromStore(roomRef, requestedPlayerId, {
         lightweight: true,
+        touchPresence: false,
       });
 
       if (!snapshot) {

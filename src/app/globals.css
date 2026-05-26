@@ -1,3 +1,6 @@
+/* ── 0. UIUX upgrade tracks (additive — see src/styles/uiux-base.css) ── */
+@import "../styles/uiux-base.css";
+
 /* ── 1. Custom properties ─────────────────────────────────── */
 :root {
   --bg: #05060a;
@@ -1088,6 +1091,10 @@ code, pre {
   height: 100%;
 }
 
+.lobby-chat-layout-single {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .chat-secondary-grid {
   display: grid;
   gap: 12px;
@@ -2117,7 +2124,7 @@ code, pre {
 }
 
 .gameplay-page-shell .chat-rail-layout {
-  grid-template-rows: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  grid-template-rows: minmax(0, 0.66fr) minmax(0, 1.34fr);
   height: calc(100vh - 86px);
   min-height: 520px;
   gap: 10px;
@@ -2233,15 +2240,15 @@ code, pre {
 }
 
 .gameplay-page-shell .chat-composer-compact .text-area {
-  height: 46px;
-  min-height: 46px;
-  padding: 10px 11px;
+  height: 50px;
+  min-height: 50px;
+  padding: 12px 12px;
   font-size: 0.82rem;
   line-height: 1.3;
 }
 
 .gameplay-page-shell .chat-composer-compact .button-primary {
-  min-height: 46px;
+  min-height: 50px;
   padding: 0 16px;
   white-space: nowrap;
   font-size: 0.78rem;
@@ -3339,4 +3346,2012 @@ code, pre {
   .composer-footer { align-items: flex-start; }
 
   .mt-splash-title { font-size: clamp(3.4rem, 18vw, 5.5rem); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Frontend polish round — agent tracks A/B/C/D merged additions
+   All new selectors use `track-{a|b|c|d}-` prefixes to avoid collisions.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Track A: Home / Auth / Room Directory polish ────────────── */
+
+/* RoomModePicker — mode-card per tone */
+.track-a-mode-card {
+  position: relative;
+  gap: 8px;
+}
+
+.track-a-mode-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.track-a-mode-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 248, 234, 0.82);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.track-a-mode-card[data-tone="public"] .track-a-mode-icon {
+  border-color: rgba(117, 192, 150, 0.45);
+  background: rgba(117, 192, 150, 0.16);
+  color: #dff7e8;
+}
+
+.track-a-mode-card[data-tone="secret"] .track-a-mode-icon {
+  border-color: rgba(228, 87, 61, 0.5);
+  background: rgba(228, 87, 61, 0.18);
+  color: #ffd5c5;
+}
+
+.track-a-mode-card[data-tone="practice"] .track-a-mode-icon {
+  border-color: rgba(73, 132, 255, 0.45);
+  background: rgba(73, 132, 255, 0.16);
+  color: #cfe0ff;
+}
+
+.track-a-mode-card.is-active[data-tone="public"] {
+  border-color: rgba(117, 192, 150, 0.55);
+  background:
+    linear-gradient(180deg, rgba(117, 192, 150, 0.16), rgba(117, 192, 150, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+
+.track-a-mode-card.is-active[data-tone="secret"] {
+  border-color: rgba(228, 87, 61, 0.55);
+  background:
+    linear-gradient(180deg, rgba(228, 87, 61, 0.18), rgba(228, 87, 61, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+
+.track-a-mode-card.is-active[data-tone="practice"] {
+  border-color: rgba(73, 132, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(73, 132, 255, 0.16), rgba(73, 132, 255, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+
+.track-a-mode-check {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(240, 195, 106, 0.18);
+  border: 1px solid rgba(240, 195, 106, 0.42);
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-a-mode-helper {
+  color: rgba(240, 195, 106, 0.78);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* RoomDirectoryPanel — filter chips */
+.track-a-directory-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.track-a-filter-chip {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 248, 234, 0.7);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.track-a-filter-chip:hover {
+  border-color: rgba(240, 195, 106, 0.32);
+  color: #fff8ea;
+  transform: translateY(-1px);
+}
+
+.track-a-filter-chip.is-active {
+  border-color: rgba(240, 195, 106, 0.55);
+  background:
+    linear-gradient(180deg, rgba(240, 195, 106, 0.18), rgba(240, 195, 106, 0.04)),
+    rgba(255, 255, 255, 0.05);
+  color: #fff8ea;
+}
+
+.track-a-filter-chip[data-tone="secret"].is-active {
+  border-color: rgba(228, 87, 61, 0.55);
+  background:
+    linear-gradient(180deg, rgba(228, 87, 61, 0.18), rgba(228, 87, 61, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+
+.track-a-filter-chip[data-tone="practice"].is-active {
+  border-color: rgba(73, 132, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(73, 132, 255, 0.16), rgba(73, 132, 255, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+
+/* RoomDirectoryPanel — empty/loading state */
+.track-a-directory-state {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 22px 20px;
+  border-style: dashed;
+}
+
+.track-a-state-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 195, 106, 0.34);
+  background: rgba(240, 195, 106, 0.1);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* RoomDirectoryPanel — room card chips and badges */
+.track-a-room-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.track-a-mode-badge[data-mode="secret"] {
+  border-color: rgba(228, 87, 61, 0.36);
+  background: rgba(228, 87, 61, 0.14);
+  color: #ffd5c5;
+}
+
+.track-a-mode-badge[data-mode="secret"]::before {
+  background: #e4573d;
+}
+
+.track-a-mode-badge[data-mode="practice"] {
+  border-color: rgba(73, 132, 255, 0.36);
+  background: rgba(73, 132, 255, 0.14);
+  color: #cfe0ff;
+}
+
+.track-a-mode-badge[data-mode="practice"]::before {
+  background: #4984ff;
+}
+
+.track-a-mode-badge[data-mode="public"] {
+  border-color: rgba(117, 192, 150, 0.36);
+  background: rgba(117, 192, 150, 0.14);
+  color: #dff7e8;
+}
+
+.track-a-mode-badge-icon {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  opacity: 0.78;
+}
+
+.track-a-lock-badge,
+.status-badge[data-tone="lock"] {
+  border-color: rgba(228, 87, 61, 0.36);
+  background: rgba(228, 87, 61, 0.14);
+  color: #ffd5c5;
+}
+
+.track-a-lock-badge::before,
+.status-badge[data-tone="lock"]::before {
+  background: #e4573d;
+}
+
+.status-badge[data-tone="host"] {
+  border-color: rgba(240, 195, 106, 0.42);
+  background: rgba(240, 195, 106, 0.16);
+  color: #ffe6b6;
+}
+
+.status-badge[data-tone="host"]::before {
+  background: var(--gold);
+}
+
+.status-badge[data-tone="guest"] {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 248, 234, 0.78);
+}
+
+.status-badge[data-tone="guest"]::before {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.track-a-occupancy-fill[data-tone="open"] {
+  background: linear-gradient(90deg, #75c096, #b8d68f);
+}
+
+.track-a-occupancy-fill[data-tone="filling"] {
+  background: linear-gradient(90deg, #f0c36a, #e4573d);
+}
+
+.track-a-occupancy-fill[data-tone="full"] {
+  background: linear-gradient(90deg, #ff6f7d, #b63828);
+}
+
+.track-a-occupancy-text[data-tone="full"] {
+  color: #ffd9d9;
+  font-weight: 700;
+}
+
+.track-a-occupancy-text[data-tone="filling"] {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.track-a-room-card[data-state="disabled"] .room-join-button {
+  cursor: not-allowed;
+}
+
+/* HomeEntrySurface — identity chip on hero */
+.track-a-identity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.track-a-identity-chip[data-tone="guest"] {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 248, 234, 0.86);
+}
+
+.track-a-identity-chip[data-tone="account"] {
+  border-color: rgba(117, 192, 150, 0.5);
+  background: rgba(117, 192, 150, 0.18);
+  color: #dff7e8;
+}
+
+.track-a-identity-chip-tag {
+  display: inline-grid;
+  place-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.36);
+  color: rgba(255, 248, 234, 0.78);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.track-a-identity-chip[data-tone="account"] .track-a-identity-chip-tag {
+  background: rgba(117, 192, 150, 0.32);
+  color: #dff7e8;
+}
+
+.track-a-auth-link {
+  border-color: rgba(240, 195, 106, 0.36);
+  color: var(--gold);
+}
+
+/* HomeEntrySurface — directory section header */
+.track-a-directory-header {
+  align-items: flex-start;
+}
+
+.track-a-directory-header-copy { display: grid; gap: 6px; }
+.track-a-directory-header-copy .eyebrow { margin-bottom: 4px; }
+
+.track-a-directory-header-actions {
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.track-a-directory-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 4px 0 12px;
+}
+
+.track-a-directory-error .message-negative {
+  flex: 1 1 auto;
+  min-width: 220px;
+  margin: 0;
+}
+
+/* HomeEntrySurface — record/casebook panel */
+.track-a-record-panel .eyebrow { margin-bottom: 6px; }
+
+/* RoomShell — paper-file feel header */
+.track-a-room-shell { gap: 14px; }
+
+.track-a-room-header {
+  background:
+    radial-gradient(circle at 96% 0%, rgba(240, 195, 106, 0.14), transparent 32%),
+    linear-gradient(135deg, rgba(228, 87, 61, 0.14), transparent 44%),
+    rgba(12, 14, 21, 0.94);
+}
+
+.track-a-room-header-copy { display: grid; gap: 8px; }
+
+.track-a-room-code-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+}
+
+.track-a-room-code {
+  margin: 0;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.track-a-room-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.track-a-stat-code {
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.track-a-room-status-card .eyebrow { margin-bottom: 6px; }
+
+.track-a-room-sticky-actions {
+  margin-top: 4px;
+}
+
+@media (min-width: 1080px) {
+  .track-a-room-sticky-actions {
+    position: sticky;
+    bottom: 12px;
+    padding-top: 4px;
+  }
+}
+
+/* PlayerRoster — avatar + roster grid */
+.track-a-roster-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.track-a-roster-item {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.track-a-roster-item.is-offline {
+  opacity: 0.62;
+  filter: saturate(0.7);
+}
+
+.track-a-roster-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.track-a-roster-name-block {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.track-a-roster-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.track-a-roster-name-row .roster-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-a-me-tag {
+  display: inline-grid;
+  place-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(240, 195, 106, 0.22);
+  border: 1px solid rgba(240, 195, 106, 0.45);
+  color: #ffe6b6;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.track-a-roster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.track-a-roster-privacy {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(255, 248, 234, 0.48);
+  font-style: italic;
+}
+
+.track-a-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(10, 12, 19, 0.78);
+  color: #fff8ea;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+}
+
+.track-a-avatar[data-tone="0"] { background: linear-gradient(180deg, rgba(228, 87, 61, 0.32), rgba(228, 87, 61, 0.08)), rgba(12, 14, 21, 0.84); }
+.track-a-avatar[data-tone="1"] { background: linear-gradient(180deg, rgba(117, 192, 150, 0.32), rgba(117, 192, 150, 0.08)), rgba(12, 14, 21, 0.84); }
+.track-a-avatar[data-tone="2"] { background: linear-gradient(180deg, rgba(240, 195, 106, 0.32), rgba(240, 195, 106, 0.08)), rgba(12, 14, 21, 0.84); }
+.track-a-avatar[data-tone="3"] { background: linear-gradient(180deg, rgba(73, 132, 255, 0.32), rgba(73, 132, 255, 0.08)), rgba(12, 14, 21, 0.84); }
+.track-a-avatar[data-tone="4"] { background: linear-gradient(180deg, rgba(186, 124, 220, 0.32), rgba(186, 124, 220, 0.08)), rgba(12, 14, 21, 0.84); }
+.track-a-avatar[data-tone="5"] { background: linear-gradient(180deg, rgba(245, 158, 11, 0.32), rgba(245, 158, 11, 0.08)), rgba(12, 14, 21, 0.84); }
+
+.track-a-avatar[data-host="true"] {
+  border-color: rgba(240, 195, 106, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(240, 195, 106, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.34);
+}
+
+.track-a-avatar[data-offline="true"] {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.track-a-badge-host {
+  border-color: rgba(240, 195, 106, 0.45);
+  background: rgba(240, 195, 106, 0.16);
+  color: #ffe6b6;
+}
+
+/* TeamAssignmentBoard — my team highlight */
+.track-a-team-empty {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+
+.track-a-team-empty strong {
+  color: #fff8ea;
+}
+
+.track-a-team-empty p {
+  margin: 0;
+  color: rgba(255, 248, 234, 0.65);
+  font-size: 0.86rem;
+}
+
+.track-a-team-card {
+  transition: opacity 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.track-a-team-card:not(.is-mine):not(.is-empty) {
+  opacity: 0.62;
+  filter: saturate(0.75);
+}
+
+.track-a-team-card.is-mine {
+  border-color: rgba(240, 195, 106, 0.55);
+  background:
+    linear-gradient(180deg, rgba(240, 195, 106, 0.16), rgba(255, 255, 255, 0.04)),
+    rgba(18, 16, 14, 0.7);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+  transform: translateY(-1px);
+}
+
+.track-a-team-card.is-empty {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.track-a-team-card .track-a-team-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: #fff8ea;
+  letter-spacing: -0.02em;
+}
+
+.track-a-team-empty-slot {
+  color: rgba(255, 248, 234, 0.4);
+  font-style: italic;
+}
+
+.track-a-team-member-me {
+  color: #ffe6b6;
+  font-weight: 800;
+}
+
+/* LeaveRoomButton — destructive secondary */
+.track-a-leave-button {
+  border-color: rgba(255, 111, 125, 0.34);
+  color: #ffd9d9;
+}
+
+.track-a-leave-button:hover:not(:disabled) {
+  border-color: rgba(255, 111, 125, 0.55);
+  background: rgba(255, 111, 125, 0.14);
+  color: #ffeaea;
+}
+
+/* IdentityPanel — guest/account chips */
+.track-a-identity-panel .eyebrow { margin-bottom: 6px; }
+
+.track-a-identity-spotlight {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px dashed rgba(240, 195, 106, 0.32);
+  background:
+    linear-gradient(180deg, rgba(240, 195, 106, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(10, 12, 19, 0.6);
+}
+
+.track-a-identity-spotlight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.track-a-identity-nickname {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  letter-spacing: -0.02em;
+  color: #fff8ea;
+}
+
+.track-a-identity-mini {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+}
+
+/* Track A responsive tweaks */
+@media (max-width: 720px) {
+  .track-a-roster-grid { grid-template-columns: 1fr; }
+  .track-a-room-code { font-size: clamp(1.8rem, 9vw, 2.6rem); }
+  .track-a-directory-header { flex-direction: column; align-items: stretch; }
+  .track-a-directory-header-actions { justify-content: stretch; }
+}
+
+/* ── Track B · Rulebook & Onboarding paper layer ─────────────── */
+:root {
+  --track-b-paper: #f6ecd3;
+  --track-b-paper-strong: #fbf3df;
+  --track-b-paper-edge: #e0d2ac;
+  --track-b-ink-deep: #2a201a;
+  --track-b-ink-soft: #5c4a3a;
+  --track-b-green: #3a5a4a;
+  --track-b-wine: #7a2f2a;
+  --track-b-gold: #b4892f;
+}
+
+/* Launcher button — consistent across main/lobby/game */
+.track-b-rulebook-launcher {
+  gap: 6px;
+}
+.track-b-rulebook-launcher-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(240, 195, 106, 0.18);
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+.track-b-rulebook-launcher:hover .track-b-rulebook-launcher-icon {
+  background: rgba(240, 195, 106, 0.32);
+  color: #fff8ea;
+}
+.track-b-rulebook-launcher[data-scope="game"] .track-b-rulebook-launcher-icon {
+  background: rgba(228, 87, 61, 0.18);
+  color: var(--accent);
+}
+
+/* Modal — case-file / paper tone */
+.track-b-rulebook-backdrop {
+  background: radial-gradient(circle at 50% 0%, rgba(122, 47, 42, 0.22), rgba(2, 3, 6, 0.78));
+}
+.track-b-rulebook-shell {
+  position: relative;
+  border: 1px solid var(--track-b-paper-edge);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(240, 195, 106, 0.22), transparent 32%),
+    repeating-linear-gradient(135deg, rgba(180, 137, 47, 0.045) 0 2px, transparent 2px 6px),
+    linear-gradient(180deg, var(--track-b-paper-strong), var(--track-b-paper));
+  color: var(--track-b-ink-deep);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 36px 90px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(180, 137, 47, 0.18);
+}
+.track-b-rulebook-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border-top: 4px solid var(--track-b-green);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* Header */
+.track-b-rulebook-header {
+  padding: 26px 28px 0;
+  align-items: flex-start;
+  border-bottom: 1px dashed rgba(180, 137, 47, 0.35);
+  padding-bottom: 18px;
+}
+.track-b-rulebook-eyebrow {
+  color: var(--track-b-wine) !important;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.track-b-rulebook-eyebrow::before { background: var(--track-b-gold) !important; }
+.track-b-rulebook-title {
+  color: var(--track-b-ink-deep) !important;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 1.95rem);
+}
+.track-b-rulebook-intro {
+  color: var(--track-b-ink-soft) !important;
+  max-width: 56ch;
+  font-size: 0.95rem;
+}
+
+/* Close button — paper friendly */
+.track-b-rulebook-close {
+  background: rgba(122, 47, 42, 0.08) !important;
+  border-color: rgba(122, 47, 42, 0.32) !important;
+  color: var(--track-b-wine) !important;
+  gap: 6px;
+}
+.track-b-rulebook-close:hover {
+  background: var(--track-b-wine) !important;
+  color: #fbf3df !important;
+  border-color: var(--track-b-wine) !important;
+}
+.track-b-rulebook-close-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: currentColor;
+  color: var(--track-b-paper-strong);
+  font-weight: 900;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.track-b-rulebook-close:hover .track-b-rulebook-close-icon {
+  background: var(--track-b-paper-strong);
+  color: var(--track-b-wine);
+}
+
+/* Body */
+.track-b-rulebook-body {
+  padding: 18px 28px 26px;
+  color: var(--track-b-ink-deep);
+  gap: 22px;
+}
+.track-b-rulebook-body::-webkit-scrollbar-thumb {
+  background: rgba(122, 47, 42, 0.22) !important;
+}
+.track-b-rulebook-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 47, 42, 0.45) !important;
+}
+
+/* Sections */
+.track-b-rulebook-sections {
+  display: grid;
+  gap: 14px;
+}
+
+/* TOC pills */
+.track-b-rulebook-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(58, 90, 74, 0.08);
+  border: 1px solid rgba(58, 90, 74, 0.22);
+}
+.track-b-rulebook-toc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--track-b-ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.track-b-rulebook-toc-pill:hover {
+  background: #fff;
+  border-color: rgba(180, 137, 47, 0.4);
+  transform: translateY(-1px);
+}
+.track-b-rulebook-toc-pill[data-active="true"] {
+  background: var(--track-b-green);
+  border-color: var(--track-b-green);
+  color: var(--track-b-paper-strong);
+}
+.track-b-rulebook-toc-index {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  opacity: 0.85;
+}
+.track-b-rulebook-toc-label { letter-spacing: -0.01em; }
+
+/* Section cards */
+.track-b-rulebook-section-stack {
+  display: grid;
+  gap: 14px;
+}
+.track-b-rulebook-section-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--track-b-paper-edge);
+  background:
+    linear-gradient(180deg, #fff 0%, var(--track-b-paper-strong) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 8px 18px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 220ms ease, transform 220ms ease, border-color 220ms ease;
+  scroll-margin-top: 12px;
+}
+.track-b-rulebook-section-card[data-track-b-flash="true"] {
+  border-color: var(--track-b-gold);
+  box-shadow:
+    0 0 0 3px rgba(180, 137, 47, 0.25),
+    0 12px 26px rgba(0, 0, 0, 0.10);
+}
+.track-b-rulebook-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.track-b-rulebook-section-index {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--track-b-wine);
+  letter-spacing: -0.02em;
+  min-width: 2ch;
+}
+.track-b-rulebook-section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--track-b-ink-deep);
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+.track-b-rulebook-section-body {
+  margin: 0;
+  color: var(--track-b-ink-soft);
+  font-size: 0.94rem;
+  line-height: 1.62;
+  max-width: 64ch;
+}
+.track-b-rulebook-section-list {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--track-b-ink-deep);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  max-width: 66ch;
+}
+.track-b-rulebook-section-list li::marker {
+  color: var(--track-b-gold);
+}
+.track-b-rulebook-section-tip {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--track-b-green);
+  background: rgba(58, 90, 74, 0.08);
+  color: var(--track-b-ink-deep);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+/* Onboarding (inline + panel) */
+.track-b-onboarding-inline {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border-radius: 14px;
+  border: 1px dashed rgba(180, 137, 47, 0.45);
+  background: rgba(180, 137, 47, 0.06);
+}
+.track-b-onboarding-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.track-b-onboarding-eyebrow {
+  color: var(--track-b-green) !important;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+.track-b-onboarding-eyebrow::before { background: var(--track-b-green) !important; }
+.track-b-onboarding-title {
+  color: var(--track-b-ink-deep) !important;
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  margin: 0 0 4px;
+}
+.track-b-onboarding-desc {
+  color: var(--track-b-ink-soft) !important;
+  font-size: 0.88rem;
+  margin: 0;
+}
+.track-b-onboarding-stepper {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.track-b-onboarding-stepper-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.track-b-onboarding-stepper-dot {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--track-b-paper-edge);
+  background: var(--track-b-paper-strong);
+  color: var(--track-b-ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.track-b-onboarding-stepper-dot:hover {
+  transform: translateY(-1px);
+  border-color: var(--track-b-gold);
+}
+.track-b-onboarding-stepper-item[data-active="true"] .track-b-onboarding-stepper-dot {
+  background: var(--track-b-green);
+  color: var(--track-b-paper-strong);
+  border-color: var(--track-b-green);
+}
+.track-b-onboarding-stepper-item[data-done="true"] .track-b-onboarding-stepper-dot {
+  background: var(--track-b-gold);
+  color: var(--track-b-ink-deep);
+  border-color: var(--track-b-gold);
+}
+.track-b-onboarding-stepper-line {
+  width: 18px;
+  height: 1px;
+  background: rgba(180, 137, 47, 0.45);
+}
+.track-b-onboarding-cards {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.track-b-onboarding-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--track-b-paper-edge);
+  background: var(--track-b-paper-strong);
+  color: var(--track-b-ink-deep);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  outline: none;
+}
+.track-b-onboarding-card:hover,
+.track-b-onboarding-card:focus {
+  border-color: var(--track-b-gold);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+.track-b-onboarding-card[data-active="true"] {
+  border-color: var(--track-b-green);
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(58, 90, 74, 0.18);
+}
+.track-b-onboarding-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.track-b-onboarding-card-step {
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  font-weight: 800;
+  color: var(--track-b-wine);
+}
+.track-b-onboarding-card-title {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  color: var(--track-b-ink-deep);
+  letter-spacing: -0.01em;
+}
+.track-b-onboarding-card-body {
+  margin: 0;
+  color: var(--track-b-ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.track-b-onboarding-panel .track-b-onboarding-cards { margin-top: 12px; }
+
+/* Track B mobile: full-height fallback */
+@media (max-width: 640px) {
+  .track-b-rulebook-shell {
+    width: 100%;
+    max-height: none;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .track-b-rulebook-header {
+    padding: 18px 18px 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .track-b-rulebook-close {
+    align-self: flex-end;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.78rem;
+  }
+  .track-b-rulebook-body {
+    padding: 14px 18px 22px;
+  }
+  .track-b-rulebook-toc {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 8px 10px;
+  }
+  .track-b-rulebook-toc-pill {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .track-b-rulebook-section-card {
+    padding: 14px 14px 16px;
+  }
+  .track-b-rulebook-section-index {
+    font-size: 1.2rem;
+  }
+  .track-b-onboarding-cards {
+    grid-template-columns: 1fr;
+  }
+  .track-b-onboarding-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ───────── Track C: gameplay HUD / rail / 1:1 chat polish ───────── */
+
+/* StageHUD — timer-first with score in the same card */
+.track-c-stage-hud {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(240, 195, 106, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(255, 248, 234, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(15, 17, 24, 0.92);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
+}
+
+.track-c-stage-hud__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+}
+
+.track-c-stage-hud__heading-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.track-c-stage-hud__eyebrow {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: rgba(240, 195, 106, 0.78);
+  text-transform: uppercase;
+}
+
+.track-c-stage-hud__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff8ea;
+  line-height: 1.2;
+  max-width: 28ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-c-stage-hud__metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.track-c-stage-hud__metric {
+  padding: 8px 10px !important;
+  border-radius: 12px;
+}
+
+.track-c-stage-hud__metric--timer .track-c-stage-hud__metric-value {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #fff8ea;
+}
+
+.track-c-stage-hud__metric--score .track-c-stage-hud__metric-value {
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.3rem, 2.1vw, 1.7rem);
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.track-c-stage-hud__metric-label {
+  color: rgba(240, 195, 106, 0.78);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+}
+
+.track-c-stage-hud__metric-detail {
+  font-size: 0.7rem;
+  color: rgba(255, 248, 234, 0.6);
+}
+
+.track-c-stage-hud--urgent {
+  border-color: rgba(255, 111, 125, 0.55) !important;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 111, 125, 0.22), transparent 60%),
+    linear-gradient(180deg, rgba(255, 111, 125, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(20, 12, 14, 0.94);
+  animation: trackCStageHudPulse 1.4s ease-in-out infinite;
+}
+
+.track-c-stage-hud--urgent .track-c-stage-hud__metric--timer .track-c-stage-hud__metric-value {
+  color: #ffd9d9;
+  text-shadow: 0 0 16px rgba(255, 111, 125, 0.55);
+}
+
+@keyframes trackCStageHudPulse {
+  0%, 100% { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 0 rgba(255, 111, 125, 0.0); }
+  50% { box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 6px rgba(255, 111, 125, 0.18); }
+}
+
+/* When StageHUD sits in the gameplay topbar third column, keep it compact */
+.gameplay-page-shell .gameplay-topbar-controls .track-c-stage-hud {
+  width: min(360px, 38vw);
+  padding: 10px 12px;
+}
+
+/* MyScoreCard — case-file score detail */
+.track-c-score-card {
+  position: relative;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(228, 87, 61, 0.16), rgba(240, 195, 106, 0.08) 40%, rgba(15, 19, 28, 0.96));
+}
+
+.track-c-score-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.track-c-score-card__eyebrow {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: rgba(240, 195, 106, 0.78);
+  text-transform: uppercase;
+}
+
+.track-c-score-card__delta {
+  font-size: 0.7rem !important;
+  min-height: 26px !important;
+  padding: 0 9px !important;
+}
+
+.track-c-score-card__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 8px;
+}
+
+.track-c-score-card__metric {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 248, 234, 0.08);
+}
+
+.track-c-score-card__metric--stage {
+  background: linear-gradient(180deg, rgba(240, 195, 106, 0.16), rgba(0, 0, 0, 0.28));
+  border-color: rgba(240, 195, 106, 0.32);
+}
+
+.track-c-score-card__metric-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(240, 195, 106, 0.85);
+  text-transform: uppercase;
+}
+
+.track-c-score-card__metric-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #fff8ea;
+  line-height: 1.1;
+}
+
+.track-c-score-card__metric--total .track-c-score-card__metric-value {
+  color: rgba(255, 248, 234, 0.85);
+  font-size: 1.2rem;
+}
+
+.track-c-score-card--pulse {
+  animation: trackCScorePulse 1.6s ease-out 1;
+}
+
+@keyframes trackCScorePulse {
+  0% { box-shadow: 0 0 0 0 rgba(240, 195, 106, 0.0); }
+  35% { box-shadow: 0 0 0 6px rgba(240, 195, 106, 0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(240, 195, 106, 0.0); }
+}
+
+/* Utility rail section labels */
+.track-c-utility-rail {
+  gap: 14px;
+}
+
+.track-c-utility-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.track-c-utility-section__head {
+  display: grid;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.track-c-utility-section__eyebrow {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: rgba(240, 195, 106, 0.7);
+  text-transform: uppercase;
+}
+
+.track-c-utility-section__title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff8ea;
+}
+
+.track-c-utility-section--note .composer-header {
+  border: 0;
+}
+
+@media (max-width: 1080px) {
+  .track-c-utility-rail { grid-template-columns: 1fr; }
+}
+
+/* PlayerActionPanel — status block layout */
+.track-c-action-card {
+  position: relative;
+  gap: 10px;
+}
+
+.track-c-action-card__status {
+  display: grid;
+  gap: 6px;
+}
+
+.track-c-action-card__description {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.track-c-action-card__row {
+  margin-top: 2px;
+}
+
+.track-c-action-card__blocked {
+  border-left: 2px solid rgba(255, 111, 125, 0.6);
+  padding-left: 10px;
+  font-size: 0.74rem;
+}
+
+.track-c-action-card[data-disabled="true"] {
+  opacity: 0.96;
+  border-style: dashed;
+}
+
+/* CasePanel — case file unfolded tone */
+.track-c-case-panel {
+  position: relative;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 234, 0.04), rgba(255, 248, 234, 0.01)),
+    rgba(12, 14, 20, 0.86);
+  border: 1px solid rgba(240, 195, 106, 0.18);
+}
+
+.track-c-case-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(240, 195, 106, 0.55), transparent);
+  pointer-events: none;
+}
+
+.track-c-case-panel__title-label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  color: rgba(240, 195, 106, 0.8);
+  text-transform: uppercase;
+}
+
+.track-c-case-panel__case-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.04rem;
+  color: #fff8ea;
+}
+
+.track-c-case-panel__case-description {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: rgba(255, 248, 234, 0.78);
+}
+
+/* CaseImageFrame — paper-tape polaroid tone */
+.track-c-case-image-frame {
+  border: 1px solid rgba(240, 195, 106, 0.22);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 248, 234, 0.05);
+}
+
+.track-c-case-image-frame__tape {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-1deg);
+  width: 96px;
+  height: 18px;
+  border-radius: 2px;
+  background: rgba(240, 195, 106, 0.22);
+  border: 1px solid rgba(240, 195, 106, 0.32);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.track-c-case-image-frame--loading .track-c-case-image-frame__fallback {
+  animation: trackCCaseImageLoading 1.4s ease-in-out infinite;
+}
+
+.track-c-case-image-frame__caption {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: rgba(240, 195, 106, 0.75);
+}
+
+@keyframes trackCCaseImageLoading {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* HintRail — CSS-only reveal */
+.track-c-hint-rail__list {
+  display: grid;
+  gap: 8px;
+}
+
+.track-c-hint-rail__card {
+  position: relative;
+  padding-left: 12px;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: trackCHintReveal 360ms ease-out forwards;
+}
+
+.track-c-hint-rail__card-index {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(240, 195, 106, 0.8);
+  margin-right: 6px;
+}
+
+.track-c-hint-rail__card-admin {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: rgba(255, 248, 234, 0.6);
+}
+
+@keyframes trackCHintReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* PrivateChatBanner — phone-style states */
+.track-c-phone-card {
+  position: relative;
+  gap: 10px;
+}
+
+.track-c-phone-card__head {
+  align-items: flex-start;
+}
+
+.track-c-phone-card__heading {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.track-c-phone-card__hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(255, 248, 234, 0.55);
+}
+
+.track-c-phone-card__state-chip {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.track-c-phone-card[data-phone-state="in_call"] {
+  border-color: rgba(117, 192, 150, 0.4);
+  background:
+    linear-gradient(180deg, rgba(117, 192, 150, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 20, 0.92);
+}
+
+.track-c-phone-card[data-phone-state="incoming"] {
+  border-color: rgba(240, 195, 106, 0.4);
+  animation: trackCPhoneRing 1.2s ease-in-out infinite;
+}
+
+.track-c-phone-card[data-phone-state="outgoing_pending"] .track-c-phone-card__pulse-hint::after {
+  content: " ";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  animation: trackCPhonePulse 1s ease-in-out infinite;
+}
+
+.track-c-phone-card[data-phone-state="cooldown"] {
+  border-style: dashed;
+  border-color: rgba(255, 111, 125, 0.4);
+}
+
+.track-c-phone-card__incoming {
+  border-color: rgba(240, 195, 106, 0.4);
+  background: linear-gradient(180deg, rgba(240, 195, 106, 0.08), rgba(0, 0, 0, 0.32));
+}
+
+.track-c-phone-card__call {
+  border-color: rgba(117, 192, 150, 0.4);
+  background: linear-gradient(180deg, rgba(117, 192, 150, 0.08), rgba(0, 0, 0, 0.32));
+}
+
+.track-c-phone-card__contact-list {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+@keyframes trackCPhoneRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 195, 106, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(240, 195, 106, 0.18); }
+}
+
+@keyframes trackCPhonePulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+/* StageShell shell — case file mini preview */
+.track-c-stage-shell { gap: 14px; }
+
+.track-c-stage-shell__case {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+/* GameRuntimePanel — better hierarchy in fallback runtime card */
+.track-c-runtime-panel__list { gap: 10px; }
+.track-c-runtime-panel__item { display: grid; gap: 2px; padding: 10px 12px; }
+.track-c-runtime-panel__value {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+/* Phone feature wrappers */
+.track-c-phone-feature { display: grid; gap: 12px; }
+.track-c-phone-requests { display: grid; gap: 10px; }
+
+/* ── Track D — Investigation focus modal ─────────────────── */
+.track-d-investigation-backdrop {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(228, 87, 61, 0.20), transparent 42%),
+    rgba(2, 3, 6, 0.82);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.track-d-investigation-shell {
+  width: min(880px, calc(100vw - 28px));
+  box-shadow:
+    0 0 0 1px rgba(240, 195, 106, 0.18) inset,
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 48px 140px rgba(0, 0, 0, 0.68);
+}
+
+.track-d-investigation-header {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.track-d-investigation-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: rgba(255, 248, 234, 0.62);
+  letter-spacing: 0.01em;
+}
+
+.track-d-investigation-meter-strip {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.track-d-investigation-meter-strip::-webkit-scrollbar { display: none; }
+
+.track-d-meter-divider {
+  margin-left: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 248, 234, 0.42);
+}
+
+.track-d-meter-final {
+  border-color: rgba(255, 111, 125, 0.55);
+  background: rgba(255, 111, 125, 0.16);
+  animation: trackDMeterFlash 1.8s ease-in-out infinite;
+}
+
+.track-d-meter-final .investigation-meter-value,
+.track-d-meter-final .investigation-meter-label { color: #ffd9d9; }
+
+@keyframes trackDMeterFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 111, 125, 0.32); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 111, 125, 0); }
+}
+
+.track-d-investigation-exit { min-width: 76px; }
+
+.track-d-investigation-composer { gap: 10px; }
+
+.track-d-composer-helper {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.82rem;
+  color: rgba(255, 248, 234, 0.72);
+}
+
+.track-d-composer-helper-warn {
+  background: rgba(255, 111, 125, 0.10);
+  border-color: rgba(255, 111, 125, 0.32);
+  color: #ffd9d9;
+}
+
+.track-d-composer-shortcut {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 248, 234, 0.45);
+}
+
+.track-d-send-loading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.track-d-send-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.45;
+  animation: trackDDot 1.1s ease-in-out infinite;
+}
+
+.track-d-send-dot:nth-child(2) { animation-delay: 0.18s; }
+.track-d-send-dot:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes trackDDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* ── Track D — Limit meter ───────────────────────────────── */
+.track-d-limit-meter { gap: 12px; }
+
+.track-d-limit-card { position: relative; overflow: hidden; }
+
+.track-d-limit-card .metric-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.track-d-limit-divider {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 248, 234, 0.42);
+}
+
+.track-d-pip-row {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.track-d-pip {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 180ms ease;
+}
+
+.track-d-pip.is-left { background: var(--gold); }
+
+.track-d-pip-row-answer .track-d-pip.is-left { background: var(--accent); }
+
+.track-d-limit-card-final {
+  border-color: rgba(255, 111, 125, 0.45) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 111, 125, 0.16), rgba(255, 111, 125, 0.04)),
+    rgba(255, 255, 255, 0.035) !important;
+}
+
+.track-d-limit-card-final .metric-label { color: #ffc9cf; }
+
+.track-d-limit-card-empty {
+  opacity: 0.7;
+  filter: saturate(0.65);
+}
+
+.track-d-limit-card-empty .track-d-pip { background: rgba(255, 255, 255, 0.05); }
+
+/* ── Track D — Composer cards ───────────────────────────── */
+.track-d-composer { transition: border-color 180ms ease, box-shadow 180ms ease; }
+
+.track-d-composer.is-active {
+  border-color: rgba(240, 195, 106, 0.32);
+  box-shadow: 0 0 0 1px rgba(240, 195, 106, 0.10) inset;
+}
+
+.track-d-composer.is-locked { opacity: 0.85; }
+
+.track-d-composer-answer.is-active {
+  border-color: rgba(228, 87, 61, 0.38);
+  box-shadow: 0 0 0 1px rgba(228, 87, 61, 0.12) inset;
+}
+
+.track-d-composer.is-final.is-active {
+  border-color: rgba(255, 111, 125, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 111, 125, 0.18) inset;
+}
+
+.track-d-composer-field { position: relative; }
+
+.track-d-composer-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.track-d-composer-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 2px 0;
+  font-size: 0.74rem;
+  color: rgba(255, 248, 234, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.track-d-composer-submit {
+  min-width: 124px;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.track-d-composer-submit-answer {
+  background: var(--accent);
+  border-color: var(--accent-strong);
+}
+
+/* ── Track D — Drawer ───────────────────────────────────── */
+.track-d-drawer-mine { border-color: rgba(240, 195, 106, 0.42); }
+
+.track-d-drawer-critical { border-color: rgba(255, 111, 125, 0.55); }
+
+.track-d-drawer-detail { margin-top: -4px; }
+
+.track-d-drawer-timer-critical .metric-value {
+  color: #ffd9d9;
+  animation: trackDDrawerTimerPulse 1s ease-in-out infinite;
+}
+
+@keyframes trackDDrawerTimerPulse {
+  0%, 100% { text-shadow: 0 0 0 rgba(255, 111, 125, 0); }
+  50% { text-shadow: 0 0 12px rgba(255, 111, 125, 0.45); }
+}
+
+.track-d-drawer-cta { font-family: var(--font-display); letter-spacing: -0.01em; }
+
+/* ── Track D — Queue banner ─────────────────────────────── */
+.track-d-queue-banner { transition: border-color 180ms ease, background 180ms ease; }
+
+.track-d-queue-banner-mine {
+  border-color: rgba(240, 195, 106, 0.42);
+  background:
+    linear-gradient(180deg, rgba(240, 195, 106, 0.10), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 20, 0.82);
+}
+
+.track-d-queue-banner-queued { border-color: rgba(228, 87, 61, 0.32); }
+
+.track-d-queue-headline {
+  margin: 2px 0 4px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.track-d-queue-subline { margin: 0; }
+
+.track-d-queue-chip-row { margin-top: 6px; }
+
+.track-d-queue-action { margin-top: 8px; font-family: var(--font-display); letter-spacing: -0.01em; }
+
+/* ── Track D — Judgement summary in panel ───────────────── */
+.track-d-judgement-summary .composer-header { margin-bottom: 0; }
+
+.track-d-judgement-stack { display: grid; gap: 10px; }
+
+.track-d-judgement-empty {
+  margin: 8px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.10);
+}
+
+/* ── Track D — Spectator ─────────────────────────────────── */
+.track-d-spectator-shell .page-header .eyebrow { color: var(--gold); }
+
+.track-d-spectator-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.track-d-solved-lock { border-color: rgba(240, 195, 106, 0.32); }
+
+.track-d-solved-lock-mine {
+  border-color: rgba(240, 195, 106, 0.55);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(240, 195, 106, 0.18), transparent 38%),
+    linear-gradient(180deg, rgba(240, 195, 106, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 14, 20, 0.86);
+  box-shadow: 0 0 0 1px rgba(240, 195, 106, 0.18) inset;
+}
+
+.track-d-solved-lock .panel-title { font-size: 1.18rem; }
+
+.track-d-solved-metrics { margin-top: 8px; }
+
+.track-d-spectator-banner .status-badge { align-self: flex-start; }
+
+.track-d-spectator-summary {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(12, 14, 20, 0.6);
+}
+
+.track-d-spectator-summary .metric-label { margin: 0 0 6px; }
+
+.track-d-spectator-summary-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(255, 248, 234, 0.82);
+}
+
+.track-d-progress-log-grid { margin-top: 4px; }
+
+/* ── Track D — Results: summaries ────────────────────────── */
+.track-d-game-summary,
+.track-d-stage-summary {
+  position: relative;
+}
+
+.track-d-game-summary-grid,
+.track-d-stage-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.track-d-rank-suffix {
+  margin-left: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255, 248, 234, 0.45);
+}
+
+.track-d-game-summary-actions { margin-top: 16px; }
+
+.track-d-stage-score { font-variant-numeric: tabular-nums; }
+
+.track-d-stage-mine {
+  font-family: var(--font-display);
+  font-size: 1.32rem;
+  letter-spacing: -0.02em;
+}
+
+/* ── Track D — Results: personal score ──────────────────── */
+.track-d-personal-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+/* ── Track D — Ranking table ─────────────────────────────── */
+.track-d-ranking-table-wrap {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.track-d-ranking-table th {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 248, 234, 0.62);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.track-d-ranking-table tbody tr { transition: background 160ms ease; }
+
+.track-d-ranking-table tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
+
+.track-d-ranking-mine {
+  background: rgba(240, 195, 106, 0.10) !important;
+  box-shadow: inset 3px 0 0 0 var(--gold);
+}
+
+.track-d-ranking-rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.track-d-ranking-rank-1 .track-d-ranking-rank {
+  background: rgba(240, 195, 106, 0.28);
+  color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(240, 195, 106, 0.45) inset;
+}
+
+.track-d-ranking-rank-2 .track-d-ranking-rank {
+  background: rgba(200, 200, 200, 0.20);
+  color: #eef0f3;
+}
+
+.track-d-ranking-rank-3 .track-d-ranking-rank {
+  background: rgba(228, 87, 61, 0.22);
+  color: #ffc6b6;
+}
+
+.track-d-ranking-name { display: inline-flex; align-items: center; gap: 8px; }
+
+.track-d-ranking-mine-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #2a1d10;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.track-d-ranking-total {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Track D — Results: simple summary panel ────────────── */
+.track-d-results-summary-body {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 248, 234, 0.82);
+  line-height: 1.55;
+}
+
+/* ── Track D — Advance card ─────────────────────────────── */
+.track-d-advance-card-ready { border-color: rgba(240, 195, 106, 0.42); }
+
+.track-d-advance-action-row { margin-top: 10px; }
+
+@media (max-width: 720px) {
+  .track-d-investigation-meter-strip { flex-wrap: wrap; }
+  .track-d-game-summary-grid,
+  .track-d-stage-summary-grid,
+  .track-d-personal-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
